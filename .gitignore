@@ -1,0 +1,15 @@
+# secrets and local config — only *.example files are committed
+.env
+*.env
+!*.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/
