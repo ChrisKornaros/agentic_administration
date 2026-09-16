@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# probe output — board content, never committed
+probes/probe-report.json
