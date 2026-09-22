@@ -1,6 +1,9 @@
 # Board config — Plane Cloud (design: roadmap/14 §6). One file per board.
-# Copy to <board>.toml, fill the ids from `describe_board`, and keep the
-# token OUT of this file: `token_env` names the env var the adapter reads.
+# Copy to boards/<board>.toml (gitignored), run
+#   uv run python -m adapters.plane describe boards/<board>.toml
+# and fix what it reports. Keep the token OUT of this file: `token_env`
+# names the env var the adapter reads (or `<token_env>_BW_ITEM` names the
+# Bitwarden item holding it — see server/secrets.py).
 
 backend = "plane"
 confirm = "always"       # "always" (default) | "never" — D5
@@ -9,7 +12,7 @@ confirm = "always"       # "always" (default) | "never" — D5
 token_env = "PLANE_API_KEY"          # the env var name — never the value
 # base_url = "https://api.plane.so/api/v1"   # adapter default; set for self-hosted
 workspace = "my-workspace"           # the workspace slug in the URL
-project = "00000000-0000-0000-0000-000000000000"   # project id (or its identifier, e.g. "AA")
+project = "00000000-0000-0000-0000-000000000000"   # project id, identifier (e.g. "AA") or name
 
 # Canonical level -> how this board realizes it. Exactly one of:
 #   type      = "<work-item type id or name>"   a native type
@@ -18,14 +21,17 @@ project = "00000000-0000-0000-0000-000000000000"   # project id (or its identifi
 #   label     = "<label>"                       a label alone marks the level
 #   collapse  = "label" | "component" | "description_line"   [+ template]
 # Epic, Story, Bug and Task must be materialized; Initiative and Feature may collapse.
-# Phase 1 finding: no Plane board ships a Bug type — provision it, then put its id here.
+# A `type` may be the work-item type's id or its name (resolved on describe).
+# Phase 1 finding: no Plane board ships a Bug type — provision it first.
+# A collapse template may use {name} (the ref's key, else id), {id}, {key}, {level};
+# a label it produces must already exist on the board.
 [levels]
-initiative = { collapse = "label", template = "initiative:{name}" }
-epic       = { type = "00000000-0000-0000-0000-00000000e91c" }
+initiative = { collapse = "description_line", template = "**Initiative:** {name}" }
+epic       = { type = "Epic" }
 feature    = { container = "module" }
-story      = { type = "00000000-0000-0000-0000-0000000570e1" }
-bug        = { type = "00000000-0000-0000-0000-000000000b06" }
-task       = { type = "00000000-0000-0000-0000-000000007a5c" }
+story      = { type = "Story" }
+bug        = { type = "Bug" }
+task       = { type = "Task" }
 
 # Canonical state -> the board's state name (Plane default workflow shown).
 [states]
