@@ -62,18 +62,30 @@ schema are. A Discord, Slack, or Telegram front end is whatever agent
 runtime you already operate; the repo will document a runnable Claude
 Agent SDK example and a Hermes configuration as reference wirings.
 
-## Layout (planned)
+## Layout (planned; ✅ = exists)
 
 ```
 agentic_administration/
 ├── README.md
 ├── LICENSE            # MIT
-├── server/            # the MCP server + canonical model
+├── server/            # the MCP server + canonical model  ✅ model.py
 ├── adapters/          # plane/, jira/, ado/, generic/
 ├── skills/            # intake, create-*, plan-sprint, groom
 ├── schema/            # the intake schema + board config schema
 ├── conformance/       # the adapter test suite
-└── examples/          # board configs, an Agent SDK bot, a Hermes config
+├── examples/          # board configs, an Agent SDK bot, a Hermes config
+├── probes/            # dated read-only API checks (evidence)  ✅
+└── tests/             # offline unit tests — never a live tracker  ✅
+```
+
+## Development
+
+Python ≥ 3.12, managed with [uv](https://docs.astral.sh/uv/); the runtime
+has no third-party dependencies.
+
+```sh
+uv sync            # dev deps (pytest) into .venv
+uv run pytest      # offline; live checks are probes/ and conformance/
 ```
 
 ## License
