@@ -1,5 +1,6 @@
 """agentic_administration server package — the canonical model lives in
-`server.model`; the MCP server and skills arrive in Phase 3."""
+`server.model`, the board config in `server.config`, the secret boundary in
+`server.secrets`; the MCP server and skills arrive in Phase 3."""
 
 from server.model import (  # noqa: F401  (re-exported surface)
     CollapseRule,

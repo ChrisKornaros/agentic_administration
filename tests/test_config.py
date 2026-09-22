@@ -67,7 +67,7 @@ def test_example_loads_and_exports():
     assert cfg.backend is Backend.PLANE and cfg.confirm is Confirm.ALWAYS
     assert cfg.connection.token_env == "PLANE_API_KEY"
     assert cfg.levels[Level.FEATURE].how is Materialization.CONTAINER
-    assert cfg.levels[Level.INITIATIVE].collapse.target is CollapseTarget.LABEL
+    assert cfg.levels[Level.INITIATIVE].collapse.target is CollapseTarget.DESCRIPTION_LINE
     assert cfg.states[State.IN_PROGRESS] == "In Progress"
     assert cfg.labels.review == "needs-review"
     assert cfg.naming.item_case is ItemCase.TITLE

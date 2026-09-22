@@ -68,8 +68,9 @@ Agent SDK example and a Hermes configuration as reference wirings.
 agentic_administration/
 ├── README.md
 ├── LICENSE            # MIT
-├── server/            # the MCP server + canonical model  ✅ model.py, config.py
-├── adapters/          # plane/, jira/, ado/, generic/
+├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py
+├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/
+├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # intake, create-*, plan-sprint, groom
 ├── schema/            # the intake schema (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite
@@ -87,6 +88,23 @@ has no third-party dependencies.
 uv sync            # dev deps (pytest) into .venv
 uv run pytest      # offline; live checks are probes/ and conformance/
 ```
+
+To point the Plane adapter at a board: copy
+[examples/boards/plane.example.toml](examples/boards/plane.example.toml)
+to `boards/<board>.toml` (gitignored), then read the board and check the
+config against it — a read, never a write:
+
+```sh
+export PLANE_API_KEY=...                       # or, via Bitwarden:
+export PLANE_API_KEY_BW_ITEM="Plane API" BW_SESSION=$(bw unlock --raw)
+uv run python -m adapters.plane describe boards/<board>.toml
+```
+
+It prints the board's types, states, labels, members, modules and cycles
+and lists every config-vs-board mismatch; the adapter refuses every write
+until that list is empty. Secrets resolve through `server/secrets.py`
+only: the env var named by `token_env`, or the Bitwarden item named by
+`<token_env>_BW_ITEM` (custom field via `<token_env>_BW_FIELD`).
 
 ## License
 
