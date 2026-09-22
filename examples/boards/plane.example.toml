@@ -1,0 +1,44 @@
+# Board config — Plane Cloud (design: roadmap/14 §6). One file per board.
+# Copy to <board>.toml, fill the ids from `describe_board`, and keep the
+# token OUT of this file: `token_env` names the env var the adapter reads.
+
+backend = "plane"
+confirm = "always"       # "always" (default) | "never" — D5
+
+[connection]
+token_env = "PLANE_API_KEY"          # the env var name — never the value
+# base_url = "https://api.plane.so/api/v1"   # adapter default; set for self-hosted
+workspace = "my-workspace"           # the workspace slug in the URL
+project = "00000000-0000-0000-0000-000000000000"   # project id (or its identifier, e.g. "AA")
+
+# Canonical level -> how this board realizes it. Exactly one of:
+#   type      = "<work-item type id or name>"   a native type
+#   container = "<container kind>"              membership (Plane module = Feature, D3)
+#   parent    = "<label>"                       parent link + a type label (generic fallback, D4)
+#   label     = "<label>"                       a label alone marks the level
+#   collapse  = "label" | "component" | "description_line"   [+ template]
+# Epic, Story, Bug and Task must be materialized; Initiative and Feature may collapse.
+# Phase 1 finding: no Plane board ships a Bug type — provision it, then put its id here.
+[levels]
+initiative = { collapse = "label", template = "initiative:{name}" }
+epic       = { type = "00000000-0000-0000-0000-00000000e91c" }
+feature    = { container = "module" }
+story      = { type = "00000000-0000-0000-0000-0000000570e1" }
+bug        = { type = "00000000-0000-0000-0000-000000000b06" }
+task       = { type = "00000000-0000-0000-0000-000000007a5c" }
+
+# Canonical state -> the board's state name (Plane default workflow shown).
+[states]
+backlog     = "Backlog"
+todo        = "Todo"
+in_progress = "In Progress"
+done        = "Done"
+cancelled   = "Cancelled"
+
+[labels]
+review   = "needs-review"                     # D5: cleared by the product owner
+taxonomy = ["bug", "feature", "chore", "docs"] # the code-board label axis (CONVENTIONS §4)
+
+[naming]
+iteration = "YYYYMM"     # cycle names, e.g. 202609
+item_case = "title"      # "title" | "sentence" | "any"

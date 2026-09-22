@@ -68,12 +68,12 @@ Agent SDK example and a Hermes configuration as reference wirings.
 agentic_administration/
 ├── README.md
 ├── LICENSE            # MIT
-├── server/            # the MCP server + canonical model  ✅ model.py
+├── server/            # the MCP server + canonical model  ✅ model.py, config.py
 ├── adapters/          # plane/, jira/, ado/, generic/
 ├── skills/            # intake, create-*, plan-sprint, groom
-├── schema/            # the intake schema + board config schema
+├── schema/            # the intake schema (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite
-├── examples/          # board configs, an Agent SDK bot, a Hermes config
+├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
 ```
