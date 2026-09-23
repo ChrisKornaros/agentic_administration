@@ -14,6 +14,11 @@ mechanical (adapters/base.py).
   `external_id` up first, so a retried commit returns the item instead of
   duplicating it, and it finishes an iteration or feature membership that
   a failed earlier attempt left off.
+- **From an intake record:** `propose_item(intake=…, part=…)` takes the
+  id, level, title and placement from the record (`schema.intake`), and
+  renders the description from it, so the acceptance criteria always land
+  in the item body. A parent `#<part>` is that sibling part, found by its
+  external_id once it is committed.
 - **Title case (D14):** a warning and a suggested title, never a reject
   (`server.titlecase`).
 - **Errors:** every `AdapterError` becomes a `ToolFailure` whose message
@@ -34,7 +39,7 @@ import threading
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from secrets import token_urlsafe
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from adapters.base import (
     Adapter,
@@ -50,6 +55,7 @@ from adapters.base import (
     Unsupported,
     ValidationError,
 )
+from schema.intake import SIBLING, Intake, Part, render
 from server import titlecase
 from server.model import (
     Comment,
@@ -138,6 +144,20 @@ def _date(value: str | None, field: str) -> date | None:
         raise ToolFailure(f"{field} must be an ISO date like 2026-10-01 (got {value!r})") from None
 
 
+def _external_id(intake_id: str, part: str) -> str:
+    return f"{intake_id.strip()}/{part.strip()}" if part.strip() else intake_id.strip()
+
+
+def _from_intake(data: Mapping[str, Any], part: str) -> tuple[Intake, Part]:
+    """The checked record and its part, or a `ToolFailure` saying what to fix."""
+    try:
+        record = Intake.from_dict(data).check()
+        return record, record.get_part(part)
+    except (ValueError, TypeError, KeyError) as exc:
+        reason = exc.args[0] if isinstance(exc, KeyError) else exc
+        raise ToolFailure(f"The intake record does not work: {reason}. Fix it and propose again.") from None
+
+
 def _match(refs, value: str, *, email: bool = False):
     """The board entry whose id, name (or email) is `value`, ignoring case."""
     want = value.lower()
@@ -219,11 +239,12 @@ class BoardService:
     @_operation
     def propose_item(
         self,
-        intake_id: str,
-        level: str,
-        title: str,
+        intake_id: str = "",
+        level: str = "",
+        title: str = "",
         description: str = "",
         *,
+        intake: Mapping[str, Any] | None = None,
         part: str = "",
         parent: str | None = None,
         feature: str | None = None,
@@ -233,6 +254,17 @@ class BoardService:
         assignees: Sequence[str] = (),
         labels: Sequence[str] = (),
     ) -> dict[str, Any]:
+        if intake is not None:
+            given = {"intake_id": intake_id, "level": level, "title": title, "description": description,
+                     "parent": parent, "feature": feature, "iteration": iteration}
+            if any(given.values()):
+                named = ", ".join(k for k, v in given.items() if v)
+                raise ToolFailure(f"With an intake record, the record supplies {named}; leave them out.")
+            record, chosen = _from_intake(intake, part)
+            intake_id, level, title = record.id, chosen.level.value, chosen.title
+            description = render(record, part)
+            parent, feature, iteration = (chosen.placement.parent, chosen.placement.feature,
+                                          chosen.placement.iteration)
         if not intake_id.strip():
             raise ToolFailure("intake_id is required: it is the idempotency key's root")
         lvl = _enum(Level, level, "level")
@@ -241,8 +273,17 @@ class BoardService:
         problems: list[str] = []
 
         parent_ref = parent_item = None
-        if parent:
+        if parent and parent.startswith(SIBLING):
+            sibling = self.adapter.find_items(external_id=_external_id(intake_id, parent[1:]))
+            if not sibling:
+                raise ToolFailure(
+                    f"Part {parent[1:]!r} of intake {intake_id.strip()!r} is not on the board yet. "
+                    "Commit it first, then propose this part."
+                )
+            parent_item = sibling[0]
+        elif parent:
             parent_item = self.adapter.get_item(parent)
+        if parent_item is not None:
             parent_ref = ItemRef(parent_item.id or parent, parent_item.level, parent_item.key)
 
         feature_ref = feature_name = None
@@ -275,7 +316,7 @@ class BoardService:
             have = ", ".join(m.name for m in board.members) or "(none)"
             problems.append(f"assignees not in the workspace: {', '.join(unknown)} (members: {have})")
 
-        external_id = f"{intake_id.strip()}/{part.strip()}" if part.strip() else intake_id.strip()
+        external_id = _external_id(intake_id, part)
         item = WorkItem(
             level=lvl,
             title=title,
