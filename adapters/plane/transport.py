@@ -70,7 +70,13 @@ class PlaneTransport:
         self.timeout = timeout
         self._sleep, self._clock, self._open = sleep, clock, opener
         self._last: float | None = None
-        self.calls = 0
+        # (method, path) of every request sent, in order — what the
+        # conformance suite audits for "no DELETE, ever"
+        self.log: list[tuple[str, str]] = []
+
+    @property
+    def calls(self) -> int:
+        return len(self.log)
 
     # -- pacing ----------------------------------------------------------------
 
@@ -105,12 +111,13 @@ class PlaneTransport:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, method=method, headers=headers, data=data)
         self._pace()
-        self.calls += 1
+        self.log.append((method, path))
         try:
             with self._open(req, timeout=self.timeout) as resp:
                 raw = resp.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
-            raise _map_http_error(method, path, exc.code, exc.read().decode("utf-8", "replace")) from None
+            location = exc.headers.get("Location") if exc.headers else None
+            raise _map_http_error(method, path, exc.code, exc.read().decode("utf-8", "replace"), location) from None
         except urllib.error.URLError as exc:
             raise TransportError(f"could not reach Plane for {method} {path}: {exc.reason}") from None
         except TimeoutError:
@@ -141,10 +148,14 @@ class PlaneTransport:
             params["cursor"] = cursor
 
 
-def _map_http_error(method: str, path: str, status: int, raw: str) -> AdapterError:
+def _map_http_error(method: str, path: str, status: int, raw: str, location: str | None = None) -> AdapterError:
     """Vendor failure → the project's taxonomy. The token never appears in
     `raw` (Plane echoes request bodies at most), so `detail` is safe."""
     where = f"{method} {path}"
+    if 300 <= status < 400:
+        # urllib re-sends only a GET; every Plane route ends in "/" and a
+        # slash-less one 301s (conformance, 2026-09-22)
+        return TransportError(f"HTTP {status} on {where}: redirected to {location or '(no Location)'}")
     looks_html = raw.lstrip()[:1] == "<"
     detail: str | None = None
     message = None

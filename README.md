@@ -5,9 +5,11 @@ request typed into a chat window into a well-formed backlog item —
 epic, feature, story, bug, or task — filed under the right parent, in
 the right sprint, on whatever tracker your team already runs.
 
-> **Status: design phase (2026-09).** Nothing is installable yet. The
-> design is settled; the first backend (Plane) and the tool surface are
-> being built. Watch the releases for the first usable version.
+> **Status: building (2026-09).** Nothing is installable yet. The
+> design is settled, and the first backend (Plane) passes its
+> conformance suite against a live throwaway project. The tool surface
+> (the MCP server and skills) is next. Watch the releases for the first
+> usable version.
 
 ## What it is
 
@@ -73,7 +75,7 @@ agentic_administration/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # intake, create-*, plan-sprint, groom
 ├── schema/            # the intake schema (the board config schema is server/config.py)
-├── conformance/       # the adapter test suite
+├── conformance/       # the adapter test suite  ✅ Plane passes live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
@@ -105,6 +107,12 @@ and lists every config-vs-board mismatch; the adapter refuses every write
 until that list is empty. Secrets resolve through `server/secrets.py`
 only: the env var named by `token_env`, or the Bitwarden item named by
 `<token_env>_BW_ITEM` (custom field via `<token_env>_BW_FIELD`).
+
+To prove an adapter against a **throwaway** project (real writes, never
+a delete), run the conformance suite:
+`uv run python -m conformance boards/<board>.toml` (add `--dry-run` to
+list the cases first). See [conformance/README.md](conformance/README.md)
+for the cases and the dated results.
 
 ## License
 

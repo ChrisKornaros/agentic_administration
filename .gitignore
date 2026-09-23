@@ -19,3 +19,6 @@ probes/probe-report.json
 
 # real board configs (ids of live boards) — only examples/boards/*.example.toml is committed
 boards/
+
+# conformance run records — board content, never committed
+conformance/reports/

@@ -13,15 +13,19 @@ How the canonical model lands on Plane:
 - States are set directly (no transitions); the config maps canonical
   states to the board's state *names*, resolved to ids on `describe_board`.
 - `external_id` + a fixed `external_source` is the idempotency key;
-  `find_items(external_id=…)` uses the workspace search filter.
+  `find_items(external_id=…)` is the project list's lookup on both (one
+  record or 404). The workspace search ignores them (conformance,
+  2026-09-22); it serves free-text `query` only.
+- Every route ends in `/`: Plane 301s a slash-less one, and a redirected
+  write is never re-sent.
 - Descriptions and comments are Markdown in, Plane HTML out
   (`adapters.plane.markdown`).
 
 Read-proven-before-write: every route here was read live in Phase 1
-(probes/plane_phase1_readonly.py) except the writes, which the Phase 2
-conformance suite exercises against a throwaway project. Iteration
-close relies on Plane's rule that a cycle whose `end_date` has passed is
-completed — the exact boundary is a conformance case.
+(probes/plane_phase1_readonly.py) and written live by the conformance
+suite against a throwaway project (conformance/README.md, 2026-09-22).
+Iteration close relies on Plane's rule that a cycle is completed once
+its `end_date` is *before* today — one ending today is still current.
 
 No delete: there is no DELETE request in this file, and moving an item
 between modules only *adds* membership.
@@ -31,8 +35,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from typing import Any, Callable, Sequence
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from adapters.base import (
     Adapter,
@@ -41,6 +46,7 @@ from adapters.base import (
     NamedRef,
     NotFound,
     StateInfo,
+    TransportError,
     TypeInfo,
     Unsupported,
     ValidationError,
@@ -163,18 +169,18 @@ class PlaneAdapter(Adapter):
     def describe_board(self) -> BoardDescription:
         proj = self.project
         pp, ws = self._pp, self._ws
-        features = self._t.request("GET", f"{pp}/features") or {}
+        features = self._t.request("GET", f"{pp}/features/") or {}
         types = [
             TypeInfo(t["id"], t.get("name") or "", bool(t.get("is_epic")),
                      bool(t.get("is_default") or t.get("is_default_in_project")))
-            for t in self._t.get_all(f"{pp}/work-item-types")
+            for t in self._t.get_all(f"{pp}/work-item-types/")
         ]
         states = [StateInfo(s["id"], s.get("name") or "", s.get("group")) for s in self._t.get_all(f"{pp}/states/")]
         labels = [NamedRef(l["id"], l.get("name") or "") for l in self._t.get_all(f"{pp}/labels/")]
         members = [
             NamedRef(m["id"], m.get("display_name") or m.get("email") or m["id"],
                      {"email": m.get("email"), "role": m.get("role")})
-            for m in self._t.get_all(f"{ws}/members-lite")
+            for m in self._t.get_all(f"{ws}/members-lite/")
         ]
         modules = [NamedRef(m["id"], m.get("name") or "") for m in self._t.get_all(f"{pp}/modules/")]
         cycles = [
@@ -334,7 +340,8 @@ class PlaneAdapter(Adapter):
 
     def _to_item(self, rec: dict[str, Any]) -> WorkItem:
         type_id = _ref_id(rec.get("type_id") or rec.get("type"))
-        label_ids = list(rec.get("labels") or rec.get("label_ids") or [])
+        # the list read carries ids; a single-item read, whole label objects
+        label_ids = [i for i in map(_ref_id, rec.get("labels") or rec.get("label_ids") or []) if i]
         # a marker label (LABEL / PARENT materialization) outranks the type,
         # which is only the project default on such an item
         level = next((self._level_of_label[l] for l in label_ids if l in self._level_of_label), None)
@@ -345,7 +352,9 @@ class PlaneAdapter(Adapter):
         parent_id = _ref_id(rec.get("parent"))
         state_id = _ref_id(rec.get("state") or rec.get("state_id"))
         labels = tuple(self._label_name.get(l, l) for l in label_ids)
-        assignees = tuple(self._member_name.get(a, a) for a in (rec.get("assignees") or rec.get("assignee_ids") or []))
+        assignees = tuple(
+            self._member_name.get(a, a) for a in map(_ref_id, rec.get("assignees") or rec.get("assignee_ids") or []) if a
+        )
         feature = None
         if self.config.levels[Level.FEATURE].how is Materialization.CONTAINER:
             mod = rec.get("min_module_name")
@@ -378,9 +387,26 @@ class PlaneAdapter(Adapter):
             id=rec.get("id"),
         )
 
+    def _cycle_date(self, value: Any) -> date | None:
+        """Plane keeps a cycle's dates as datetimes on the project timezone's
+        day edges (start 00:00:01, end 23:59) but renders them at another
+        offset: `2026-10-01` reads back as `2026-09-30T20:00:01-04:00`. The
+        project's zone recovers the calendar day (conformance, 2026-09-22)."""
+        moment = _datetime(value)
+        if moment is None or moment.tzinfo is None:
+            return _date(value)
+        return moment.astimezone(self._zone).date()
+
+    @property
+    def _zone(self) -> tzinfo:
+        try:
+            return ZoneInfo(self.project.get("timezone") or "UTC")
+        except (ZoneInfoNotFoundError, ValueError):
+            return timezone.utc
+
     def _to_iteration(self, rec: dict[str, Any]) -> Iteration:
-        start = _date(rec.get("start_date"))
-        end = _date(rec.get("end_date"))
+        start = self._cycle_date(rec.get("start_date"))
+        end = self._cycle_date(rec.get("end_date"))
         status = (rec.get("status") or "").lower()
         if status in _CYCLE_STATUS:
             state = _CYCLE_STATUS[status]
@@ -418,12 +444,16 @@ class PlaneAdapter(Adapter):
         self._ready_maps()
         ident = ref.id if isinstance(ref, ItemRef) else ref
         if _UUID.match(ident):
-            rec = self._t.request("GET", f"{self._pp}/work-items/{ident}")
+            rec = self._t.request("GET", f"{self._pp}/work-items/{ident}/")
         else:  # a human key like AA-12 — retrieve by identifier
-            rec = self._t.request("GET", f"{self._ws}/work-items/{ident}")
+            rec = self._t.request("GET", f"{self._ws}/work-items/{ident}/")
         if not isinstance(rec, dict) or not rec.get("id"):
             raise NotFound(f"work item {ident!r} not found")
         return self._to_item(rec)
+
+    def get_iteration(self, iteration: str) -> Iteration:
+        cycle_id = self._cycle_id(iteration)
+        return self._to_iteration(self._t.request("GET", f"{self._pp}/cycles/{cycle_id}/"))
 
     def find_items(self, query: str = "", *, external_id=None, level=None, state=None, limit=50) -> list[WorkItem]:
         self._ready_maps()
@@ -431,35 +461,44 @@ class PlaneAdapter(Adapter):
             mods = [self._module_as_item(m) for m in self._t.get_all(f"{self._pp}/modules/")]
             return [m for m in mods if query.lower() in m.title.lower()][:limit]
         if level is Level.INITIATIVE:
-            inits = self._t.get_all(f"{self._ws}/initiatives")
+            inits = self._t.get_all(f"{self._ws}/initiatives/")
             return [
                 WorkItem(Level.INITIATIVE, i.get("name") or "", i.get("description") or "", id=i.get("id"))
                 for i in inits if query.lower() in (i.get("name") or "").lower()
             ][:limit]
 
-        if external_id or query:
-            params: dict[str, Any] = {"search": query}
-            if external_id:
-                params.update(external_id=external_id, external_source=self.EXTERNAL_SOURCE)
-            hits = self._t.request("GET", f"{self._ws}/work-items/search", params=params)
+        if external_id:
+            # the project list with both params is Plane's idempotency lookup:
+            # one record, or 404 (the workspace search ignores them)
+            params = {"external_id": external_id, "external_source": self.EXTERNAL_SOURCE}
+            try:
+                rec = self._t.request("GET", f"{self._pp}/work-items/", params=params)
+            except NotFound:
+                rec = None
+            if isinstance(rec, dict) and "results" in rec:
+                raise TransportError(
+                    "Plane ignored the external_id filter and answered with the item list; "
+                    "refusing to guess, so no create can duplicate an item"
+                )
+            items = [self._to_item(rec)] if isinstance(rec, dict) and rec.get("id") else []
+            items = [i for i in items if i.external_id == external_id and query.lower() in i.title.lower()]
+        elif query:
+            hits = self._t.request("GET", f"{self._ws}/work-items/search/", params={"search": query})
             rows = hits.get("issues") or hits.get("results") or [] if isinstance(hits, dict) else (hits or [])
             pid = self.project["id"]
-            items: list[WorkItem] = []
+            items = []
             for r in rows:
                 proj = r.get("project_id") or r.get("project")
                 if proj and proj != pid:
                     continue
                 try:
-                    item = self.get_item(r["id"])
+                    items.append(self.get_item(r["id"]))
                 except NotFound:
                     continue
-                if external_id and item.external_id != external_id:
-                    continue
-                items.append(item)
                 if len(items) >= limit * 2:  # keep the hydration bounded
                     break
         else:
-            items = [self._to_item(r) for r in self._t.get_all(f"{self._pp}/work-items")]
+            items = [self._to_item(r) for r in self._t.get_all(f"{self._pp}/work-items/")]
         if level is not None:
             items = [i for i in items if i.level is level]
         if state is not None:
@@ -578,7 +617,7 @@ class PlaneAdapter(Adapter):
         if body:
             rec = self._t.request("PATCH", f"{self._pp}/work-items/{item_id}/", body=body)
         else:
-            rec = self._t.request("GET", f"{self._pp}/work-items/{item_id}")
+            rec = self._t.request("GET", f"{self._pp}/work-items/{item_id}/")
         if module_id:  # membership is additive — no DELETE, ever
             self._t.request("POST", f"{self._pp}/modules/{module_id}/module-issues/", body={"issues": [item_id]})
         updated = self._to_item(rec)
@@ -626,9 +665,7 @@ class PlaneAdapter(Adapter):
 
     def close_iteration(self, iteration: str) -> Iteration:
         self._ready()
-        cycle_id = self._cycle_id(iteration)
-        rec = self._t.request("GET", f"{self._pp}/cycles/{cycle_id}/")
-        current = self._to_iteration(rec)
+        current = self.get_iteration(iteration)
         if current.state is IterationState.CLOSED:
             return current
         today = self._today()
@@ -638,10 +675,11 @@ class PlaneAdapter(Adapter):
                 f"iteration {current.name!r} {when}; Plane completes a cycle only once its "
                 "end date has passed, so it can be closed from tomorrow"
             )
-        # Plane completes a cycle once its end_date has passed: pull the end to yesterday.
+        # Plane completes a cycle once end_date < today (one ending today is
+        # still current — conformance, 2026-09-22): pull the end to yesterday.
         end = today - timedelta(days=1)
-        self._t.request("PATCH", f"{self._pp}/cycles/{cycle_id}/", body={"end_date": end.isoformat()})
-        closed = self._to_iteration(self._t.request("GET", f"{self._pp}/cycles/{cycle_id}/"))
+        self._t.request("PATCH", f"{self._pp}/cycles/{current.id}/", body={"end_date": end.isoformat()})
+        closed = self.get_iteration(current.id or iteration)
         if closed.state is not IterationState.CLOSED:
             raise ValidationError(
                 f"iteration {current.name!r} did not close: Plane still reports it "
@@ -649,18 +687,46 @@ class PlaneAdapter(Adapter):
             )
         return closed
 
-    # -- provisioning (Plane-specific; not on the interface) ---------------------------
+    # -- Plane-specific extras (not on the interface) ------------------------------------
+
+    def set_features(self, **flags: bool) -> dict[str, Any]:
+        """PATCH the project's feature flags (`work_item_types`, `epics`,
+        `modules`, `cycles`, …) and return what a fresh read reports. The
+        route is the SDK's; whether it flips `epics` (API.md: UI-only) is a
+        conformance case, so callers check the re-read, not the PATCH."""
+        self._t.request("PATCH", f"{self._pp}/features/", body=flags)
+        self._board = None
+        after = self._t.request("GET", f"{self._pp}/features/")
+        return dict(after) if isinstance(after, dict) else {}
+
+    def provision(self, *, types: Sequence[str] = (), labels: Sequence[str] = ()) -> BoardDescription:
+        """Create whichever of these non-epic work-item types and labels the
+        board lacks (idempotent by name), then re-read the board. An epic
+        type cannot be made here: Plane ignores `is_epic` on create, and the
+        type appears only once the project's Epics feature is on."""
+        board = self._board or self.describe_board()
+        have_types = {t.name.lower() for t in board.types}
+        have_labels = {l.name.lower() for l in board.labels}
+        missing = [("work-item-types/", n) for n in types if n.lower() not in have_types]
+        missing += [("labels/", n) for n in labels if n.lower() not in have_labels]
+        if not missing:
+            return board
+        self._board = None  # stale from the first write on, even if a later one fails
+        made: set[tuple[str, str]] = set()
+        for route, name in missing:
+            if (route, name.lower()) not in made:
+                self._t.request("POST", f"{self._pp}/{route}", body={"name": name})
+                made.add((route, name.lower()))
+        return self.describe_board()
 
     def provision_work_item_type(self, name: str) -> TypeInfo:
         """Create a non-epic work-item type (the Phase 1 finding: no board
-        ships a Bug type). Idempotent by name; refreshes the board after."""
-        board = self._board or self.describe_board()
-        for t in board.types:
-            if t.name.lower() == name.lower():
-                return t
-        rec = self._t.request("POST", f"{self._pp}/work-item-types", body={"name": name})
-        self._board = None  # the next describe_board sees the new type
-        return TypeInfo(rec["id"], rec.get("name") or name, bool(rec.get("is_epic")))
+        ships a Bug type). Idempotent by name."""
+        board = self.provision(types=[name])
+        hit = next((t for t in board.types if t.name.lower() == name.lower()), None)
+        if hit is None:
+            raise ValidationError(f"created work-item type {name!r} but the board does not list it")
+        return hit
 
 
 # --- helpers ---------------------------------------------------------------------------

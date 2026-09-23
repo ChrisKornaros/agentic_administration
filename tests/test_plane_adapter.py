@@ -9,6 +9,7 @@ from adapters.base import (
     ConfigMismatch,
     ItemPatch,
     NotFound,
+    TransportError,
     Unsupported,
     ValidationError,
 )
@@ -98,7 +99,7 @@ def test_project_may_be_named_by_uuid_or_name():
 
 def test_feature_off_and_missing_container_kind():
     routes = fp.base_routes(with_bug=True)
-    routes[f"GET {fp.PP}/features"] = {"modules": False, "cycles": False}
+    routes[f"GET {fp.PP}/features/"] = {"modules": False, "cycles": False}
     adapter, _ = make(routes)
     assert adapter.describe_board().problems == (
         "levels.feature: the Modules feature is off on this project",
@@ -111,7 +112,7 @@ def test_feature_off_and_missing_container_kind():
 
 def test_vendor_errors_surface_as_the_taxonomy():
     adapter, t = make()
-    t.fail[f"GET {fp.PP}/features"] = AuthError("HTTP 403 on GET: Given API token is not valid")
+    t.fail[f"GET {fp.PP}/features/"] = AuthError("HTTP 403 on GET: Given API token is not valid")
     with pytest.raises(AuthError):
         adapter.describe_board()
 
@@ -136,9 +137,9 @@ def test_read_maps_records_to_the_canonical_model():
 
 def test_unknown_type_and_state_fall_back_to_is_epic_and_group():
     routes = fp.base_routes(with_bug=True)
-    routes[f"GET {fp.PP}/work-item-types"].append({"id": "aaaaaaaa-0000-0000-0000-00000000f00d", "name": "Odd", "is_epic": True})
+    routes[f"GET {fp.PP}/work-item-types/"].append({"id": "aaaaaaaa-0000-0000-0000-00000000f00d", "name": "Odd", "is_epic": True})
     routes[f"GET {fp.PP}/states/"].append({"id": "bbbbbbbb-0000-0000-0000-00000000f00d", "name": "Review", "group": "started"})
-    routes[f"GET {fp.PP}/work-items"]["results"].append(
+    routes[f"GET {fp.PP}/work-items/"]["results"].append(
         fp.item_record("12121212-0000-0000-0000-00000000f00d", 3, "Odd One", "aaaaaaaa-0000-0000-0000-00000000f00d",
                        state="bbbbbbbb-0000-0000-0000-00000000f00d"))
     adapter, _ = make(routes)
@@ -154,15 +155,24 @@ def test_find_items_lists_filters_and_searches():
     # features are modules; initiatives are the workspace list
     assert [f.title for f in adapter.find_items(level=Level.FEATURE)] == ["Intake", "Adapter"]
     assert [f.id for f in adapter.find_items("ada", level=Level.FEATURE)] == [fp.M_ADAPTER]
-    # external_id goes through the workspace search filter, then hydrates by id
-    t.routes[f"GET {fp.WS}/work-items/search"] = lambda params, body: (
-        {"issues": [{"id": fp.I_STORY, "project_id": fp.PID}]} if params.get("external_id") == "req-0001" else {"issues": []}
-    )
-    hits = adapter.find_items(external_id="req-0001")
-    assert [h.key for h in hits] == ["AA-2"]
+    # external_id is the project list's lookup on both params: one record, or 404
+    assert [h.key for h in adapter.find_items(external_id="req-0001")] == ["AA-2"]
     assert adapter.find_items(external_id="req-nope") == []
-    search_params = [p for m, path, p, _ in t.calls if path.endswith("/work-items/search")]
-    assert search_params[0] == {"search": "", "external_id": "req-0001", "external_source": "agentic_administration"}
+    assert adapter.find_items("nothing like it", external_id="req-0001") == []
+    lookups = [p for m, path, p, _ in t.calls if path == f"{fp.PP}/work-items/" and p and "external_id" in p]
+    assert lookups[0] == {"external_id": "req-0001", "external_source": "agentic_administration"}
+    # free text is the workspace search, then hydrates by id
+    t.routes[f"GET {fp.WS}/work-items/search/"] = lambda params, body: (
+        {"issues": [{"id": fp.I_STORY, "project_id": fp.PID}]} if params == {"search": "file"} else {"issues": []}
+    )
+    assert [h.key for h in adapter.find_items("file")] == ["AA-2"]
+
+
+def test_an_ignored_external_id_filter_refuses_to_guess():
+    adapter, t = make()
+    t.external_id_lookup = False  # Plane answers the plain list instead of one record or 404
+    with pytest.raises(TransportError, match="ignored the external_id filter"):
+        adapter.find_items(external_id="req-0001")
 
 
 # --- writes ----------------------------------------------------------------------
@@ -337,8 +347,51 @@ def test_provision_bug_type_then_config_fits():
     adapter, t = make(with_bug=False)
     assert "levels.bug: no work-item type 'Bug' on the board (types: Epic, Story, Task)" in adapter.describe_board().problems
     created = adapter.provision_work_item_type("Bug")
-    assert t.bodies("POST", "/work-item-types")[0] == {"name": "Bug"}
+    assert t.bodies("POST", "/work-item-types/")[0] == {"name": "Bug"}
     assert created.name == "Bug"
     assert adapter.describe_board().problems == ()
     assert adapter.provision_work_item_type("bug") == created  # idempotent by name
-    assert len(t.bodies("POST", "/work-item-types")) == 1
+    assert len(t.bodies("POST", "/work-item-types/")) == 1
+
+
+def test_provision_creates_only_the_missing_types_and_labels():
+    adapter, t = make(with_bug=False)
+    board = adapter.provision(types=["Bug", "Story"], labels=["needs-review", "docs", "Docs"])
+    assert t.bodies("POST", "/work-item-types/") == [{"name": "Bug"}]
+    assert t.bodies("POST", "/labels/") == [{"name": "docs"}]
+    assert "docs" in [l.name for l in board.labels] and board.problems == ()
+    n = len(t.calls)
+    assert adapter.provision(types=["bug"], labels=["DOCS"]) == board  # idempotent, and no re-read
+    assert len(t.calls) == n
+
+
+def test_set_features_patches_then_reports_the_re_read():
+    routes = fp.base_routes(with_bug=True)
+    routes[f"GET {fp.PP}/features/"]["epics"] = False
+    adapter, t = make(routes)
+    t.features_patchable = False  # Plane answers the PATCH but changes nothing
+    assert adapter.set_features(epics=True)["epics"] is False
+    assert t.bodies("PATCH", "/features/") == [{"epics": True}]
+    t.features_patchable = True
+    assert adapter.set_features(epics=True)["epics"] is True
+
+
+def test_get_iteration_reads_the_live_status_by_name_or_id():
+    adapter, _ = make()
+    assert adapter.get_iteration("202608").state is IterationState.CLOSED
+    assert adapter.get_iteration(fp.C_202609).state is IterationState.ACTIVE
+    with pytest.raises(NotFound, match="no iteration '202612'"):
+        adapter.get_iteration("202612")
+
+
+def test_provision_cut_short_never_writes_the_same_thing_twice():
+    from adapters.base import RateLimited
+
+    adapter, t = make(with_bug=False)
+    t.fail[f"POST {fp.PP}/labels/"] = RateLimited("rate limited on POST labels/")
+    with pytest.raises(RateLimited):
+        adapter.provision(types=["Bug"], labels=["docs"])
+    del t.fail[f"POST {fp.PP}/labels/"]
+    adapter.provision(types=["Bug"], labels=["docs"])  # the retry re-reads the board first
+    assert t.bodies("POST", "/work-item-types/") == [{"name": "Bug"}]
+    assert adapter.describe_board().problems == ()
