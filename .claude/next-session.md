@@ -1,28 +1,37 @@
-# Next session — Phase 3 step 3 (written 2026-09-23)
+# Next session — Phase 3 step 4 (written 2026-09-23)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §5 layer 3 (skills), §7 (intake + confirmation flow), §8 (`context_provider` seam), §9 Phase 3 row
-- **Suggested branch:** `feat/phase3-skills`
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 3 row, §7 (flow), D5, D12
+- **Suggested branch:** `feat/phase3-gate`
 - **Phase 3 gate:** a requester-style transcript in Claude Code against Plane produces a correctly placed story with acceptance criteria and the review label.
 
-Phase 3 is one PR per step: ~~(1) `server/` MCP server~~ (done 2026-09-23), ~~(2) `schema/` intake schema + Markdown rendering~~ (done 2026-09-23), **(3) `skills/` `intake` + `create-story` / `create-bug` / `create-epic`**, (4) the gate transcript against AGADMIN.
+Phase 3 is one PR per step: ~~(1) `server/` MCP server~~, ~~(2) `schema/` intake schema~~, ~~(3) `skills/` `intake` + `create-story` / `create-bug` / `create-epic`~~ (all done 2026-09-23), **(4) the gate transcript against AGADMIN**.
 
 ## Do
-1. `/phase-kickoff` for step 3. These are the product's skills in `skills/` (public), not the dev skills in `.claude/skills/`.
-2. `intake`: the conversation that fills a `schema.intake.Intake` record from two sentences. It asks for problem and outcome first, then drafts the Given/When/Then criteria for the requester to confirm. Before proposing placement it calls the §8 `context_provider` hook (default: `find_items`), which fills `related` and informs `placement`.
-3. `create-story` / `create-bug` / `create-epic`: decomposition and placement over the record's `parts`. A split names every part, and stories take `placement.parent = "#epic"`. Commit the epic first, because `#epic` resolves by external_id only once it exists.
-4. The confirm (D12) belongs to the skill: show the preview, wait for a yes, then `commit_item`. With `confirm = "never"`, commit without pausing.
+1. `/phase-kickoff` for step 4. This is the first live run of the server and skills. It writes to AGADMIN only, so ask permission first, as for conformance.
+2. **Load the skills and the server into a Claude Code session.** The route checked on 2026-09-23 against the Claude Code docs is a plugin:
+   - `.claude-plugin/plugin.json` (`name`, `description`), the existing `skills/`, and `.mcp.json` running `uv run python -m server boards/agentic_administration.toml`.
+   - Start it with `claude --plugin-dir .`.
+   - Plugin skills show up as `/<plugin>:intake`, and plugin MCP tools as `mcp__plugin_<plugin>_<server>__<tool>`.
+   - The Agent SDK loads plugin skills too, but not a root `skills/` dir on its own.
+   - The `.mcp.json` needs the token env. See the live recipe in CLAUDE.md → Project rules.
+3. **Run the gate as a requester would:** two sentences in, then `intake` → `create-story` → preview → yes → commit. Check the story on the board: level, parent epic, the acceptance criteria in the description, and `needs-review`. Save the transcript as dated evidence. Board content stays out of git, so commit only a redacted or summarized record.
+4. If there's time, also run an epic split, which exercises the one-yes-then-re-ask-on-difference flow.
+5. Flip README status, and update roadmap/14's Phase 3 row in the AOR PR below.
 
 ## To run / verify
-- `uv run pytest` (offline). Currently 190 pass.
-- Server: `uv run python -m server boards/<board>.toml` (stdio). The live recipe is in CLAUDE.md → Project rules.
+- `uv run pytest`: 206 pass, offline.
+- Server: `uv run python -m server boards/<board>.toml` (stdio).
 
 ## Open questions / watch-outs
-- **Confirming a split:** story previews can't exist before the epic is committed (`#epic` resolves by lookup). So is it one yes for the split shown from the record, then per-item previews, or a yes per item? D12 says the requester sees what lands.
-- **Intake id convention:** the skill mints the id once and reuses it on every retry. `YYYYMMDD-<slug>` fits the schema's `[A-Za-z0-9._-]{1,64}`. Settle it in the skill.
-- **Skill format and loading:** the SKILL.md format should load in both Claude Code and the Agent SDK. How Claude Code picks up `skills/` for step 4 (a plugin, or a link into `.claude/skills/`) is still open.
-- **AOR owes roadmap/14 two decisions from this step,** a separate AOR PR: (a) the split lives in the schema as `parts`, with a `#<part>` sibling parent; (b) `propose_item` takes the record (`intake=…`, `part=…`) and renders the description, keeping 11 tools.
-- `find_items(query=…)` fetches each hit one by one (up to 2×limit GETs at the throttle). Watch its latency in step 4.
-- At propose, only these are checked against the board: labels, assignees, parent, container features, and the iteration (open). Component modules and collapse labels are resolved when committing, before any write.
+- **Latency:** `find_items(query=…)` fetches each hit with a separate GET at 1.5 s. The skills pass `limit=5`, which is about 16 s worst case. Check how it feels in the transcript.
+- **Title case:** "title" capitalizes every word, small words included ("Export Reports As CSV"). The skills say so, and `tests/test_skills.py` checks their examples against it.
+- **AOR owes roadmap/14 these, as a separate AOR PR:**
+  - (a) the split lives in the schema as `parts`, with a `#<part>` sibling parent;
+  - (b) `propose_item` takes the record (`intake=…`, `part=…`), still 11 tools;
+  - (c) a split is confirmed once from the record, then committed item by item, re-asking only on a differing preview (warning, `existing`, failure). Chris's call, 2026-09-23;
+  - (d) intake id `YYYYMMDD-<slug>`, made once per request, with `-2` added on a first-proposal collision;
+  - (e) §8's `context_provider` is one step of the `intake` skill (default `find_items`), not code;
+  - also: roadmap/14's status line still says the MCP server is step 1.
 - Next full conformance run: a new `--run-id`, ideally in October, to exercise the date-parsing fix end to end.
 
 ---

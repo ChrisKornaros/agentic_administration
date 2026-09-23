@@ -7,10 +7,10 @@ the right sprint, on whatever tracker your team already runs.
 
 > **Status: building (2026-09).** Nothing is installable yet. The
 > design is settled, the first backend (Plane) passes its conformance
-> suite against a live throwaway project, and the MCP server runs
-> (offline-tested; its live proof comes with the skills). The intake
-> schema is in; the skills are next. Watch the releases for the first
-> usable version.
+> suite against a live throwaway project, and the MCP server, the intake
+> schema and the first four skills are in (offline-tested). Next is the
+> live proof: a requester-style conversation that files a correctly
+> placed story on Plane. Watch the releases for the first usable version.
 
 ## What it is
 
@@ -76,7 +76,7 @@ agentic_administration/
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
-├── skills/            # intake, create-*, plan-sprint, groom
+├── skills/            # ✅ intake, create-story, create-bug, create-epic; plan-sprint, groom later
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite  ✅ Plane passes live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/
@@ -133,6 +133,22 @@ takes the item from the record and renders its Markdown description, so
 the acceptance criteria always land in the item body. A split (an epic
 plus its stories) places a story under the epic with the parent `#epic`,
 which resolves once the epic is committed.
+
+The skills in [skills/](skills/) run that conversation. Each is a plain
+`SKILL.md` (only `name` and `description` in the frontmatter, so any
+skill-loading host reads it):
+
+- **`intake`** asks for the problem and the outcome, looks for related
+  items, decides the shape, and makes the intake id (`YYYYMMDD-<slug>`).
+- **`create-story`** and **`create-bug`** draft the Given/When/Then
+  criteria with the requester, propose the item, and commit it after a yes.
+- **`create-epic`** splits the request into an epic and its stories, takes
+  one yes for the whole split, then files the epic first. It asks again
+  only if an item's preview differs from what the requester saw.
+
+With the board's `confirm = "never"`, the skills commit without pausing.
+Looking up related items happens in one step of `intake` (the board's own
+search by default), so another retrieval source replaces only that step.
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:
