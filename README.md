@@ -70,6 +70,7 @@ Agent SDK example and a Hermes configuration as reference wirings.
 agentic_administration/
 ├── README.md
 ├── LICENSE            # MIT
+├── CLAUDE.md          # agent context; modules/ + .claude/skills/ vendored from agentic_optimization_research  ✅
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py
 ├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
