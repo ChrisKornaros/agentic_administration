@@ -18,6 +18,8 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
+from schema.intake import Intake
+from server.model import to_jsonable
 from server.service import BoardService, ToolFailure
 
 LevelName = Literal["initiative", "epic", "feature", "story", "bug", "task"]
@@ -87,11 +89,12 @@ def build(service: BoardService) -> MCPServer:
 
     @mcp.tool(annotations=READ)
     def propose_item(
-        intake_id: str,
-        level: LevelName,
-        title: str,
-        description: str = "",
+        intake: Intake | None = None,
         part: str = "",
+        intake_id: str = "",
+        level: LevelName | None = None,
+        title: str = "",
+        description: str = "",
         parent: str | None = None,
         feature: str | None = None,
         initiative: str | None = None,
@@ -105,12 +108,21 @@ def build(service: BoardService) -> MCPServer:
         requester, and any warnings, such as a suggested title when the board's
         title case isn't met. The server adds the review label and sets
         external_id to `intake_id`, or `intake_id/part` when one intake becomes
-        several items (e.g. part="story-2"). `description` is Markdown. `parent`
-        is a key or id (a story's or bug's epic, a task's story or bug);
-        `feature` names one of the board's features; `iteration` is an open
-        iteration's name or id. To change anything, propose again."""
+        several items.
+
+        From an intake record (the usual path): pass `intake` and, when it has
+        several parts, the `part` to propose. The record supplies the id, level,
+        title, placement and the Markdown description with its acceptance
+        criteria, so leave those arguments out. A part whose parent is
+        `#<part>` needs that part committed first.
+
+        Without a record: pass `intake_id`, `level` and `title`. `description`
+        is Markdown; `parent` is a key or id (a story's or bug's epic, a task's
+        story or bug); `feature` names one of the board's features; `iteration`
+        is an open iteration's name or id. To change anything, propose again."""
         return call(
-            service.propose_item, intake_id, level, title, description,
+            service.propose_item, intake_id, level or "", title, description,
+            intake=to_jsonable(intake) if intake is not None else None,
             part=part, parent=parent, feature=feature, initiative=initiative,
             component=component, iteration=iteration,
             assignees=assignees or (), labels=labels or (),

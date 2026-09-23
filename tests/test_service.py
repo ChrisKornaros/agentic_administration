@@ -6,8 +6,10 @@ from datetime import datetime, timezone
 import pytest
 
 from adapters.base import AuthError, Blocked, RateLimited, TransportError
+from schema.intake import Intake, render
 from server.service import DRAFT_TTL, BoardService, ToolFailure
 from tests import fake_plane as fp
+from tests.test_intake import SPLIT
 from tests.test_plane_adapter import CONFIG, make
 
 
@@ -106,6 +108,48 @@ def test_propose_flags_an_external_id_that_already_exists():
     assert "AA-2 already has external_id 'req-0001'" in out["warnings"][0]
     assert svc.commit_item(out["token"])["already_existed"] is True
     assert item_posts(t) == []
+
+
+# --- from an intake record -------------------------------------------------------
+
+
+def test_a_story_from_an_intake_lands_placed_with_its_criteria_and_the_review_label():
+    svc, t, _ = service()
+    epic = svc.propose_item(intake=SPLIT, part="epic")
+    assert epic["preview"]["external_id"] == "20260923-export-csv/epic"
+    with pytest.raises(ToolFailure, match="Part 'epic' of intake '20260923-export-csv' is not on the board yet"):
+        svc.propose_item(intake=SPLIT, part="csv")
+    epic_key = svc.commit_item(epic["token"])["item"]["key"]
+
+    out = svc.propose_item(intake=SPLIT, part="csv")
+    p = out["preview"]
+    assert (p["level"], p["title"], p["external_id"]) == ("story", "Export Reports as CSV", "20260923-export-csv/csv")
+    assert p["parent"]["key"] == epic_key and p["parent"]["level"] == "epic"
+    assert p["feature"]["name"] == "Intake" and p["iteration"]["name"] == "202609"
+    assert p["description"] == render(Intake.from_dict(SPLIT), "csv")
+    assert p["labels"] == ["needs-review"]
+    svc.commit_item(out["token"])
+    story = item_posts(t)[-1]
+    assert "<h2>Acceptance criteria</h2><ol><li><strong>Given</strong> a saved report" in story["description_html"]
+    assert story["labels"] == [fp.L_REVIEW] and story["type_id"] == fp.T_STORY
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(part="csv", title="Other"), "the record supplies title; leave them out"),
+        (dict(part="pdf"), "has no part 'pdf'"),
+        (dict(part="epic", problem=""), "problem is empty"),
+        (dict(part="epic", urgency="asap"), "'asap' is not a valid Urgency"),
+        (dict(part="epic", parts=[]), "at least one part"),
+    ],
+)
+def test_a_bad_intake_is_explained_before_the_board_is_read(kwargs, match):
+    svc, t, _ = service()
+    part, title = kwargs.pop("part"), kwargs.pop("title", "")
+    with pytest.raises(ToolFailure, match=match):
+        svc.propose_item(title=title, intake={**SPLIT, **kwargs}, part=part)
+    assert t.calls == []
 
 
 # --- commit ----------------------------------------------------------------------

@@ -9,7 +9,7 @@ the right sprint, on whatever tracker your team already runs.
 > design is settled, the first backend (Plane) passes its conformance
 > suite against a live throwaway project, and the MCP server runs
 > (offline-tested; its live proof comes with the skills). The intake
-> schema and the skills are next. Watch the releases for the first
+> schema is in; the skills are next. Watch the releases for the first
 > usable version.
 
 ## What it is
@@ -77,7 +77,7 @@ agentic_administration/
 ├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # intake, create-*, plan-sprint, groom
-├── schema/            # the intake schema (the board config schema is server/config.py)
+├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite  ✅ Plane passes live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/
 ├── probes/            # dated read-only API checks (evidence)  ✅
@@ -88,8 +88,8 @@ agentic_administration/
 
 Python ≥ 3.12, managed with [uv](https://docs.astral.sh/uv/). The one
 runtime dependency is the official [`mcp`](https://pypi.org/project/mcp/)
-SDK (v2), for the server; the model, config and adapters are standard
-library only.
+SDK (v2), for the server; the model, config, intake schema and adapters
+are standard library only.
 
 ```sh
 uv sync            # dev deps (pytest) into .venv
@@ -124,6 +124,15 @@ Creating an item is two calls: `propose_item` checks the draft against the
 board and returns a preview and a 30-minute token; `commit_item(token)`
 writes exactly that draft, and a retry returns the item rather than a
 duplicate. No tool deletes.
+
+The usual draft is an **intake record** ([schema/intake.py](schema/intake.py)):
+one request's problem, outcome, constraints, urgency and related items,
+plus the parts it becomes, each with a level, a title, Given/When/Then
+acceptance criteria and a placement. `propose_item(intake=…, part=…)`
+takes the item from the record and renders its Markdown description, so
+the acceptance criteria always land in the item body. A split (an epic
+plus its stories) places a story under the epic with the parent `#epic`,
+which resolves once the epic is committed.
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:

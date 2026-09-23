@@ -67,7 +67,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json` and
   `conformance/reports/` are gitignored; only `*.example` files are committed.
 - **Dependencies:** one runtime dependency, the official `mcp` SDK, pinned `>=2.2,<3` (v2: `MCPServer`,
-  not `FastMCP`). The model, config and adapters stay stdlib-only. Every new runtime dependency
+  not `FastMCP`). The model, config, intake schema and adapters stay stdlib-only. Every new runtime dependency
   needs its reason in the PR plus a `/substrate-preflight`.
 - **Layering:** adapters stay mechanical ([adapters/base.py](adapters/base.py)). Conventions (the review
   label, `external_id` = `intake_id[/part]`, propose → commit with a 30-minute token, title-case
@@ -86,6 +86,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | Path | Role |
 |---|---|
 | [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml>`, stdio) |
+| [schema/](schema/) | The intake record (one request → its parts) and its Markdown rendering; `propose_item(intake=…, part=…)` consumes it |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` adapter |
 | [conformance/](conformance/) | Live adapter suite + dated results |
 | [probes/](probes/) | Dated read-only API evidence |

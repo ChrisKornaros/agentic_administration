@@ -11,6 +11,7 @@ from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
 from server.mcp_app import build
+from tests.test_intake import SPLIT
 from tests.test_plane_adapter import CONFIG
 from tests.test_service import service
 
@@ -52,6 +53,19 @@ async def test_propose_then_commit_over_mcp():
     assert committed.structured_content["item"]["title"] == "Chat Intake"
     assert committed.structured_content["item"]["labels"] == ["needs-review"]
     assert committed.structured_content["already_existed"] is False
+
+
+@pytest.mark.anyio
+async def test_propose_from_an_intake_record_over_mcp():
+    story = {**SPLIT["parts"][1], "placement": {"parent": "AA-1"}}
+    svc, _, _ = service()
+    async with Client(build(svc)) as client:
+        [tool] = [t for t in (await client.list_tools()).tools if t.name == "propose_item"]
+        out = await client.call_tool("propose_item", {"intake": {**SPLIT, "parts": [story]}, "part": "csv"})
+    assert set(tool.input_schema["$defs"]["Criterion"]["required"]) == {"given", "when", "then"}
+    assert not out.is_error
+    preview = out.structured_content["preview"]
+    assert preview["parent"]["key"] == "AA-1" and "1. **Given** a saved report" in preview["description"]
 
 
 @pytest.mark.anyio
