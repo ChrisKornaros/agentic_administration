@@ -1,81 +1,29 @@
-# Next session — Phase 3: the domain MCP server + intake / create-* skills
+# Next session — 2026-09-23
 
-Source: agentic_optimization_research `roadmap/14-agentic-administration.md`,
-specifically the §9 Phase 3 row, §5 layer 3 (the small domain MCP server,
-about eight tools, conventions and no-delete *enforced as behavior*), §7
-(intake schema + confirm flow), D5 (propose-then-confirm) and §11 (the
-review label is the server's job, answered 2026-09-22). If the roadmap
-and this note disagree, trust the roadmap.
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 3 row, §5 layer 3, §7, D5, §11
+- **Suggested branch:** `feat/phase3-mcp-server`
+- **Phase 3 gate:** a requester-style transcript in Claude Code against Plane produces a correctly placed story with acceptance criteria and the review label.
 
-**Gate:** a requester-style transcript in a Claude Code session against
-Plane produces a correctly placed story with acceptance criteria and the
-review label.
+Phase 3 is one PR per step: (1) `server/` MCP server, (2) `schema/` intake schema + its Markdown rendering, (3) `skills/` `intake` + `create-story` / `create-bug` / `create-epic`, (4) the gate transcript against AGADMIN. This session is step 1.
 
-Phase 2 closed 2026-09-22 (this repo's `feat/phase2-conformance` PR +
-AOR PR #210). The Plane adapter passes conformance 9/9 live;
-`conformance/README.md` has the findings.
+## Do
+1. `/phase-kickoff` for step 1, then `/substrate-preflight` on the official `mcp` Python SDK (the first runtime dependency; its reason goes in the PR).
+2. Build the server over `adapters.base.Adapter`, from a board config. Tools: `describe_board`, `find_items`, `get_item`, `get_iteration`, `propose_item`, `commit_item`, `update_item`, `add_comment`, `create_iteration`, `move_to_iteration`, `close_iteration`. No delete, by construction.
+3. Server behavior, settled 2026-09-23 (project memory `phase3-decisions`):
+   - **Confirm = propose → commit.** `propose_item` validates against the board, adds `labels.review` and an `external_id` derived from the intake record id, renders the description, stores the draft, and returns a short-lived token + preview. `commit_item(token)` writes exactly that draft. Creates only; `confirm = "never"` means the skill commits without pausing.
+   - **Title case:** when `naming.item_case` is set and the title doesn't match, propose returns a warning and a suggested title (a conservative title-caser that leaves acronyms, mixed-case words and code names alone). No hard reject.
+   - **Errors:** map `AdapterError` subclasses to tool errors the agent can act on (`ConfigMismatch` → fix the board config; `RateLimited` / `Blocked` → wait, then retry).
+   - A retried commit finds the existing item by `external_id` instead of duplicating it.
 
-## Suggested shape — one PR per step, like Phase 2
+## To run / verify
+- `uv run pytest` (offline; server tests run against `tests/fake_plane.py`).
+- Live: the secrets recipe in CLAUDE.md → Project rules; board config `boards/agentic_administration.toml` (AGADMIN).
 
-1. **`server/` MCP server** (`feat/phase3-mcp-server`): the eight tools
-   of §5 over `adapters.base.Adapter`, built from a board config. Server
-   behaviour, not adapter behaviour:
-   - add `labels.review` on every create (§11; the adapter stays
-     mechanical);
-   - derive `external_id` from the intake record id, so a retried create
-     is found, not duplicated;
-   - map `AdapterError` subclasses to tool errors the agent can act on
-     (`ConfigMismatch` → "fix the board config"; `RateLimited` /
-     `Blocked` → "wait, then retry");
-   - expose no delete, by construction.
-2. **`schema/` intake schema** (§7 fields: problem, outcome,
-   constraints, urgency, related, acceptance as Given/When/Then,
-   proposed_placement), plus its Markdown rendering into the item
-   description.
-3. **`skills/`**: `intake`, `create-story` / `create-bug` /
-   `create-epic` (decomposition, then placement from `describe_board`,
-   then confirm).
-4. **The gate transcript**: a Claude Code session with the server
-   plugged in, against `boards/agentic_administration.toml` (AGADMIN).
+## Open questions / watch-outs
+- Drafts live in memory per server process (a restart means proposing again); the token lifetime is not decided yet.
+- Rollover (`close_iteration` + moving what's left) is composed above the adapter. It's Phase 6 work, but the tool lands now.
+- Next full conformance run: a new `--run-id`, ideally in October, to exercise the date-parsing fix end to end.
+- The tool count is now 11 against roadmap §5's "roughly eight". Recording that is for Chris's separate AOR session.
 
-## Open questions to settle first
-
-- **MCP dependency.** The runtime is standard-library only
-  (`pyproject.toml`: "anything added here needs a reason in the PR").
-  The choice is the official `mcp` Python SDK (protocol correctness,
-  the first runtime dependency) or hand-rolled stdio JSON-RPC.
-  Recommend the SDK, with the reason written in the PR. Run
-  `/substrate-preflight` on it.
-- **Where "confirm" lives (D5, `confirm = "always"`).** Options: a
-  two-step tool (propose returns a token, commit takes it), or a
-  `confirmed: true` argument the skill sets only after the requester
-  says yes. The server should enforce it, not just the prompt.
-- **Expose `get_item` / `get_iteration` as tools?** They are adapter
-  reads beyond the eight; the skills likely need `get_item` for "file
-  it under AGADMIN-1".
-- `naming.item_case` (title case) is validated in config but enforced
-  nowhere yet. Should the server check it?
-
-## Carry-over facts
-
-- Board: `AGADMIN` (throwaway) is fully provisioned: Epic/Story/Bug/Task
-  types, labels `needs-review bug feature chore docs`, module
-  `Conformance 20260922`, cycles `202609` (closed) and `202610`, items
-  AGADMIN-1 to AGADMIN-5. The real config is
-  `boards/agentic_administration.toml` (gitignored).
-- Plane wire facts now encoded in the adapter: every route ends in `/`;
-  the external_id lookup is the project list (one record or a 404);
-  single-item reads return label objects; cycles carry no `status`, and
-  their dates are read in the project timezone.
-- Conformance: the date-parsing fix landed after the live 9/9 run and
-  was verified read-only. The next full run (a new `--run-id`, ideally
-  in October so the month has an open iteration) exercises it end to
-  end.
-
-## Secret handoff that works
-
-Chris writes the session key with
-`umask 077; bw unlock --raw > ~/.cache/bw_session`. Run live commands with
-the sibling AOR `tools/plane/.env` exported, plus
-`PLANE_API_KEY_BW_ITEM="$PLANE_BW_ITEM" PLANE_API_KEY_BW_FIELD="$PLANE_BW_FIELD"
-BW_SESSION="$(cat ~/.cache/bw_session)"`. Never print any of them.
+---
+*Generated at session-end by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
