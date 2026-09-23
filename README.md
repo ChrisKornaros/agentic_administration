@@ -6,18 +6,20 @@ epic, feature, story, bug, or task — filed under the right parent, in
 the right sprint, on whatever tracker your team already runs.
 
 > **Status: building (2026-09).** Nothing is installable yet. The
-> design is settled, and the first backend (Plane) passes its
-> conformance suite against a live throwaway project. The tool surface
-> (the MCP server and skills) is next. Watch the releases for the first
+> design is settled, the first backend (Plane) passes its conformance
+> suite against a live throwaway project, and the MCP server runs
+> (offline-tested; its live proof comes with the skills). The intake
+> schema and the skills are next. Watch the releases for the first
 > usable version.
 
 ## What it is
 
-- **A small MCP server** exposing a handful of *domain* tools —
-  create item, update item, comment, create iteration, move to
-  iteration, close iteration, find, describe board — over a canonical
-  work-item model. Your agent runtime (Claude Code, the Claude Agent
-  SDK, Hermes, or any MCP-capable host) plugs it in.
+- **A small MCP server** exposing eleven *domain* tools —
+  describe board, find / get item, get iteration, propose + commit
+  item, update item, comment, create / close iteration, move to
+  iteration — over a canonical work-item model. Your agent runtime
+  (Claude Code, the Claude Agent SDK, Hermes, or any MCP-capable host)
+  plugs it in.
 - **Skills** that carry the judgment: an intake conversation that
   fills a requirements schema from a non-technical request, the
   decomposition of one request into epic + stories with acceptance
@@ -71,7 +73,7 @@ agentic_administration/
 ├── README.md
 ├── LICENSE            # MIT
 ├── CLAUDE.md          # agent context; modules/ + .claude/skills/ vendored from agentic_optimization_research  ✅
-├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py
+├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # intake, create-*, plan-sprint, groom
@@ -84,8 +86,10 @@ agentic_administration/
 
 ## Development
 
-Python ≥ 3.12, managed with [uv](https://docs.astral.sh/uv/); the runtime
-has no third-party dependencies.
+Python ≥ 3.12, managed with [uv](https://docs.astral.sh/uv/). The one
+runtime dependency is the official [`mcp`](https://pypi.org/project/mcp/)
+SDK (v2), for the server; the model, config and adapters are standard
+library only.
 
 ```sh
 uv sync            # dev deps (pytest) into .venv
@@ -108,6 +112,18 @@ and lists every config-vs-board mismatch; the adapter refuses every write
 until that list is empty. Secrets resolve through `server/secrets.py`
 only: the env var named by `token_env`, or the Bitwarden item named by
 `<token_env>_BW_ITEM` (custom field via `<token_env>_BW_FIELD`).
+
+To run the MCP server for a board (stdio; the board is first read on the
+first tool call, so a token problem shows up as a tool error):
+
+```sh
+uv run python -m server boards/<board>.toml
+```
+
+Creating an item is two calls: `propose_item` checks the draft against the
+board and returns a preview and a 30-minute token; `commit_item(token)`
+writes exactly that draft, and a retry returns the item rather than a
+duplicate. No tool deletes.
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:

@@ -5,14 +5,19 @@ description = "Agent-operated backlog administration over a canonical work-item 
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
-# Runtime stays standard-library only (see the seed CLI's zero-dependency
-# posture); anything added here needs a reason in the PR.
-dependencies = []
+# Every runtime dependency needs its reason in the PR. The model, config and
+# adapters stay standard-library only (the seed CLI's zero-dependency posture).
+dependencies = [
+    # The MCP server (Phase 3, roadmap/14 D11): the official SDK rather than
+    # a hand-rolled stdio JSON-RPC. v2 renamed FastMCP to MCPServer; pin the major.
+    "mcp>=2.2,<3",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]
+# async tests (`@pytest.mark.anyio`) use anyio's own plugin, which the mcp SDK brings
 testpaths = ["tests"]
 addopts = "-q"
 

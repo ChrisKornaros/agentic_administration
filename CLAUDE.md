@@ -66,10 +66,13 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   (the out-of-tree reads are a recorded override in MODULES.md).
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json` and
   `conformance/reports/` are gitignored; only `*.example` files are committed.
-- **Dependencies:** the runtime was stdlib-only; Phase 3 adds the official `mcp` SDK. Every
-  runtime dependency needs its reason in the PR plus a `/substrate-preflight`.
+- **Dependencies:** one runtime dependency, the official `mcp` SDK, pinned `>=2.2,<3` (v2: `MCPServer`,
+  not `FastMCP`). The model, config and adapters stay stdlib-only. Every new runtime dependency
+  needs its reason in the PR plus a `/substrate-preflight`.
 - **Layering:** adapters stay mechanical ([adapters/base.py](adapters/base.py)). Conventions (the review
-  label, `external_id`, propose → commit confirm, title-case warnings) are MCP-server behavior.
+  label, `external_id` = `intake_id[/part]`, propose → commit with a 30-minute token, title-case
+  warnings) live in [server/service.py](server/service.py); [server/mcp_app.py](server/mcp_app.py) only
+  registers the 11 tools. The SDK runs sync tools in threads, so the service serializes adapter calls.
 - **Public-bound (D9):** MIT, public at Phase 7. No company names or company data in code, docs,
   fixtures or commits.
 - **Git:** `main` only; `feat/phase<N>-<slug>` (one PR per phase step), `chore/<slug>`,
@@ -82,7 +85,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 
 | Path | Role |
 |---|---|
-| [server/](server/) | Canonical model, board config, secrets; the MCP server lands here in Phase 3 |
+| [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml>`, stdio) |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` adapter |
 | [conformance/](conformance/) | Live adapter suite + dated results |
 | [probes/](probes/) | Dated read-only API evidence |

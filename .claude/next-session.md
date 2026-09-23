@@ -1,29 +1,27 @@
-# Next session — 2026-09-23
+# Next session — Phase 3 step 2 (written 2026-09-23)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 3 row, §5 layer 3, §7, D5, §11
-- **Suggested branch:** `feat/phase3-mcp-server`
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §7 (intake schema + confirmation flow), §9 Phase 3 row, §8 (`context_provider` seam)
+- **Suggested branch:** `feat/phase3-intake-schema`
 - **Phase 3 gate:** a requester-style transcript in Claude Code against Plane produces a correctly placed story with acceptance criteria and the review label.
 
-Phase 3 is one PR per step: (1) `server/` MCP server, (2) `schema/` intake schema + its Markdown rendering, (3) `skills/` `intake` + `create-story` / `create-bug` / `create-epic`, (4) the gate transcript against AGADMIN. This session is step 1.
+Phase 3 is one PR per step: ~~(1) `server/` MCP server~~ (done 2026-09-23), **(2) `schema/` intake schema + its Markdown rendering**, (3) `skills/` `intake` + `create-story` / `create-bug` / `create-epic`, (4) the gate transcript against AGADMIN.
 
 ## Do
-1. `/phase-kickoff` for step 1, then `/substrate-preflight` on the official `mcp` Python SDK (the first runtime dependency; its reason goes in the PR).
-2. Build the server over `adapters.base.Adapter`, from a board config. Tools: `describe_board`, `find_items`, `get_item`, `get_iteration`, `propose_item`, `commit_item`, `update_item`, `add_comment`, `create_iteration`, `move_to_iteration`, `close_iteration`. No delete, by construction.
-3. Server behavior, settled 2026-09-23 (project memory `phase3-decisions`):
-   - **Confirm = propose → commit.** `propose_item` validates against the board, adds `labels.review` and an `external_id` derived from the intake record id, renders the description, stores the draft, and returns a short-lived token + preview. `commit_item(token)` writes exactly that draft. Creates only; `confirm = "never"` means the skill commits without pausing.
-   - **Title case:** when `naming.item_case` is set and the title doesn't match, propose returns a warning and a suggested title (a conservative title-caser that leaves acronyms, mixed-case words and code names alone). No hard reject.
-   - **Errors:** map `AdapterError` subclasses to tool errors the agent can act on (`ConfigMismatch` → fix the board config; `RateLimited` / `Blocked` → wait, then retry).
-   - A retried commit finds the existing item by `external_id` instead of duplicating it.
+1. `/phase-kickoff` for step 2. No new runtime dependency is expected (stdlib dataclasses, like `server/model.py`).
+2. The schema's v1 fields, from §7: `problem`, `outcome`, `constraints`, `urgency`, `related`, `acceptance` (Given/When/Then), `proposed_placement` (level, parent, feature, iteration). It also needs a stable record `id`: that becomes `propose_item`'s `intake_id`, and `external_id` = `intake_id[/part]`.
+3. Seed it from AOR's [requirement-intake template](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/templates/_shared/requirement-intake.template.md). Its top half generalizes; its Triage half stays in the vault.
+4. The Markdown rendering is the `description` that `propose_item` takes, so the acceptance criteria land in the item body.
 
 ## To run / verify
-- `uv run pytest` (offline; server tests run against `tests/fake_plane.py`).
-- Live: the secrets recipe in CLAUDE.md → Project rules; board config `boards/agentic_administration.toml` (AGADMIN).
+- `uv run pytest` (offline). Currently 175 pass.
+- Server: `uv run python -m server boards/<board>.toml` (stdio). The live recipe is in CLAUDE.md → Project rules.
 
 ## Open questions / watch-outs
-- Drafts live in memory per server process (a restart means proposing again); the token lifetime is not decided yet.
-- Rollover (`close_iteration` + moving what's left) is composed above the adapter. It's Phase 6 work, but the tool lands now.
+- Does decomposition (one intake → an epic plus stories) belong in the schema (a list of parts) or only in the skill (step 3)? `part` already exists on `propose_item`.
+- `find_items(query=…)` fetches each hit one by one (up to 2×limit GETs at the throttle). The tool's default limit is 20; watch its latency in step 4.
+- At propose, only these are checked against the board: labels, assignees, parent, container features, and the iteration (open). Component modules and collapse labels are resolved when committing, before any write.
+- The Claude Code wiring (and how the token env reaches the server) is proven in step 4, not written up yet.
 - Next full conformance run: a new `--run-id`, ideally in October, to exercise the date-parsing fix end to end.
-- The tool count is now 11 against roadmap §5's "roughly eight". Recording that is for Chris's separate AOR session.
 
 ---
-*Generated at session-end by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
+*Written at session end by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*

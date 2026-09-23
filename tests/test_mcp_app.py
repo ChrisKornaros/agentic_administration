@@ -1,0 +1,78 @@
+"""The MCP layer: the tool surface over the SDK's in-process client (both
+handshakes) and the real stdio entry point. Offline: the in-process tests
+use the fake Plane transport, and the stdio test only lists tools, which
+never reaches the tracker."""
+
+import sys
+from pathlib import Path
+
+import pytest
+from mcp import Client
+from mcp.client.stdio import StdioServerParameters
+
+from server.mcp_app import build
+from tests.test_plane_adapter import CONFIG
+from tests.test_service import service
+
+ROOT = Path(__file__).resolve().parents[1]
+TOOLS = {
+    "describe_board", "find_items", "get_item", "get_iteration", "propose_item", "commit_item",
+    "update_item", "add_comment", "create_iteration", "move_to_iteration", "close_iteration",
+}
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+def check_surface(tools) -> None:
+    assert {tool.name for tool in tools} == TOOLS
+    for tool in tools:
+        assert "delete" not in tool.name
+        assert tool.annotations.read_only_hint or tool.annotations.destructive_hint is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_exactly_the_eleven_tools_and_none_deletes(mode):
+    svc, _, _ = service()
+    async with Client(build(svc), mode=mode) as client:
+        check_surface((await client.list_tools()).tools)
+
+
+@pytest.mark.anyio
+async def test_propose_then_commit_over_mcp():
+    svc, _, _ = service()
+    async with Client(build(svc)) as client:
+        proposed = await client.call_tool("propose_item", {"intake_id": "req-0010", "level": "epic", "title": "Chat Intake"})
+        assert not proposed.is_error
+        committed = await client.call_tool("commit_item", {"token": proposed.structured_content["token"]})
+    assert not committed.is_error
+    assert committed.structured_content["item"]["title"] == "Chat Intake"
+    assert committed.structured_content["item"]["labels"] == ["needs-review"]
+    assert committed.structured_content["already_existed"] is False
+
+
+@pytest.mark.anyio
+async def test_failures_reach_the_agent_as_actionable_errors():
+    svc, _, _ = service(config={**CONFIG, "labels": {"review": "review-me"}})
+    async with Client(build(svc)) as client:
+        mismatch = await client.call_tool("propose_item", {"intake_id": "r-1", "level": "epic", "title": "X"})
+        unknown = await client.call_tool("commit_item", {"token": "nope"})
+        bad_level = await client.call_tool("propose_item", {"intake_id": "r-1", "level": "saga", "title": "X"})
+    assert mismatch.is_error and "Fix the board config" in mismatch.content[0].text
+    assert unknown.is_error and "propose_item again" in unknown.content[0].text
+    assert bad_level.is_error
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_the_stdio_entry_point_serves_the_tools(mode):
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "server", str(ROOT / "examples" / "boards" / "plane.example.toml")],
+        cwd=str(ROOT),
+    )
+    async with Client(params, mode=mode) as client:
+        check_surface((await client.list_tools()).tools)
