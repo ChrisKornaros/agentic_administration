@@ -1,87 +1,81 @@
-# Next session — Phase 2, step 4: the conformance suite, run live
+# Next session — Phase 3: the domain MCP server + intake / create-* skills
 
-Source: agentic_optimization_research `roadmap/14-agentic-administration.md`
-§9 Phase 2 row ("the conformance suite run against a throwaway Plane
-project. First conformance cases: `external_id` write + search round-trip;
-Bug-type provisioning; whether `PATCH …/features` flips `epics`"), §3.1
-findings, §6 (config validated live before any write), D7 (a new backend =
-adapter + conformance suite). Steps 1–3 are merged (`server/model.py`,
-`server/config.py`, `adapters/base.py` + `adapters/plane/`); trust the
-roadmap over this note if they disagree. The step-4 gate: **adapter passes
-conformance live**, which closes Phase 2.
+Source: agentic_optimization_research `roadmap/14-agentic-administration.md`,
+specifically the §9 Phase 3 row, §5 layer 3 (the small domain MCP server,
+about eight tools, conventions and no-delete *enforced as behavior*), §7
+(intake schema + confirm flow), D5 (propose-then-confirm) and §11 (the
+review label is the server's job, answered 2026-09-22). If the roadmap
+and this note disagree, trust the roadmap.
 
-**Branch:** `feat/phase2-conformance`
+**Gate:** a requester-style transcript in a Claude Code session against
+Plane produces a correctly placed story with acceptance criteria and the
+review label.
 
-## What step 3's live read found (2026-09-22, read-only)
+Phase 2 closed 2026-09-22 (this repo's `feat/phase2-conformance` PR +
+AOR PR #210). The Plane adapter passes conformance 9/9 live;
+`conformance/README.md` has the findings.
 
-`uv run python -m adapters.plane describe boards/agentic_administration.toml`
-against the throwaway project (identifier **`AGADMIN`**, resolved from the
-name; the note that guessed `AA` was wrong) answered cleanly through
-Bitwarden + Cloudflare and refused the config, correctly:
+## Suggested shape — one PR per step, like Phase 2
 
-- `types: []` and project features `work_item_types: false`, `epics: false`
-  — a **fresh** project has Work Item Types off (the Phase 1 boards all had
-  Epic/Story/Task because the feature had been enabled on them).
-- No labels, no modules, no cycles; `modules: true`, `cycles: true` are on.
-- The default workflow states exist and map 1:1 by name (Backlog, Todo,
-  In Progress, Done, Cancelled); `members-lite` and `labels/` answer.
+1. **`server/` MCP server** (`feat/phase3-mcp-server`): the eight tools
+   of §5 over `adapters.base.Adapter`, built from a board config. Server
+   behaviour, not adapter behaviour:
+   - add `labels.review` on every create (§11; the adapter stays
+     mechanical);
+   - derive `external_id` from the intake record id, so a retried create
+     is found, not duplicated;
+   - map `AdapterError` subclasses to tool errors the agent can act on
+     (`ConfigMismatch` → "fix the board config"; `RateLimited` /
+     `Blocked` → "wait, then retry");
+   - expose no delete, by construction.
+2. **`schema/` intake schema** (§7 fields: problem, outcome,
+   constraints, urgency, related, acceptance as Given/When/Then,
+   proposed_placement), plus its Markdown rendering into the item
+   description.
+3. **`skills/`**: `intake`, `create-story` / `create-bug` /
+   `create-epic` (decomposition, then placement from `describe_board`,
+   then confirm).
+4. **The gate transcript**: a Claude Code session with the server
+   plugged in, against `boards/agentic_administration.toml` (AGADMIN).
 
-So provisioning is the first conformance case, not a side step.
+## Open questions to settle first
 
-## Build
+- **MCP dependency.** The runtime is standard-library only
+  (`pyproject.toml`: "anything added here needs a reason in the PR").
+  The choice is the official `mcp` Python SDK (protocol correctness,
+  the first runtime dependency) or hand-rolled stdio JSON-RPC.
+  Recommend the SDK, with the reason written in the PR. Run
+  `/substrate-preflight` on it.
+- **Where "confirm" lives (D5, `confirm = "always"`).** Options: a
+  two-step tool (propose returns a token, commit takes it), or a
+  `confirmed: true` argument the skill sets only after the requester
+  says yes. The server should enforce it, not just the prompt.
+- **Expose `get_item` / `get_iteration` as tools?** They are adapter
+  reads beyond the eight; the skills likely need `get_item` for "file
+  it under AGADMIN-1".
+- `naming.item_case` (title case) is validated in config but enforced
+  nowhere yet. Should the server check it?
 
-1. **`conformance/`** — a pytest-style runner that is *not* under `tests/`
-   (never in the default `uv run pytest`; e.g. `uv run python -m conformance
-   boards/<board>.toml`, with `--dry-run` listing cases without a call).
-   Cases in dependency order, each one idempotent (skip-by-name / by
-   `external_id`) so a Cloudflare wall or a 429 mid-run is a safe re-run:
-   1. **Provision** (Plane-specific, `PlaneAdapter` extras): try
-      `PATCH …/projects/{pid}/features` with `{"work_item_types": true,
-      "epics": true}` — **unverified**; if it works, record it; if not,
-      stop and ask Chris to flip Work Item Types + Epics in the UI (Project
-      Settings → Features), then re-run. Then `provision_work_item_type`
-      for Story / Task / Bug (POST `work-item-types`, proven for non-epic
-      types in the seed CLI), and labels `needs-review`, `bug`, `feature`,
-      `chore`, `docs` via `POST …/labels/` (**unverified write** — add a
-      `provision_label` next to `provision_work_item_type`).
-   2. `describe_board` → `problems == ()` (the gate flips clean).
-   3. `create_item` epic; `find_items(external_id=…)` → the **external_id
-      round-trip** (create with `external_id`, search finds exactly it).
-   4. Story under the epic, in a module (`create_item(Level.FEATURE)` first),
-      with `needs-review`; Bug under the epic; Task under the story.
-   5. Hierarchy: a Task parented under the Epic — expect Plane to accept
-      (Hierarchy is off) and record it; the mapped `ValidationError` path is
-      what the suite asserts if the workspace ever turns Hierarchy on.
-   6. `update_item` clearing the review label; `add_comment`.
-   7. `create_iteration("202610")`, `move_to_iteration`, and `close_iteration`
-      on a cycle that started **before today** (Plane completes a cycle only
-      once `end_date` has passed; the adapter pulls it to yesterday and
-      re-reads — verify the boundary and fix `close_iteration` if Plane
-      counts the end day differently).
-   8. Nothing deleted: the suite asserts no `DELETE` was ever sent
-      (`PlaneTransport` has no such path; assert on the call log).
-2. Keep total POST volume small (Cloudflare's managed challenge showed up
-   after ~24 creates in a burst); the throttle stays at 1.5 s.
-3. Record outcomes in `conformance/README.md` (dated, like `probes/`) and
-   the unverified-write answers go back to AOR `tools/plane/API.md` +
-   `roadmap/14 §3.1` as a separate AOR PR (D10: the CLI becomes the seed).
+## Carry-over facts
+
+- Board: `AGADMIN` (throwaway) is fully provisioned: Epic/Story/Bug/Task
+  types, labels `needs-review bug feature chore docs`, module
+  `Conformance 20260922`, cycles `202609` (closed) and `202610`, items
+  AGADMIN-1 to AGADMIN-5. The real config is
+  `boards/agentic_administration.toml` (gitignored).
+- Plane wire facts now encoded in the adapter: every route ends in `/`;
+  the external_id lookup is the project list (one record or a 404);
+  single-item reads return label objects; cycles carry no `status`, and
+  their dates are read in the project timezone.
+- Conformance: the date-parsing fix landed after the live 9/9 run and
+  was verified read-only. The next full run (a new `--run-id`, ideally
+  in October so the month has an open iteration) exercises it end to
+  end.
 
 ## Secret handoff that works
 
-Chris writes the session key to `~/.cache/bw_session`
-(`umask 077; bw unlock --raw > ~/.cache/bw_session`). Run live commands with
-the sibling AOR checkout's non-secret `.env` exported and
+Chris writes the session key with
+`umask 077; bw unlock --raw > ~/.cache/bw_session`. Run live commands with
+the sibling AOR `tools/plane/.env` exported, plus
 `PLANE_API_KEY_BW_ITEM="$PLANE_BW_ITEM" PLANE_API_KEY_BW_FIELD="$PLANE_BW_FIELD"
-BW_SESSION="$(cat ~/.cache/bw_session)"`; never print any of them. The real
-board config is `boards/agentic_administration.toml` (gitignored; types by
-name, project by name).
-
-## Open questions to settle in the PR
-
-- Does `PATCH …/features` flip `work_item_types` / `epics`? (API.md says the
-  Epics enable is UI-only; the SDK has the PATCH.)
-- Does `POST …/labels/` exist on the v1 API as the SDK suggests?
-- Which end-day boundary completes a cycle (`end_date < today` or `<=`)?
-- Is the `needs-review` label the adapter's job on create, or the MCP
-  server's (Phase 3)? Step 3 kept the adapter mechanical; decide before
-  the server lands.
+BW_SESSION="$(cat ~/.cache/bw_session)"`. Never print any of them.

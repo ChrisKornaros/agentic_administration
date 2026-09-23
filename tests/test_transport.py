@@ -106,6 +106,14 @@ def test_http_errors_map_to_the_taxonomy(code, body, kind, fragment):
         t.request("GET", "/x")
 
 
+def test_a_redirected_write_names_where_it_was_sent():
+    moved = urllib.error.HTTPError("https://x", 301, "Moved", {"Location": "https://x/features/"}, io.BytesIO(b""))
+    t = make([moved], throttle=0)
+    with pytest.raises(TransportError, match=r"HTTP 301 on PATCH /features: redirected to https://x/features/"):
+        t.request("PATCH", "/features", body={"epics": True})
+    assert t.log == [("PATCH", "/features")]
+
+
 def test_network_failure_and_non_json():
     t = make([urllib.error.URLError("dns down")], throttle=0)
     with pytest.raises(TransportError, match="dns down"):

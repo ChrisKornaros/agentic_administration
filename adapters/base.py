@@ -208,6 +208,11 @@ class Adapter(ABC):
     def get_item(self, ref: ItemRef | str) -> WorkItem:
         """One item by backend id or human key; `NotFound` otherwise."""
 
+    @abstractmethod
+    def get_iteration(self, iteration: str) -> Iteration:
+        """One iteration by id or name, in the state the tracker reports
+        now; `NotFound` otherwise."""
+
     # -- write --------------------------------------------------------------
 
     @abstractmethod
