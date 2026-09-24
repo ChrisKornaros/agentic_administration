@@ -5,12 +5,14 @@ request typed into a chat window into a well-formed backlog item —
 epic, feature, story, bug, or task — filed under the right parent, in
 the right sprint, on whatever tracker your team already runs.
 
-> **Status: building (2026-09).** Nothing is installable yet. The
-> design is settled, the first backend (Plane) passes its conformance
-> suite against a live throwaway project, and the MCP server, the intake
-> schema and the first four skills are in (offline-tested). Next is the
-> live proof: a requester-style conversation that files a correctly
-> placed story on Plane. Watch the releases for the first usable version.
+> **Status: building (2026-09).** Nothing is released yet. The first
+> backend (Plane) passes its conformance suite against a live throwaway
+> project. The MCP server, the intake schema and the first four skills
+> have filed a correctly placed story with acceptance criteria and the
+> review label from a plain-language Claude Code conversation
+> ([the gate record](transcripts/2026-09-24-phase3-gate.md)). Next is
+> the same conversation from a chat app. Watch the releases for the first
+> usable version.
 
 ## What it is
 
@@ -73,6 +75,7 @@ agentic_administration/
 ├── README.md
 ├── LICENSE            # MIT
 ├── CLAUDE.md          # agent context; modules/ + .claude/skills/ vendored from agentic_optimization_research  ✅
+├── .claude-plugin/    # plugin.json: loads skills/ + the MCP server into Claude Code  ✅
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
@@ -81,6 +84,7 @@ agentic_administration/
 ├── conformance/       # the adapter test suite  ✅ Plane passes live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/
 ├── probes/            # dated read-only API checks (evidence)  ✅
+├── transcripts/       # dated summaries of live requester sessions (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
 ```
 
@@ -149,6 +153,32 @@ skill-loading host reads it):
 With the board's `confirm = "never"`, the skills commit without pausing.
 Looking up related items happens in one step of `intake` (the board's own
 search by default), so another retrieval source replaces only that step.
+
+To try it in **Claude Code**, load the repo as a plugin.
+[.claude-plugin/plugin.json](.claude-plugin/plugin.json) registers the
+skills and starts the server for the board in `AGENTIC_ADMIN_BOARD`, which
+is a path relative to the repo or an absolute one. Start from an empty
+directory, not the repo, so the repo's developer `CLAUDE.md` stays out of
+the requester's context:
+
+```sh
+export PLANE_API_KEY=...                       # or the Bitwarden variables above
+export AGENTIC_ADMIN_BOARD=boards/<board>.toml
+T=mcp__plugin_agentic-administration_board__
+claude --plugin-dir /path/to/agentic_administration \
+  --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}propose_item" \
+  --append-system-prompt "You are a team's backlog assistant. Whatever someone asks for is work to add to the team's board, never something to build or design here. Start with the intake skill."
+```
+
+The skills show up as `/agentic-administration:intake` and so on, but a
+requester needs none of them: they just type the request. The framing line
+is what makes that work. Without it, Claude Code reads "I'd like this
+automated" as a request to build the automation
+([the gate record](transcripts/2026-09-24-phase3-gate.md), session A).
+The tools pre-allowed above write nothing, so `commit_item` still asks
+through Claude Code's permission prompt, a second guard beside the skill's
+own yes. The server reads the token environment when Claude Code starts,
+so after unlocking a vault, restart Claude Code.
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:

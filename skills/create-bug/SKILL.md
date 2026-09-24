@@ -59,7 +59,7 @@ The record has one part, and that part has no name:
 ```json
 {
   "id": "20260923-empty-report-export",
-  "problem": "Exporting a report with no rows shows an error page instead of a file. Anyone exporting a quiet month runs into it, a few times a month.",
+  "problem": "When I export a report with no rows, I get an error page instead of a file. Anyone on our team exporting a quiet month runs into it, a few times a month.",
   "outcome": "Exporting an empty report gives me a file with just the column headers.",
   "urgency": "high",
   "related": ["AA-12"],

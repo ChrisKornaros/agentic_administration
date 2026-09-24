@@ -1,37 +1,35 @@
-# Next session — Phase 3 step 4 (written 2026-09-23)
+# Next session — Phase 4, Hermes wiring (written 2026-09-24)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 3 row, §7 (flow), D5, D12
-- **Suggested branch:** `feat/phase3-gate`
-- **Phase 3 gate:** a requester-style transcript in Claude Code against Plane produces a correctly placed story with acceptance criteria and the review label.
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 4 row, D8, §11 (the ssh question)
+- **Suggested branch:** `feat/phase4-hermes`
+- **Phase 4 gate:** the same requester transcript from Discord through Hermes on ms01 gives the same result, with no step dropped.
 
-Phase 3 is one PR per step: ~~(1) `server/` MCP server~~, ~~(2) `schema/` intake schema~~, ~~(3) `skills/` `intake` + `create-story` / `create-bug` / `create-epic`~~ (all done 2026-09-23), **(4) the gate transcript against AGADMIN**.
+Phase 3 is done (2026-09-24). It passed its gate: [transcripts/2026-09-24-phase3-gate.md](../transcripts/2026-09-24-phase3-gate.md) records AGADMIN-10, a story under epic AGADMIN-6, in Backlog with `needs-review` and three Given/When/Then criteria.
 
 ## Do
-1. `/phase-kickoff` for step 4. This is the first live run of the server and skills. It writes to AGADMIN only, so ask permission first, as for conformance.
-2. **Load the skills and the server into a Claude Code session.** The route checked on 2026-09-23 against the Claude Code docs is a plugin:
-   - `.claude-plugin/plugin.json` (`name`, `description`), the existing `skills/`, and `.mcp.json` running `uv run python -m server boards/agentic_administration.toml`.
-   - Start it with `claude --plugin-dir .`.
-   - Plugin skills show up as `/<plugin>:intake`, and plugin MCP tools as `mcp__plugin_<plugin>_<server>__<tool>`.
-   - The Agent SDK loads plugin skills too, but not a root `skills/` dir on its own.
-   - The `.mcp.json` needs the token env. See the live recipe in CLAUDE.md → Project rules.
-3. **Run the gate as a requester would:** two sentences in, then `intake` → `create-story` → preview → yes → commit. Check the story on the board: level, parent epic, the acceptance criteria in the description, and `needs-review`. Save the transcript as dated evidence. Board content stays out of git, so commit only a redacted or summarized record.
-4. If there's time, also run an epic split, which exercises the one-yes-then-re-ask-on-difference flow.
-5. Flip README status, and update roadmap/14's Phase 3 row in the AOR PR below.
+1. **AOR first, as a separate AOR session and PR, not from here.** roadmap/14 needs:
+   - the Phase 3 row ✅ 2026-09-24, with a link to the gate record;
+   - a status line that says Phase 4 is next;
+   - the owed items: (a) a split lives in the schema as `parts`, with a `#<part>` sibling parent; (b) `propose_item` takes the record (`intake=…`, `part=…`), still 11 tools; (c) a split is confirmed once, then committed item by item, re-asking only when a preview differs; (d) the intake id is `YYYYMMDD-<slug>`, with `-2` added on a first-proposal collision; (e) §8's `context_provider` is the one retrieval step in `intake`, not code;
+   - plus the gate's finding that the host must frame the agent as a backlog assistant, or Claude Code reads a request as a build task.
+2. `/phase-kickoff` for Phase 4. Settle §11's ssh question up front: `stay-in-project-tree` denies `ssh`/`scp`/`rsync`. Either Chris runs the ms01 steps himself, or MODULES.md records an exception.
+3. **Hermes config (D8):**
+   - a global `mcp_servers` entry, stdio, running `uv run --directory <repo> python -m server <board.toml>`;
+   - the token through `env`;
+   - `tools.include` set to the 11 tools;
+   - the framing line from the README's Claude Code section in the Hermes persona or system prompt;
+   - the skills loaded in whatever way Hermes loads skills. Check its docs first.
+4. Run the story gate from Discord, with Chris as the requester. Record it next to the Phase 3 record, and compare the steps with run 2.
 
 ## To run / verify
-- `uv run pytest`: 206 pass, offline.
-- Server: `uv run python -m server boards/<board>.toml` (stdio).
+- `uv run pytest`: 206 pass, offline. `claude plugin validate .` passes, with one expected warning about the root CLAUDE.md.
+- The Claude Code requester block is in README → "To try it in Claude Code". Run it from an empty directory.
 
-## Open questions / watch-outs
-- **Latency:** `find_items(query=…)` fetches each hit with a separate GET at 1.5 s. The skills pass `limit=5`, which is about 16 s worst case. Check how it feels in the transcript.
-- **Title case:** "title" capitalizes every word, small words included ("Export Reports As CSV"). The skills say so, and `tests/test_skills.py` checks their examples against it.
-- **AOR owes roadmap/14 these, as a separate AOR PR:**
-  - (a) the split lives in the schema as `parts`, with a `#<part>` sibling parent;
-  - (b) `propose_item` takes the record (`intake=…`, `part=…`), still 11 tools;
-  - (c) a split is confirmed once from the record, then committed item by item, re-asking only on a differing preview (warning, `existing`, failure). Chris's call, 2026-09-23;
-  - (d) intake id `YYYYMMDD-<slug>`, made once per request, with `-2` added on a first-proposal collision;
-  - (e) §8's `context_provider` is one step of the `intake` skill (default `find_items`), not code;
-  - also: roadmap/14's status line still says the MCP server is step 1.
+## Open questions / follow-ups (from the gate, not Phase 4 blockers)
+- **Split repetition:** every story in a split repeats the request's whole problem and outcome. Keep items self-contained for the PO, or shorten them? Chris's call. The rendering is in `schema/intake.py`.
+- **Parent key:** `get_item` and `find_items` return the parent as a bare id. `expand=parent` gives its `sequence_id` (Phase 1 §3.1), which makes the key. This is a small adapter PR plus a fake-transport test.
+- **`related` as a link:** today it's a description line. A real relation is a new write and needs a conformance case (roadmap/14 §8).
+- **Bitwarden:** the cached session locked between the morning read and the run. The server takes its env at launch, so after an unlock, restart the host.
 - Next full conformance run: a new `--run-id`, ideally in October, to exercise the date-parsing fix end to end.
 
 ---
