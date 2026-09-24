@@ -64,8 +64,13 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   `umask 077; bw unlock --raw > ~/.cache/bw_session`; export the sibling AOR `tools/plane/.env`, then
   `PLANE_API_KEY_BW_ITEM="$PLANE_BW_ITEM" PLANE_API_KEY_BW_FIELD="$PLANE_BW_FIELD" BW_SESSION="$(cat ~/.cache/bw_session)"`
   (the out-of-tree reads are a recorded override in MODULES.md).
-- **Board content never lands in git:** `boards/`, `probes/probe-report.json` and
-  `conformance/reports/` are gitignored; only `*.example` files are committed.
+- **Board content never lands in git:** `boards/`, `probes/probe-report.json`,
+  `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and
+  summarized `transcripts/*.md` (keys and checks, no item text) are committed.
+- **Live requester runs** load this repo as a plugin from an empty directory: Chris runs
+  `claude --plugin-dir <repo>` with `AGENTIC_ADMIN_BOARD` + the token env exported and the
+  framing `--append-system-prompt` (exact block: README → Claude Code). Chris plays the requester;
+  afterwards read the session JSONL under `~/.claude/projects/<cwd-key>/` and check the board read-only.
 - **Dependencies:** one runtime dependency, the official `mcp` SDK, pinned `>=2.2,<3` (v2: `MCPServer`,
   not `FastMCP`). The model, config, intake schema and adapters stay stdlib-only. Every new runtime dependency
   needs its reason in the PR plus a `/substrate-preflight`.
@@ -89,7 +94,9 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [schema/](schema/) | The intake record (one request → its parts) and its Markdown rendering; `propose_item(intake=…, part=…)` consumes it |
 | [skills/](skills/) | The **product** skills (public): `intake`, `create-story` / `create-bug` / `create-epic`. Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 tools and the schema |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` adapter |
+| [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + the server (`board`, from `AGENTIC_ADMIN_BOARD`) as a Claude Code plugin. Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results |
 | [probes/](probes/) | Dated read-only API evidence |
+| [transcripts/](transcripts/) | Dated summaries of live requester sessions (the Phase 3 gate) |
 | [tests/](tests/) | Offline unit tests (`fake_plane.py` transport) |
 | [examples/boards/](examples/boards/) | The committed board-config template |

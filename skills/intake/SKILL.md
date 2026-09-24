@@ -38,6 +38,11 @@ Record their words, lightly edited. Don't add facts they didn't give. If
 they describe a solution ("add a button"), ask what it's for. Keep the
 solution only as a constraint, and only if they insist on it.
 
+Keep their voice. Write the problem and outcome as they would say them,
+with "I", "we" or "our team", the same voice as the acceptance criteria.
+Don't name the requester, or anyone they didn't name. A name you know from
+somewhere else is a fact they didn't give.
+
 Then ask one optional question covering both **constraints** (musts,
 must-nots, dates, dependencies) and **urgency** (low, medium or high, as
 their gut feel; the PM orders the backlog). "Not sure" is fine. Leave the

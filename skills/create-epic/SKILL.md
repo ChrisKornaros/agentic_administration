@@ -50,8 +50,8 @@ epic has been committed.
 ```json
 {
   "id": "20260923-report-exports",
-  "problem": "Finance re-types report totals into spreadsheets and slides by hand every month.",
-  "outcome": "Any saved report can leave the tool as a spreadsheet file or a PDF, on demand or on a schedule.",
+  "problem": "Our finance team re-types report totals into spreadsheets and slides by hand every month.",
+  "outcome": "I can get any saved report out as a spreadsheet file or a PDF, on demand or on a schedule.",
   "constraints": ["no new paid service"],
   "urgency": "medium",
   "parts": [

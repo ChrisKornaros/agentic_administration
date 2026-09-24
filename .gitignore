@@ -22,3 +22,6 @@ boards/
 
 # conformance run records — board content, never committed
 conformance/reports/
+
+# raw session transcripts — board content; transcripts/*.md holds the committed summary
+transcripts/raw/

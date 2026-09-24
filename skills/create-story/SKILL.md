@@ -49,7 +49,7 @@ The record has one part, and that part has no name:
 ```json
 {
   "id": "20260923-export-reports-csv",
-  "problem": "Finance re-types report totals into a spreadsheet by hand every month.",
+  "problem": "Our finance team re-types report totals into a spreadsheet by hand every month.",
   "outcome": "I can download any saved report as a file my spreadsheet opens.",
   "constraints": ["no new paid service"],
   "urgency": "medium",
