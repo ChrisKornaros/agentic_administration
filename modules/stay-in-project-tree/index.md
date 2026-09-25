@@ -10,7 +10,7 @@ evidence:
   - .claude/settings.json
 applies_when:
   - any session, any host repo (this is a universal scope rule)
-version: 1
+version: 2
 ---
 
 # Stay inside the project tree
@@ -127,6 +127,13 @@ that ends with secrets in a transcript.
   spec version (see
   [roadmap/03-instruction-modules.md §8](../../roadmap/03-instruction-modules.md#8-open-questions));
   for now the snippet is alongside the prose.
+  **Anchor gotcha (fixed in v2):** in `Read`/`Edit`/`Write` rules a
+  single leading `/` is relative to the settings source, not the
+  filesystem root, so v1's `Read(/etc/**)` denied `<repo>/etc/**`
+  and blocked nothing. System directories take `//` (`Read(//etc/**)`);
+  credential stores take `~/`, which resolves per machine. A host
+  that vendored v1 should re-vendor. Found by the
+  agentic_administration build repo, 2026-09-25.
 
 ## Related
 
