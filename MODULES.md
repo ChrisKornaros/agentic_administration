@@ -19,7 +19,7 @@ When a module's canonical version bumps, re-copy and update the row here. Local 
 | [secrets-no-plaintext](modules/secrets-no-plaintext/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [external-api-adapter-boundary](modules/external-api-adapter-boundary/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [no-live-external-in-tests](modules/no-live-external-in-tests/index.md) | 1 | `bee8f3c` | 2026-09-23 | `probes/` (read-only) and `conformance/` (writes to a throwaway board) are live by design; they are not tests and never run from `tests/` |
-| [stay-in-project-tree](modules/stay-in-project-tree/index.md) | 1 | `bee8f3c` | 2026-09-23 | Live runs export the sibling AOR `tools/plane/.env` (Plane key pointers) and read `~/.cache/bw_session`: the sanctioned out-of-tree reads. System-dir denies use `//etc/**` (absolute); the snippet's `/etc/**` is project-relative in Claude Code and blocked nothing. Credential dirs use `~/`, not `/Users/*` (upstream fix owed AOR) |
+| [stay-in-project-tree](modules/stay-in-project-tree/index.md) | 2 | `20b3f13` | 2026-09-25 | Live runs export the sibling AOR `tools/plane/.env` (Plane key pointers) and read `~/.cache/bw_session`: the sanctioned out-of-tree reads |
 | [no-sudo-as-shortcut](modules/no-sudo-as-shortcut/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [python-uv-only](modules/python-uv-only/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [no-cat-head-via-bash](modules/no-cat-head-via-bash/index.md) | 1 | `bee8f3c` | 2026-09-23 | Re-read guard runs from the global dotfiles (the H2 experiment copy), not this repo's settings (would double-fire) |
