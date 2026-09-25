@@ -11,8 +11,9 @@ Phase 3 is done (2026-09-24). It passed its gate: [transcripts/2026-09-24-phase3
    - the Phase 3 row ✅ 2026-09-24, with a link to the gate record;
    - a status line that says Phase 4 is next;
    - the owed items: (a) a split lives in the schema as `parts`, with a `#<part>` sibling parent; (b) `propose_item` takes the record (`intake=…`, `part=…`), still 11 tools; (c) a split is confirmed once, then committed item by item, re-asking only when a preview differs; (d) the intake id is `YYYYMMDD-<slug>`, with `-2` added on a first-proposal collision; (e) §8's `context_provider` is the one retrieval step in `intake`, not code;
-   - plus the gate's finding that the host must frame the agent as a backlog assistant, or Claude Code reads a request as a build task.
-2. `/phase-kickoff` for Phase 4. Settle §11's ssh question up front: `stay-in-project-tree` denies `ssh`/`scp`/`rsync`. Either Chris runs the ms01 steps himself, or MODULES.md records an exception.
+   - plus the gate's finding that the host must frame the agent as a backlog assistant, or Claude Code reads a request as a build task;
+   - the `stay-in-project-tree` snippet and `templates/_shared/claude-settings.example.json` use single-slash `/etc/**`, which Claude Code reads as project-relative, so those denies block nothing. Switch to `//etc/**`, and replace `/Users/*/…` with `~/…` (fixed here 2026-09-25; see MODULES.md).
+2. `/phase-kickoff` for Phase 4. Settle §11's ssh question up front: `stay-in-project-tree` denies `ssh`/`scp`/`rsync`. Either Chris runs the ms01 steps himself, or MODULES.md records an exception. ms01 has had its own clone since 2026-09-25 (memory linked, 206 tests pass), so a session opened on ms01 needs no ssh.
 3. **Hermes config (D8):**
    - a global `mcp_servers` entry, stdio, running `uv run --directory <repo> python -m server <board.toml>`;
    - the token through `env`;
