@@ -71,6 +71,10 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   `claude --plugin-dir <repo>` with `AGENTIC_ADMIN_BOARD` + the token env exported and the
   framing `--append-system-prompt` (exact block: README → Claude Code). Chris plays the requester;
   afterwards read the session JSONL under `~/.claude/projects/<cwd-key>/` and check the board read-only.
+  **Through Hermes** (ms01, Docker): the `po` profile ([examples/hermes/](examples/hermes/) with ms01's
+  paths; its `.env` holds the Plane key and bot token), in the bot's Discord channel. Afterwards read the
+  session from `~/.hermes/profiles/po/state.db` (open it `mode=ro`), and read the board back with `get_item`
+  run inside the container (`docker exec --user hermes`, po's venv and `.env`).
 - **Dependencies:** one runtime dependency, the official `mcp` SDK, pinned `>=2.2,<3` (v2: `MCPServer`,
   not `FastMCP`). The model, config, intake schema and adapters stay stdlib-only. Every new runtime dependency
   needs its reason in the PR plus a `/substrate-preflight`.
@@ -97,6 +101,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + the server (`board`, from `AGENTIC_ADMIN_BOARD`) as a Claude Code plugin. Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results |
 | [probes/](probes/) | Dated read-only API evidence |
-| [transcripts/](transcripts/) | Dated summaries of live requester sessions (the Phase 3 gate) |
+| [transcripts/](transcripts/) | Dated summaries of live requester sessions (the Phase 3 and Phase 4 gates) |
 | [tests/](tests/) | Offline unit tests (`fake_plane.py` transport) |
 | [examples/boards/](examples/boards/) | The committed board-config template |
+| [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio server, 11-tool include, skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |

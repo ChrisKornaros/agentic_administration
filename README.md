@@ -10,9 +10,10 @@ the right sprint, on whatever tracker your team already runs.
 > project. The MCP server, the intake schema and the first four skills
 > have filed a correctly placed story with acceptance criteria and the
 > review label from a plain-language Claude Code conversation
-> ([the gate record](transcripts/2026-09-24-phase3-gate.md)). Next is
-> the same conversation from a chat app. Watch the releases for the first
-> usable version.
+> ([the gate record](transcripts/2026-09-24-phase3-gate.md)), and did it
+> again from Discord through Hermes with no step dropped
+> ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). Next is
+> the Jira Cloud adapter. Watch the releases for the first usable version.
 
 ## What it is
 
@@ -65,8 +66,9 @@ module, area) is a separate axis, not a level.
 
 The chat bot is not the product. The server, the skills, and the intake
 schema are. A Discord, Slack, or Telegram front end is whatever agent
-runtime you already operate; the repo will document a runnable Claude
-Agent SDK example and a Hermes configuration as reference wirings.
+runtime you already operate. The repo has a Hermes configuration
+([examples/hermes/](examples/hermes/)) as a reference wiring, and will add a
+runnable Claude Agent SDK example.
 
 ## Layout (planned; ✅ = exists)
 
@@ -82,7 +84,7 @@ agentic_administration/
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic; plan-sprint, groom later
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite  ✅ Plane passes live
-├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/
+├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 ├── transcripts/       # dated summaries of live requester sessions (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
@@ -179,6 +181,24 @@ The tools pre-allowed above write nothing, so `commit_item` still asks
 through Claude Code's permission prompt, a second guard beside the skill's
 own yes. The server reads the token environment when Claude Code starts,
 so after unlocking a vault, restart Claude Code.
+
+To run it from chat through **Hermes**, give it a profile of its own:
+`hermes profile create po --no-skills`, then merge
+[examples/hermes/config.fragment.yaml](examples/hermes/config.fragment.yaml)
+into the profile's `config.yaml` and copy
+[examples/hermes/SOUL.md](examples/hermes/SOUL.md), which is the same framing
+line, next to it. The fragment starts the server over stdio with `uv run`,
+passes the token through `env`, registers exactly the eleven tools (Hermes
+names them `mcp__board__<tool>`), loads [skills/](skills/) in place, and gives
+the chat platforms nothing else: no shell, files, web or memory. It also
+holds every skill write for the operator's approval, so the agent can't
+replace a skill with its own local copy. The profile's `.env` holds the
+board token and its own Discord bot token, since each profile runs its own
+gateway. If Hermes runs in Docker, mount the repo read-only and keep the
+fragment's two `UV_*` lines, which put the venv on a writable path. Hermes
+has no permission prompt for MCP tools, so the skill's own "wait for yes" is
+the only guard before `commit_item`
+([the Hermes gate record](transcripts/2026-09-26-phase4-gate.md)).
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:
