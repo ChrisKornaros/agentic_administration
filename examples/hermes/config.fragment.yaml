@@ -1,0 +1,55 @@
+# Hermes wiring for the backlog agent (roadmap/14 D8). Merge into a
+# profile's config.yaml, e.g. ~/.hermes/profiles/po/config.yaml, and put
+# SOUL.md (next to this file) in the same profile directory.
+#
+# The profile's .env holds the secrets: the board's token_env (here
+# PLANE_API_KEY), plus that profile's own DISCORD_BOT_TOKEN and
+# DISCORD_ALLOWED_USERS. Each profile runs its own gateway, so it needs its
+# own bot.
+#
+# Replace /path/to/agentic_administration with the repo's path as Hermes
+# sees it: inside the container, if Hermes runs in Docker.
+
+mcp_servers:
+  board:
+    command: uv
+    args: [run, --frozen, --no-dev, --directory, /path/to/agentic_administration,
+           python, -m, server, boards/<board>.toml]
+    env:
+      PLANE_API_KEY: ${PLANE_API_KEY}
+      # Only when the repo is mounted read-only (Docker): uv's venv and cache
+      # go to a writable path instead of the repo.
+      UV_PROJECT_ENVIRONMENT: /opt/data/profiles/po/mcp/venv
+      UV_CACHE_DIR: /opt/data/profiles/po/mcp/uv-cache
+    connect_timeout: 120  # the first start builds the venv
+    tools:
+      include: [describe_board, find_items, get_item, get_iteration, propose_item,
+                commit_item, update_item, add_comment, create_iteration,
+                move_to_iteration, close_iteration]
+      prompts: false
+      resources: false
+
+skills:
+  external_dirs:
+    - /path/to/agentic_administration/skills
+  # The skills toolset includes skill_manage, and a local skill overrides an
+  # external one of the same name, so the agent (or Hermes' background
+  # review) could rewrite intake, including its "wait for yes". With this
+  # set, every skill write waits in pending/skills/ for the operator.
+  write_approval: true
+
+# A requester reaches the board and nothing else: no shell, files, web or
+# delegation. Naming the server here also keeps it off other platforms'
+# default MCP set.
+platform_toolsets:
+  cli: [clarify, skills, board]
+  discord: [clarify, skills, board]
+
+agent:
+  disabled_toolsets: [terminal, file, code_execution]
+
+# Hermes' memory would put what it learned about past requesters into the
+# prompt; intake keeps the requester's own voice (the Phase 3 gate record).
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
