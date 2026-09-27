@@ -6,8 +6,10 @@ reads one. Resolution order for a secret named `NAME`:
   1. `NAME` already in the environment (CI, an explicit export).
   2. Otherwise, when `NAME_BW_ITEM` names a Bitwarden vault item, the value
      is fetched via the `bw` CLI: that item's *password* field by default,
-     or the custom field named by `NAME_BW_FIELD`. The vault must be
-     unlocked (`BW_SESSION`, e.g. `export BW_SESSION=$(bw unlock --raw)`).
+     its login *username* when `NAME_BW_FIELD` is `username` (Jira's
+     account email sits next to its token), or else the custom field named
+     by `NAME_BW_FIELD`. The vault must be unlocked (`BW_SESSION`, e.g.
+     `export BW_SESSION=$(bw unlock --raw)`).
 
 Resolution is lazy — callers pass `lambda: get("PLANE_API_KEY")` to a
 transport and the lookup happens on the first real request, so anything
@@ -79,7 +81,10 @@ def _from_bitwarden(name: str, item_ref: str, field: str, session: str, runner: 
         item = json.loads(out)
     except json.JSONDecodeError as exc:
         raise SecretUnavailable(f"`bw get item {item_ref}` returned non-JSON output") from exc
-    if field:
+    if field == "username":
+        value = (item.get("login") or {}).get("username")
+        where = "login username"
+    elif field:
         value = next((f.get("value") for f in item.get("fields") or [] if f.get("name") == field), None)
         where = f"custom field {field!r}"
     else:

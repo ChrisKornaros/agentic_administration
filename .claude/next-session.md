@@ -1,30 +1,56 @@
-# Next session — AOR catch-up, then Phase 5 (Jira Cloud Premium) (written 2026-09-26)
+# Next session: Phase 5 step 2, the Jira adapter (written 2026-09-27)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 5 row, D2, §11 (Jira iteration ownership)
-- **Suggested branch (here):** `feat/phase5-jira-<step>`, one PR per step
-- **Phase 5 gate:** conformance passes against a personal Jira Cloud site (never a company site).
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 Phase 5 row, D2, §4 (the Jira column)
+- **Branch (here):** `feat/phase5-jira-adapter`, then `feat/phase5-jira-conformance` (the gate)
+- **Phase 5 gate:** conformance passes against a personal Jira Cloud site, never a company site.
+- **Deadline:** the site's Premium trial ends **2026-10-27**. Phase 6's rollover gate needs Jira too, and sprints keep working on Free.
 
-Phase 4 is done (2026-09-26). It passed its gate: [transcripts/2026-09-26-phase4-gate.md](../transcripts/2026-09-26-phase4-gate.md) records AGADMIN-11, a story under epic AGADMIN-6, filed from Discord through Hermes on ms01 with every run-2 step present. The wiring is [examples/hermes/](../examples/hermes/). On ms01 it runs as the Hermes `po` profile (its own Discord bot, Opus 5.5), with this repo mounted read-only as compose-override mount 4.
+Step 1 is done: the preflight and the read-only probe (`feat/phase5-jira-probe`). Its evidence row is in [probes/README.md](../probes/README.md), and the full report is the gitignored `probes/jira-probe-report.json`.
 
-## AOR is owed first (a separate AOR session, as after Phase 3)
-1. **roadmap/14:** Phase 4 ✅ 2026-09-26, and a §3.4 from the gate record's findings. §3.1 says Hermes registers tools as `mcp_<server>_<tool>`; the gate showed `mcp__board__<tool>`. Also record the calls this session settled: the Hermes profile is `po` (Chris: the PO's job is to manage the board), the gate ran Opus 5.5, and `skills.write_approval: true`. §11's ssh question can close, since ms01 sessions need no ssh.
-2. **`hosts/ms01/hermes/`:** the deployed `docker-compose.override.yml` now has mount 4 (this repo, `:ro`, at `/home/chris/agentic_administration`) and says "four" in its header. AOR's copy still has three. Add `profiles/po/config.fragment.yaml`, the ms01 copy of this repo's example: model `claude-opus-5-5`, ms01 paths, `write_approval: true`. Add a README row for the `po` profile.
+## The target
+- Chris's personal site (its URL is in project memory, `jira-site`), a **company-managed** Scrum project "Jira Test", key **`AGADM`** (id 10001). Its board is "AGADM board", **id 2**, and it has an empty future sprint, "AGADM Sprint 1" (id 3).
+- An earlier team-managed project `AGADMIN` still exists on the site. It is not the target.
+- Auth is Basic: the account email plus a classic API token, against the site URL. Both come from Bitwarden item `agentic_administration:jira:api` (the token in its password, the email in its username):
+  `JIRA_API_TOKEN_BW_ITEM=… JIRA_USER_BW_ITEM=… JIRA_USER_BW_FIELD=username BW_SESSION="$(cat ~/.cache/bw_session)"`. Run `bw sync` first if the item changed.
 
-## Then Phase 5 here
-1. `/phase-kickoff` for Phase 5, then `/substrate-preflight` for Jira Cloud (a new vendor surface: rate limits, the Premium tier, ToS).
-2. **Ask Chris first:** is there a personal Jira Cloud Premium site (a trial works) to run conformance against? It must never be a company site. The adapter can't be read-proven without one.
-3. Read-proven first: a dated read-only probe of the site (issue types, custom hierarchy levels, workflows and transitions, the board and sprint ids), then the adapter, then conformance.
+## Decided 2026-09-27 (Chris), to build to
+1. **Feature** collapses to a label, `feature:<name>` with spaces turned into dashes. Premium custom levels sit only *above* Epic, so roadmap/14 §4's "Feature = custom hierarchy level" is wrong for Jira. That's an AOR fix.
+2. **Initiative** collapses to a description line, as on Plane. Phase 5 uses no Premium-only feature.
+3. **Idempotency** is a visible `xid:<external_id>` label, set in the create call and found with JQL `labels = "…"`, the only exact text match JQL has.
+   - The adapter keeps it whenever labels are replaced, as when the review label is cleared.
+   - `/search/jql` is eventually consistent, so the adapter also remembers the items it has created and re-checks them with `reconcileIssues`.
+4. **States map by name:** `Backlog` / `To Do` / `In Progress` / `Cancelled` / `Done`. Every transition is global and named after its target status. Chris is moving To Do into the To Do category and Cancelled into Done.
+5. **Sprints: dates decide.** `create_iteration` starts a sprint (PUT `state: active`) when its dates cover today. It fails cleanly if another sprint is already active, since there are no parallel sprints. Close = `state: closed`.
+
+## Step 2: build
+- Package `adapters/jira/`:
+  - `transport.py`: Basic auth; map 429 + `Retry-After` to `RateLimited`; never retry a 401 (the CAPTCHA risk).
+  - `adf.py`: Markdown ↔ ADF.
+  - `adapter.py` and `__main__.py describe`.
+- `server/config.py`: the Jira connection is `site`, `project_key`, `board_id`, plus the account email's env var.
+- Also: `server/__main__.py` dispatch, `examples/boards/jira.example.toml`, and offline tests on a `tests/fake_jira.py` transport.
+- Wire facts from the probe:
+  - Search is `/rest/api/3/search/jql` (the old `/search` returns 410); always pass `fields`.
+  - Parent is set with the `parent` field.
+  - The Sprint field is `customfield_10020`, which is on the create screen.
+  - Labels are free-form: `describe_board` shouldn't demand they exist. They can't contain spaces.
+- **Done when** `uv run pytest` is green with the new tests, and `uv run python -m adapters.jira describe boards/jira-agadm.toml` prints `config fits the board.` That's a live read with no writes.
 
 ## To run / verify
-- `uv run pytest`: 208 pass, offline. `claude plugin validate .` last passed 2026-09-24 on the Mac, with one expected warning about the root CLAUDE.md. It isn't on ms01's shell PATH, and Phase 4 didn't touch the plugin.
-- Hermes on ms01: `docker exec hermes hermes -p po mcp test board` shows 11 tools. The po gateway state is in `~/.hermes/profiles/po/gateway_state.json`.
+- `uv run pytest`: 209 pass, offline.
+- `uv run python probes/jira_phase5_readonly.py --plan` needs no network. The live run takes the env above plus `JIRA_SITE` and `JIRA_PROJECT=AGADM`.
 
-## Open questions / follow-ups (not Phase 5 blockers)
-- **Parent key:** `get_item`, `find_items` and `commit_item` return the parent as a bare id, seen again in the Phase 4 gate. `expand=parent` gives its `sequence_id` (Phase 1 §3.1), which makes the key. This is a small adapter PR plus a fake-transport test.
-- **Split repetition:** every story in a split repeats the request's whole problem and outcome. Keep items self-contained for the PO, or shorten them? Chris's call. The rendering is in `schema/intake.py`.
-- **`related` as a link:** still a description line. In the Phase 4 gate the agent added a back-pointer comment after a yes, and Chris found that enough for now. A relation write needs a conformance case first (roadmap/14 §8).
-- **No comment read:** the server can add a comment but not read one back, so the gate checked the AGADMIN-9 comment by the write's result and by eye.
-- Next full conformance run: a new `--run-id`, ideally in October, to exercise the date-parsing fix end to end.
+## Owed to AOR after Phase 5 (one catch-up session)
+- The roadmap/14 §4 Jira column: Feature and Initiative collapse, and custom levels sit only above Epic.
+- A §3.5 findings section from the probe and conformance, and D-numbers for the five calls above.
+- Phase 5 ✅.
+
+## Open follow-ups (not Phase 5 blockers)
+- **Parent key:** Plane's `get_item`, `find_items` and `commit_item` return the parent as a bare id. `expand=parent` gives its `sequence_id` (a small adapter PR).
+- **Split repetition:** every story in a split repeats the whole request. This is Chris's call, and the rendering is in `schema/intake.py`.
+- **`related` as a link:** it's still a description line. A relation write needs a conformance case first.
+- **No comment read:** the server can add a comment but can't read one back.
+- **After Phase 5:** Chris has an Atlassian-tooling project to build and test. It waits until the core Jira workflow is done.
 
 ---
-*Written at session end by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
+*Written at the end of Phase 5 step 1 by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
