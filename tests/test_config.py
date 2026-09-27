@@ -148,9 +148,20 @@ def test_backend_specific_connection_keys(backend, missing):
 def test_jira_connection_accepts_numeric_board_id():
     data = variant(
         backend="jira",
-        connection={"token_env": "JIRA_TOKEN", "site": "x.atlassian.net", "project_key": "AA", "board_id": 42},
+        connection={"token_env": "JIRA_TOKEN", "user_env": "JIRA_USER", "site": "x.atlassian.net",
+                    "project_key": "AA", "board_id": 42},
     )
-    assert BoardConfig.from_dict(data).check().connection.ids["board_id"] == "42"
+    cfg = BoardConfig.from_dict(data).check()
+    assert cfg.connection.ids["board_id"] == "42" and cfg.connection.user_env == "JIRA_USER"
+    assert "user_env" not in cfg.connection.ids
+
+
+def test_jira_needs_user_env_and_it_must_be_a_name():
+    conn = {"token_env": "JIRA_TOKEN", "site": "x.atlassian.net", "project_key": "AA", "board_id": 42}
+    assert "connection for jira needs user_env (the env var holding the account email)" in problems_of(
+        variant(backend="jira", connection=conn))
+    assert any("connection.user_env must be the *name*" in p for p in problems_of(
+        variant(backend="jira", connection={**conn, "user_env": "me@example.invalid"})))
 
 
 # --- levels ------------------------------------------------------------------

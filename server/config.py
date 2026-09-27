@@ -63,7 +63,8 @@ class ItemCase(enum.Enum):
 
 
 # Identifiers each backend needs beyond `token_env` / `base_url`. Jira needs
-# both a project key and an Agile board id because sprints belong to a board.
+# both a project key and an Agile board id because sprints belong to a board,
+# plus `user_env` (below): its Basic auth pairs the token with the account email.
 CONNECTION_KEYS: Mapping[Backend, frozenset[str]] = {
     Backend.PLANE: frozenset({"workspace", "project"}),
     Backend.JIRA: frozenset({"site", "project_key", "board_id"}),
@@ -98,12 +99,15 @@ class InvalidBoardConfig(ValueError):
 @dataclass(frozen=True)
 class Connection:
     """How to reach the board. `token_env` is the *name* of the env var
-    holding the API token; `ids` are the backend-specific identifiers
-    (`CONNECTION_KEYS`); `base_url` is optional and defaults per adapter."""
+    holding the API token; `user_env` names the one holding the account
+    (Jira: the email its Basic auth pairs with the token); `ids` are the
+    backend-specific identifiers (`CONNECTION_KEYS`); `base_url` is
+    optional and defaults per adapter."""
 
     token_env: str
     ids: Mapping[str, str] = field(default_factory=dict)
     base_url: str | None = None
+    user_env: str | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +178,14 @@ class BoardConfig:
             problems.append(
                 "connection.token_env must be the *name* of an environment variable, "
                 "not a value"
+            )
+        if conn.user_env is not None and not _ENV_NAME.match(conn.user_env):
+            problems.append(
+                "connection.user_env must be the *name* of an environment variable, not a value"
+            )
+        if self.backend is Backend.JIRA and conn.user_env is None:
+            problems.append(
+                "connection for jira needs user_env (the env var holding the account email)"
             )
         for key in conn.ids:
             if any(word in key.lower() for word in _SECRET_KEY_WORDS):
@@ -315,13 +327,17 @@ def _connection(raw: Any, problems: list[str]) -> Connection:
     if base_url is not None and not isinstance(base_url, str):
         problems.append("connection.base_url must be a string")
         base_url = None
+    user_env = table.pop("user_env", None)
+    if user_env is not None and not isinstance(user_env, str):
+        problems.append("connection.user_env must be a string (the env var name)")
+        user_env = None
     ids: dict[str, str] = {}
     for key, value in table.items():
         if not isinstance(value, (str, int)):
             problems.append(f"connection.{key} must be a string")
             continue
         ids[key] = str(value)
-    return Connection(token_env=token_env, ids=ids, base_url=base_url)
+    return Connection(token_env=token_env, ids=ids, base_url=base_url, user_env=user_env)
 
 
 def _levels(raw: Any, problems: list[str]) -> dict[Level, LevelMapping]:

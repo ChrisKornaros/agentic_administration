@@ -5,8 +5,8 @@
      ~85 lines. Detail belongs in modules/, skills, and the linked docs. -->
 
 A tracker-agnostic backlog agent: an MCP server, skills and an intake schema
-over a canonical work-item model, with one adapter per tracker (Plane now,
-Jira Cloud Premium in Phase 5). Python ≥ 3.12 with uv. Humans: [README.md](README.md).
+over a canonical work-item model, with one adapter per tracker (Plane, and
+Jira Cloud from Phase 5). Python ≥ 3.12 with uv. Humans: [README.md](README.md).
 
 **Design source of truth:** AOR
 [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md)
@@ -58,12 +58,14 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 - **No delete path, anywhere.** Work is completed or cancelled; no adapter method, server
   tool, probe or conformance case may delete.
 - **Read-proven before write.** Adapter writes refuse until `describe_board` is clean; prove new
-  vendor behavior with a read first; writes go only to the throwaway board (AGADMIN), never a company site.
+  vendor behavior with a read first; writes go only to the throwaway boards (Plane `AGADMIN`, Jira `AGADM`),
+  never a company site.
 - **Secrets** resolve only via [server/secrets.py](server/secrets.py) (the env var named by
   `token_env`, or its Bitwarden item). Never print a token or `BW_SESSION`. Live runs: Chris writes
   `umask 077; bw unlock --raw > ~/.cache/bw_session`; export the sibling AOR `tools/plane/.env`, then
   `PLANE_API_KEY_BW_ITEM="$PLANE_BW_ITEM" PLANE_API_KEY_BW_FIELD="$PLANE_BW_FIELD" BW_SESSION="$(cat ~/.cache/bw_session)"`
-  (the out-of-tree reads are a recorded override in MODULES.md).
+  (the out-of-tree reads are a recorded override in MODULES.md). Jira: both `JIRA_API_TOKEN_BW_ITEM` and
+  `JIRA_USER_BW_ITEM` name its one item (the email is its username: `JIRA_USER_BW_FIELD=username`).
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json`,
   `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and
   summarized `transcripts/*.md` (keys and checks, no item text) are committed.
@@ -97,11 +99,11 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml>`, stdio) |
 | [schema/](schema/) | The intake record (one request → its parts) and its Markdown rendering; `propose_item(intake=…, part=…)` consumes it |
 | [skills/](skills/) | The **product** skills (public): `intake`, `create-story` / `create-bug` / `create-epic`. Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 tools and the schema |
-| [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` adapter |
+| [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` and `jira/` adapters (`jira/adf.py`: Markdown ↔ ADF) |
 | [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + the server (`board`, from `AGENTIC_ADMIN_BOARD`) as a Claude Code plugin. Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results |
 | [probes/](probes/) | Dated read-only API evidence |
 | [transcripts/](transcripts/) | Dated summaries of live requester sessions (the Phase 3 and Phase 4 gates) |
-| [tests/](tests/) | Offline unit tests (`fake_plane.py` transport) |
-| [examples/boards/](examples/boards/) | The committed board-config template |
+| [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py` transports) |
+| [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira) |
 | [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio server, 11-tool include, skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
