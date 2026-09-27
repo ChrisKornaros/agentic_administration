@@ -8,12 +8,15 @@ finding it produced can be re-run when the vendor changes again.
 | Probe | Ran | What it settled |
 |---|---|---|
 | [plane_phase1_readonly.py](plane_phase1_readonly.py) | 2026-09-16 | Plane Cloud after the May-2026 model change: old routes alias the new `work-items` / `work-item-types` names; Work Item Types are live per project (Epic/Story/Task, no Bug); the Hierarchy feature has no API read surface; `external_id` is on every record and search accepts it as a filter; plus `features`, `members-lite`, retrieve-by-identifier and `expand=` shapes. |
+| [jira_phase5_readonly.py](jira_phase5_readonly.py) | 2026-09-27 | Jira Cloud, a company-managed Scrum project (29 GETs). A classic token plus the account email works as Basic auth on the site URL. Types are Epic (level 1), Story/Bug/Task (0) and Sub-task (−1); nothing sits above Epic. Five statuses, with global transitions named after their target; a new item starts in Backlog. The create screens carry labels, components, parent, Sprint (`customfield_10020`), description and assignee. The old `/rest/api/3/search` answers 410 (removed); `/search/jql` pages by `nextPageToken` / `isLast` with no total. JQL matches `labels` exactly with `=`; summary and text only take `~`. Labels are free-form, so none exist until used. `/project/{id}/hierarchy` and `/board/{id}/features` answer for team-managed projects only. Rate headers: `RateLimit-Policy: "jira-burst-based";q=100;w=1`. |
 
 Rules:
 
 - **GET only.** A probe never writes. Write-side questions become
   conformance cases in `conformance/`, run against a throwaway project.
 - **Secrets stay at one boundary.** The Plane probe reuses the seed
-  CLI's Bitwarden-backed resolver rather than reading a token itself.
-- **Reports are local.** `probe-report.json` holds board content and is
-  gitignored; the summarized findings live in the design repo.
+  CLI's Bitwarden-backed resolver; the Jira probe uses this repo's
+  [server/secrets.py](../server/secrets.py). Neither reads a token itself.
+- **Reports are local.** `probe-report.json` and `jira-probe-report.json`
+  hold board content and are gitignored; the summarized findings live in
+  the design repo.

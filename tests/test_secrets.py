@@ -45,6 +45,14 @@ def test_bitwarden_custom_field():
         get("PLANE_API_KEY", environ={**env, "PLANE_API_KEY_BW_FIELD": "other"}, runner=run)
 
 
+def test_bitwarden_login_username():
+    run = runner_returning({"login": {"username": "me@example.com", "password": "tok"}})
+    env = {"JIRA_USER_BW_ITEM": "jira", "JIRA_USER_BW_FIELD": "username"}
+    assert get("JIRA_USER", environ=env, runner=run) == "me@example.com"
+    with pytest.raises(SecretUnavailable, match="no login username"):
+        get("JIRA_USER", environ=env, runner=runner_returning({"login": {"password": "tok"}}))
+
+
 def test_locked_vault_hints_at_unlock_without_echoing_anything():
     run = runner_returning("", code=1, err="Vault is locked.")
     with pytest.raises(SecretUnavailable) as exc:
