@@ -1,0 +1,60 @@
+# Board config — Jira Cloud, a company-managed Scrum project (design:
+# roadmap/14 §6). One file per board. Copy to boards/<board>.toml
+# (gitignored), run
+#   uv run python -m adapters.jira describe boards/<board>.toml
+# and fix what it reports. Keep secrets OUT of this file: `token_env` names
+# the env var holding the API token and `user_env` the one holding the
+# account email (Basic auth pairs them). Either may instead name a
+# Bitwarden item via `<env>_BW_ITEM` (see server/secrets.py). Use a classic
+# (unscoped) API token; it is sent to the site URL.
+
+backend = "jira"
+confirm = "always"       # "always" (default) | "never" — D5
+
+[connection]
+token_env   = "JIRA_API_TOKEN"            # the env var name — never the value
+user_env    = "JIRA_USER"                 # the env var holding the account email
+site        = "https://example.atlassian.net"
+project_key = "AA"
+board_id    = 1                           # the Scrum board whose sprints are the iterations
+# Sprints belong to a board, and a project may have several: this is the
+# board your team plans on (roadmap/14 §11).
+
+# Canonical level -> how this project realizes it. Exactly one of:
+#   type      = "<issue type id or name>"       a native issue type
+#   parent    = "<label>"                       parent link + a type label (generic fallback, D4)
+#   label     = "<label>"                       a label alone marks the level
+#   collapse  = "label" | "component" | "description_line"   [+ template]
+# Jira fixes the levels: Epic at hierarchy level 1, Story and Bug at 0, and
+# the canonical Task (a story's child) is a sub-task at −1. Premium's custom
+# levels sit only above Epic, so Feature cannot be a Jira level: collapse
+# it. A collapse label has its spaces turned into dashes (Jira labels hold
+# none); a collapse component must already exist.
+[levels]
+initiative = { collapse = "description_line", template = "**Initiative:** {name}" }
+epic       = { type = "Epic" }
+feature    = { collapse = "label", template = "feature:{name}" }
+story      = { type = "Story" }
+bug        = { type = "Bug" }
+task       = { type = "Sub-task" }
+
+# Canonical state -> the project's status name. A status changes through
+# the transition that leads to it. A new project's workflow has To Do, In
+# Progress and Done: add Backlog and Cancelled (Cancelled in the Done
+# category) or map two states onto one status.
+[states]
+backlog     = "Backlog"
+todo        = "To Do"
+in_progress = "In Progress"
+done        = "Done"
+cancelled   = "Cancelled"
+
+# Jira labels are free-form (one exists once an issue carries it) and hold
+# no spaces. The adapter also writes `xid:<external_id>`, its idempotency key.
+[labels]
+review   = "needs-review"                     # D5: cleared by the product owner
+taxonomy = ["bug", "feature", "chore", "docs"]
+
+[naming]
+iteration = "YYYYMM"     # sprint names, e.g. 202609
+item_case = "title"      # "title" | "sentence" | "any"

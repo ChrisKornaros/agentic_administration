@@ -14,6 +14,7 @@ import argparse
 import sys
 
 from adapters.base import Adapter
+from adapters.jira import JiraAdapter
 from adapters.plane import PlaneAdapter
 from server.config import Backend, BoardConfig, InvalidBoardConfig, load
 from server.mcp_app import build
@@ -23,7 +24,9 @@ from server.service import BoardService
 def make_adapter(cfg: BoardConfig) -> Adapter:
     if cfg.backend is Backend.PLANE:
         return PlaneAdapter(cfg)
-    raise SystemExit(f"no adapter for backend {cfg.backend.value!r} yet (Plane only; Jira is Phase 5)")
+    if cfg.backend is Backend.JIRA:
+        return JiraAdapter(cfg)
+    raise SystemExit(f"no adapter for backend {cfg.backend.value!r} yet (Plane and Jira only)")
 
 
 def main(argv: list[str] | None = None) -> int:
