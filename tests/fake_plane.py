@@ -220,6 +220,10 @@ class FakeTransport:
                 for c in self.routes[f"GET {PP}/cycles/"]:
                     if c["id"] == m.group(1):
                         return copy.deepcopy(c)
+            m = re.fullmatch(rf"{re.escape(PP)}/cycles/([0-9a-f-]+)/cycle-issues/", path)
+            if m:  # a cycle's membership: full item records, completed cycles too (AOR tools/plane/API.md)
+                rows = [copy.deepcopy(r) for r in self._items() if r.get("cycle_id") == m.group(1)]
+                return {"results": rows, "next_cursor": "", "next_page_results": False, "total_count": len(rows)}
             if path == f"{WS}/work-items/search/":  # like Plane: text only, external_id ignored
                 term = (p.get("search") or "").lower()
                 rows = [r for r in self._items() if term and term in r["name"].lower()]

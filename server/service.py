@@ -215,6 +215,7 @@ class BoardService:
         external_id: str | None = None,
         level: str | None = None,
         state: str | None = None,
+        iteration: str | None = None,
         limit: int = 20,
     ) -> list[dict[str, Any]]:
         items = self.adapter.find_items(
@@ -222,6 +223,7 @@ class BoardService:
             external_id=external_id or None,
             level=_enum(Level, level, "level") if level else None,
             state=_enum(State, state, "state") if state else None,
+            iteration=iteration or None,
             limit=limit,
         )
         return to_jsonable(items)

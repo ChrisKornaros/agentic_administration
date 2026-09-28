@@ -62,9 +62,10 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   never a company site.
 - **Secrets** resolve only via [server/secrets.py](server/secrets.py) (the env var named by
   `token_env`, or its Bitwarden item). Never print a token or `BW_SESSION`. Live runs: Chris writes
-  `umask 077; bw unlock --raw > ~/.cache/bw_session`; export the sibling AOR `tools/plane/.env`, then
-  `PLANE_API_KEY_BW_ITEM="$PLANE_BW_ITEM" PLANE_API_KEY_BW_FIELD="$PLANE_BW_FIELD" BW_SESSION="$(cat ~/.cache/bw_session)"`
-  (the out-of-tree reads are a recorded override in MODULES.md). Jira: both `JIRA_API_TOKEN_BW_ITEM` and
+  `umask 077; bw unlock --raw > ~/.cache/bw_session`; then Plane is
+  `PLANE_API_KEY_BW_ITEM=<the Plane item's id> PLANE_API_KEY_BW_FIELD=API BW_SESSION="$(cat ~/.cache/bw_session)"`,
+  with the id from project memory (`plane-bitwarden-item`): the name `Plane` also matches
+  `content_manager:plane:api_key`, and AOR's `tools/plane/.env` no longer carries the field (2026-09-27). Jira: both `JIRA_API_TOKEN_BW_ITEM` and
   `JIRA_USER_BW_ITEM` name its one item (the email is its username: `JIRA_USER_BW_FIELD=username`).
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json`,
   `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and

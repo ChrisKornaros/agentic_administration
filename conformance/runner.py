@@ -5,6 +5,8 @@ holds board content) keeps each case's status, notes and call counts, the
 ids later cases need, and the run's cumulative wire totals. A re-run with
 the same run id skips what already passed and picks up at the first case
 that did not — so a 429 or the Cloudflare wall costs a wait, not a redo.
+A case marked `always` (no-delete) runs on every process regardless, so a
+case added to a finished run is covered too.
 
 The run stops at the first case that fails or needs the operator: later
 cases build on earlier ones.
@@ -73,7 +75,7 @@ def run(
     ctx.wire_before = Counter(state.get("wire") or {})
     for case in cases:
         prior = recorded.get(case.name)
-        if prior and prior["status"] in (PASS, SKIP):
+        if prior and prior["status"] in (PASS, SKIP) and not case.always:
             echo(f"  {prior['status'].upper():<4}  {case.name:<11} recorded {prior['at']}")
             continue
         ctx.notes = []

@@ -27,8 +27,12 @@ How the canonical model lands on a company-managed Jira project:
   taxonomy labels, so a board with no issues yet still fits.
 - Iterations are **sprints** on the config's Scrum board. Dates decide
   (Chris, 2026-09-27): `create_iteration` starts a sprint whose dates
-  cover today. Sprint dates are written on the account time zone's day
-  edges and read back in it.
+  cover today. It is find-or-create by name (Phase 6), so it also starts
+  a sprint created ahead of time once its first day comes. Sprint dates
+  are written on the account time zone's day edges and read back in it.
+- `find_items(iteration=…)` is JQL `sprint = <id>`, which also matches
+  the closed sprints in an issue's Sprint field; the adapter keeps the
+  issues whose current sprint it is.
 - Descriptions and comments are Markdown in, ADF out (`adapters.jira.adf`).
 
 No delete: there is no DELETE request in this file.
@@ -52,6 +56,7 @@ from adapters.base import (
     TypeInfo,
     Unsupported,
     ValidationError,
+    existing_iteration,
 )
 from adapters.jira import adf
 from adapters.jira.transport import JiraTransport, Transport
@@ -82,6 +87,7 @@ _SPRINT_STATE = {"future": IterationState.PLANNED, "active": IterationState.ACTI
 # Lucene's reserved characters, dropped from a free-text query rather than escaped
 _TEXT_RESERVED = re.compile(r'[+\-&|!(){}\[\]^~*?\\:"/]')
 _MOVE_BATCH = 50  # issues per POST …/sprint/{id}/issue
+_SPRINT_SCAN = 1000  # rows read for find_items(iteration=…) before the current-sprint filter
 
 
 class JiraAdapter(Adapter):
@@ -446,11 +452,15 @@ class JiraAdapter(Adapter):
                 break
         return out
 
-    def find_items(self, query: str = "", *, external_id=None, level=None, state=None, limit=50) -> list[WorkItem]:
+    def find_items(self, query: str = "", *, external_id=None, level=None, state=None, iteration=None,
+                   limit=50) -> list[WorkItem]:
         self._ready_maps()
         if level is not None and not self._caps.materializes(level):
             return []  # a collapsed level has no items of its own
+        sprint_id = self._sprint_id(iteration) if iteration else None
         clauses = [f'project = "{_jql(self.project_key)}"']
+        if sprint_id:
+            clauses.append(f"sprint = {sprint_id}")
         if external_id:
             clauses.append(f'labels = "{_jql(XID + external_id)}"')
         if query:
@@ -463,7 +473,9 @@ class JiraAdapter(Adapter):
                 clauses.append(f'labels = "{_jql(mapping.ref or "")}"')
         if state is not None and state in self._state_id:
             clauses.append(f"status = {self._state_id[state]}")
-        items = [self._to_item(r) for r in self._search(" AND ".join(clauses) + " ORDER BY created DESC", limit)]
+        # `sprint =` overmatches (history), so scan wider; the filter below trims to the sprint's own
+        scan = max(limit, _SPRINT_SCAN) if sprint_id else limit
+        items = [self._to_item(r) for r in self._search(" AND ".join(clauses) + " ORDER BY created DESC", scan)]
         if external_id:
             known = self._created.get(external_id)
             if known and all(i.id != known for i in items):  # the search has not caught up yet
@@ -476,6 +488,8 @@ class JiraAdapter(Adapter):
             items = [i for i in items if i.level is level]
         if state is not None:
             items = [i for i in items if i.state is state]
+        if sprint_id:  # `sprint =` also matches the closed sprints in an issue's history
+            items = [i for i in items if i.iteration == sprint_id]
         return items[:limit]
 
     # -- write ---------------------------------------------------------------------
@@ -594,23 +608,30 @@ class JiraAdapter(Adapter):
             raise ValidationError(
                 f"iteration name {iteration.name!r} does not match naming.iteration {self.config.naming.iteration!r}"
             )
-        body: dict[str, Any] = {"name": iteration.name, "originBoardId": int(self.board_id)}
-        if iteration.start:
-            body["startDate"] = self._edge(iteration.start, time(0, 0))
-        if iteration.end:
-            body["endDate"] = self._edge(iteration.end, time(23, 59))
-        rec = self._t.request("POST", "/rest/agile/1.0/sprint", body=body)
-        sprint_id = str(rec["id"])
+        # find-or-create by name, off the board's own list (a YYYYMM name also reads as a sprint id)
+        board_sprints = self._t.get_all(f"/rest/agile/1.0/board/{self.board_id}/sprint")
+        found = next((s for s in board_sprints if s.get("name") == iteration.name), None)
+        if found is not None:
+            sprint = existing_iteration(self._to_iteration(found), iteration)
+        else:
+            body: dict[str, Any] = {"name": iteration.name, "originBoardId": int(self.board_id)}
+            if iteration.start:
+                body["startDate"] = self._edge(iteration.start, time(0, 0))
+            if iteration.end:
+                body["endDate"] = self._edge(iteration.end, time(23, 59))
+            rec = self._t.request("POST", "/rest/agile/1.0/sprint", body=body)
+            sprint = replace(iteration, id=str(rec["id"]), state=IterationState.PLANNED)
+        sprint_id = sprint.id or ""
         self._sprints[sprint_id] = sprint_id
-        self._sprints[rec.get("name") or iteration.name] = sprint_id
+        self._sprints[iteration.name] = sprint_id
         today = self._today()
-        if iteration.start and iteration.end and iteration.start <= today <= iteration.end:
-            try:  # dates decide: a sprint covering today is active
+        if sprint.state is IterationState.PLANNED and sprint.start and sprint.end and sprint.start <= today <= sprint.end:
+            try:  # dates decide: a sprint covering today is active, whenever it was created
                 self._t.request("POST", f"/rest/agile/1.0/sprint/{sprint_id}", body={"state": "active"})
             except ValidationError as exc:
                 raise ValidationError(
-                    f"created sprint {iteration.name!r} but Jira would not start it: {exc} "
-                    "(another sprint may be active; this board has no parallel sprints)"
+                    f"{'found' if found else 'created'} sprint {iteration.name!r} but Jira would not start it: "
+                    f"{exc} (another sprint may be active; this board has no parallel sprints)"
                 ) from None
         return self.get_iteration(sprint_id)
 

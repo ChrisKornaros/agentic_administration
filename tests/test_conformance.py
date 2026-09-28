@@ -33,7 +33,7 @@ CONFIG = {
     "naming": {"iteration": "YYYYMM", "item_case": "title"},
 }
 TODAY = date(2026, 9, 22)
-ALL = ["provision", "describe", "epic", "placement", "hierarchy", "update", "iterations", "close", "no-delete"]
+ALL = ["provision", "describe", "epic", "placement", "hierarchy", "update", "iterations", "close", "rollover", "no-delete"]
 
 
 def process(transport):
@@ -74,6 +74,11 @@ def test_a_fresh_board_is_provisioned_and_passes_every_case():
     assert "while its end date was today — the end day is still open" in notes(state, "iterations")
     assert "dates read back as written: 202609 2026-09-01–2026-09-22, 202610 2026-10-01–2026-10-31" in notes(state, "iterations")
     assert "a closed iteration refuses new items" in notes(state, "close")
+    # the unfinished story leaves the closed cycle; the done task stays
+    assert "create_iteration('202610') found the existing iteration: no duplicate" in notes(state, "rollover")
+    assert "moved out of closed 202609: AA-101 now read 202610" in notes(state, "rollover")
+    assert "1 done or cancelled item(s) stayed in 202609" in notes(state, "rollover")
+    assert [c["name"] for c in t.routes[f"GET {fp.PP}/cycles/"]].count("202610") == 1
 
     # nothing deleted, and the record's wire totals are the transport's own
     assert state["wire"] == dict(Counter(m for m, _ in t.log))
@@ -128,6 +133,20 @@ def test_a_broken_contract_fails_and_stops_the_run():
     assert go(process(t), state) == runner.FAIL
     assert statuses(state) == {"provision": "pass", "describe": "pass", "epic": "fail"}
     assert "failed: find_items(external_id='conformance:20260922:epic') returned [], expected exactly AA-100" in notes(state, "epic")
+
+
+def test_a_case_added_to_a_finished_run_runs_on_resume_and_no_delete_runs_again():
+    t = fp.FakeTransport(fp.fresh_routes())
+    state = new_state()
+    assert go(process(t), state) == runner.PASS
+    del state["cases"]["rollover"]  # as a record written before the case existed
+    state["cases"]["no-delete"]["at"] = "then"
+    lines: list[str] = []
+    assert go(process(t), state, lines) == runner.PASS
+    ran = [line.split()[1] for line in lines if line.startswith("  ") and "recorded" not in line and not line.strip().startswith("-")]
+    assert ran == ["rollover", "no-delete"]
+    assert "holds nothing unfinished" in notes(state, "rollover")  # the first process already rolled the story
+    assert state["cases"]["no-delete"]["at"] != "then"
 
 
 def test_an_iteration_closed_by_an_earlier_run_is_a_recorded_skip():
@@ -198,8 +217,12 @@ def test_jira_passes_every_case_with_feature_collapsed_to_a_label():
     assert "the tracker accepted" in notes(state, "hierarchy")  # as live Jira did (AGADM-5)
     assert "dates read back as written: 202609 2026-09-01–2026-09-27, 202610 2026-10-01–2026-10-31" in notes(state, "iterations")
     assert "a closed iteration refuses new items" in notes(state, "close")
+    # the story rolls, and its done sub-task comes along, as on live Jira (AGADM-4)
+    assert "moved out of closed 202609: AA-2 now read 202610" in notes(state, "rollover")
+    assert "0 done or cancelled item(s) stayed in 202609; AA-4 left with a moved parent" in notes(state, "rollover")
     assert "DELETE" not in state["wire"]
     story = fake.issues[state["ids"]["story"]]["fields"]
+    assert [s["name"] for s in story[fj.SPRINT_FIELD]] == ["202609", "202610"]  # the closed sprint stays in its history
     assert story["labels"] == ["xid:conformance:20260927:story"]  # review cleared, the key kept
 
 

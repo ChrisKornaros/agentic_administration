@@ -64,14 +64,17 @@ def build(service: BoardService) -> MCPServer:
         external_id: str | None = None,
         level: LevelName | None = None,
         state: StateName | None = None,
+        iteration: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
         """Search the board's work items. `query` is free text on titles;
         `external_id` is an exact idempotency-key lookup; `level` and `state`
-        narrow the result. With no arguments, lists the board. Use get_item
-        for a known key such as AA-12."""
+        narrow the result; `iteration` (a name or id) keeps the items that are
+        in that iteration now, a closed one included, which is what a rollover
+        reads. With no arguments, lists the board. Use get_item for a known key
+        such as AA-12."""
         return {"items": call(service.find_items, query, external_id=external_id,
-                              level=level, state=state, limit=limit)}
+                              level=level, state=state, iteration=iteration, limit=limit)}
 
     @mcp.tool(annotations=READ)
     def get_item(ref: str) -> dict[str, Any]:
@@ -164,9 +167,13 @@ def build(service: BoardService) -> MCPServer:
 
     @mcp.tool(annotations=WRITE)
     def create_iteration(name: str, start: str | None = None, end: str | None = None) -> dict[str, Any]:
-        """Create an iteration (sprint / cycle). The name must follow the
-        board's naming.iteration pattern (e.g. 202610); `start` and `end` are
-        ISO dates."""
+        """Create an iteration (sprint / cycle), or return the one that already
+        has this name; it never makes a duplicate, and refuses when the existing
+        one's dates differ from those given. The name must follow the board's
+        naming.iteration pattern (e.g. 202610); `start` and `end` are ISO dates.
+        An iteration whose dates cover today is active afterwards, so calling
+        this on its first day also starts a sprint that was created ahead of
+        time."""
         return call(service.create_iteration, name, start, end)
 
     @mcp.tool(annotations=WRITE)
@@ -177,8 +184,9 @@ def build(service: BoardService) -> MCPServer:
     @mcp.tool(annotations=WRITE)
     def close_iteration(iteration: str) -> dict[str, Any]:
         """Close an iteration (name or id). Items still open stay where they
-        are. Rollover means closing and then moving those items with
-        move_to_iteration."""
+        are. Rollover is: close it, make sure the next one exists with
+        create_iteration, then move what find_items(iteration=…) shows neither
+        done nor cancelled with move_to_iteration."""
         return call(service.close_iteration, iteration)
 
     return mcp

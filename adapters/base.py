@@ -145,6 +145,17 @@ class BoardDescription:
         return self
 
 
+def existing_iteration(found: Iteration, wanted: Iteration) -> Iteration:
+    """Find-or-create's reuse check: the board's `found` stands in for
+    `wanted` unless `wanted` gives a date that differs."""
+    if (wanted.start and wanted.start != found.start) or (wanted.end and wanted.end != found.end):
+        raise ValidationError(
+            f"iteration {found.name!r} already exists, dated {found.start}–{found.end}; "
+            "leave the dates out to use it as it is"
+        )
+    return found
+
+
 # --- the changes an update may carry -----------------------------------------
 
 
@@ -199,10 +210,13 @@ class Adapter(ABC):
         external_id: str | None = None,
         level: Level | None = None,
         state: State | None = None,
+        iteration: str | None = None,
         limit: int = 50,
     ) -> list[WorkItem]:
         """Search the board. `external_id` is the idempotency lookup (exact);
-        `query` is free text; `level` / `state` narrow the result."""
+        `query` is free text; `level` / `state` narrow the result;
+        `iteration` (id or name) keeps the items whose *current* iteration
+        it is, a closed one included — the read a rollover starts from."""
 
     @abstractmethod
     def get_item(self, ref: ItemRef | str) -> WorkItem:
@@ -227,7 +241,12 @@ class Adapter(ABC):
     def add_comment(self, comment: Comment) -> Comment: ...
 
     @abstractmethod
-    def create_iteration(self, iteration: Iteration) -> Iteration: ...
+    def create_iteration(self, iteration: Iteration) -> Iteration:
+        """Find-or-create by name: the board's iteration of that name is
+        returned, never duplicated (`existing_iteration` refuses one whose
+        dates differ from those given). Afterwards an iteration whose dates
+        cover today is active — derived from the dates, or started where the
+        tracker starts sprints explicitly."""
 
     @abstractmethod
     def move_to_iteration(self, items: Sequence[ItemRef | str], iteration: str) -> None:

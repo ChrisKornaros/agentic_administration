@@ -26,6 +26,8 @@ Read-proven-before-write: every route here was read live in Phase 1
 suite against a throwaway project (conformance/README.md, 2026-09-22).
 Iteration close relies on Plane's rule that a cycle is completed once
 its `end_date` is *before* today — one ending today is still current.
+`create_iteration` is find-or-create by name (Phase 6), and
+`find_items(iteration=…)` reads the cycle's own `cycle-issues/` list.
 
 No delete: there is no DELETE request in this file, and moving an item
 between modules only *adds* membership.
@@ -50,6 +52,7 @@ from adapters.base import (
     TypeInfo,
     Unsupported,
     ValidationError,
+    existing_iteration,
 )
 from adapters.plane import markdown
 from adapters.plane.transport import PlaneTransport, Transport
@@ -455,12 +458,16 @@ class PlaneAdapter(Adapter):
         cycle_id = self._cycle_id(iteration)
         return self._to_iteration(self._t.request("GET", f"{self._pp}/cycles/{cycle_id}/"))
 
-    def find_items(self, query: str = "", *, external_id=None, level=None, state=None, limit=50) -> list[WorkItem]:
+    def find_items(self, query: str = "", *, external_id=None, level=None, state=None, iteration=None,
+                   limit=50) -> list[WorkItem]:
         self._ready_maps()
-        if level is Level.FEATURE and self.config.levels[Level.FEATURE].how is Materialization.CONTAINER:
+        cycle_id = self._cycle_id(iteration) if iteration else None
+        # modules and initiatives are never in a cycle: with one, fall through to an empty item read
+        if level is Level.FEATURE and self.config.levels[Level.FEATURE].how is Materialization.CONTAINER \
+                and cycle_id is None:
             mods = [self._module_as_item(m) for m in self._t.get_all(f"{self._pp}/modules/")]
             return [m for m in mods if query.lower() in m.title.lower()][:limit]
-        if level is Level.INITIATIVE:
+        if level is Level.INITIATIVE and cycle_id is None:
             inits = self._t.get_all(f"{self._ws}/initiatives/")
             return [
                 WorkItem(Level.INITIATIVE, i.get("name") or "", i.get("description") or "", id=i.get("id"))
@@ -482,6 +489,11 @@ class PlaneAdapter(Adapter):
                 )
             items = [self._to_item(rec)] if isinstance(rec, dict) and rec.get("id") else []
             items = [i for i in items if i.external_id == external_id and query.lower() in i.title.lower()]
+        elif cycle_id:
+            # the cycle's membership read: full item records (AOR tools/plane/API.md), a completed cycle's too
+            rows = self._t.get_all(f"{self._pp}/cycles/{cycle_id}/cycle-issues/")
+            items = [replace(self._to_item(r), iteration=cycle_id) for r in rows]
+            items = [i for i in items if query.lower() in i.title.lower()]
         elif query:
             hits = self._t.request("GET", f"{self._ws}/work-items/search/", params={"search": query})
             rows = hits.get("issues") or hits.get("results") or [] if isinstance(hits, dict) else (hits or [])
@@ -503,6 +515,8 @@ class PlaneAdapter(Adapter):
             items = [i for i in items if i.level is level]
         if state is not None:
             items = [i for i in items if i.state is state]
+        if cycle_id:
+            items = [i for i in items if i.iteration == cycle_id]
         return items[:limit]
 
     def _ready_maps(self) -> None:
@@ -645,6 +659,10 @@ class PlaneAdapter(Adapter):
                 f"iteration name {iteration.name!r} does not match naming.iteration "
                 f"{self.config.naming.iteration!r}"
             )
+        # find-or-create by name; a cycle is active by its dates, so nothing to start
+        found = next((c for c in self._t.get_all(f"{self._pp}/cycles/") if c.get("name") == iteration.name), None)
+        if found is not None:
+            return existing_iteration(self._to_iteration(found), iteration)
         body: dict[str, Any] = {"name": iteration.name, "project_id": board.project_id}
         if iteration.start:
             body["start_date"] = iteration.start.isoformat()

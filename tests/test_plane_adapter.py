@@ -384,6 +384,34 @@ def test_get_iteration_reads_the_live_status_by_name_or_id():
         adapter.get_iteration("202612")
 
 
+def test_find_items_in_an_iteration_reads_the_cycle_membership():
+    adapter, t = make()
+    got = adapter.find_items(iteration="202609")
+    assert [(i.key, i.iteration) for i in got] == [("AA-2", fp.C_202609)]
+    assert (f"GET", f"{fp.PP}/cycles/{fp.C_202609}/cycle-issues/") in t.log
+    assert adapter.find_items(iteration="202609", state=State.DONE) == []
+    assert adapter.find_items("nothing like it", iteration="202609") == []
+    assert adapter.find_items(iteration="202608") == []
+    # modules and initiatives never sit in a cycle
+    assert adapter.find_items(level=Level.FEATURE, iteration="202609") == []
+    assert adapter.find_items(level=Level.INITIATIVE, iteration="202609") == []
+    # an external_id lookup narrowed to the wrong iteration finds nothing
+    assert [i.key for i in adapter.find_items(external_id="req-0001", iteration=fp.C_202609)] == ["AA-2"]
+    assert adapter.find_items(external_id="req-0001", iteration="202608") == []
+    with pytest.raises(NotFound):
+        adapter.find_items(iteration="202612")
+
+
+def test_create_iteration_finds_one_of_that_name_instead_of_duplicating():
+    adapter, t = make()
+    again = adapter.create_iteration(Iteration("202609", start=date(2026, 9, 1), end=date(2026, 9, 30)))
+    assert again.id == fp.C_202609 and again.state is IterationState.ACTIVE
+    assert adapter.create_iteration(Iteration("202609")).id == fp.C_202609  # no dates: take it as it is
+    with pytest.raises(ValidationError, match="already exists, dated 2026-09-01–2026-09-30"):
+        adapter.create_iteration(Iteration("202609", start=date(2026, 9, 2), end=date(2026, 9, 30)))
+    assert t.bodies("POST", "/cycles/") == []
+
+
 def test_provision_cut_short_never_writes_the_same_thing_twice():
     from adapters.base import RateLimited
 

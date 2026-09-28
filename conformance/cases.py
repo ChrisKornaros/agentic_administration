@@ -82,6 +82,7 @@ class Case:
     name: str
     summary: str
     run: Callable[[Context], None]
+    always: bool = False  # re-run on every process, even when the record shows it passed
 
 
 # --- helpers -----------------------------------------------------------------------
@@ -325,6 +326,41 @@ def close_iteration(ctx: Context) -> None:
         raise Failed(f"closed iteration {again.name} accepted a new item")
 
 
+def rollover(ctx: Context) -> None:
+    """Rollover = close + move what is left (roadmap/14 §5): everything the
+    closed iteration still holds that is neither done nor cancelled moves to
+    the next one — board-wide, as a real rollover does, not only this run's
+    items. Moving out of a *closed* iteration is the new behavior on trial."""
+    a = ctx.adapter
+    closed_id, next_id = ctx.ids["iteration_current"], ctx.ids["iteration_next"]
+    closed, upcoming = a.get_iteration(closed_id), a.get_iteration(next_id)
+    expect(closed.state is IterationState.CLOSED, f"{closed.name} reads {closed.state.value}; the close case should have closed it")
+
+    again = a.create_iteration(Iteration(upcoming.name, start=upcoming.start, end=upcoming.end))
+    expect(again.id == upcoming.id, f"create_iteration({upcoming.name!r}) returned {again.id}, not the existing {upcoming.id}")
+    ctx.note(f"create_iteration({upcoming.name!r}) found the existing iteration: no duplicate")
+
+    held = a.find_items(iteration=closed_id, limit=500)
+    stray = [i.key or i.id for i in held if i.iteration != closed_id]
+    expect(not stray, f"find_items(iteration={closed.name!r}) returned items in another iteration: {stray}")
+    left = [i for i in held if i.state not in (State.DONE, State.CANCELLED)]
+    if not left:
+        raise Skipped(f"{closed.name} holds nothing unfinished ({len(held)} item(s), all done or cancelled)")
+
+    a.move_to_iteration([i.id or "" for i in left], next_id)
+    ids = {i.id for i in left}
+    still = {i.id for i in a.find_items(iteration=closed_id, limit=500)}
+    landed = {i.id for i in a.find_items(iteration=next_id, limit=500)}
+    expect(not ids & still, f"{len(ids & still)} rolled item(s) still read {closed.name}")
+    expect(ids <= landed, f"{len(ids - landed)} rolled item(s) do not read {upcoming.name}")
+    keys = ", ".join(i.key or i.id or "" for i in left)
+    ctx.note(f"moved out of closed {closed.name}: {keys} now read {upcoming.name}")
+    followed = [i.key or i.id for i in held if i.id not in ids and i.id not in still]
+    stayed = len(held) - len(left) - len(followed)
+    ctx.note(f"{stayed} done or cancelled item(s) stayed in {closed.name}"
+             + (f"; {', '.join(followed)} left with a moved parent" if followed else ""))
+
+
 def no_delete(ctx: Context) -> None:
     wire = ctx.wire_before + Counter(m for m, _ in ctx.calls())
     ctx.note("wire totals for this run: " + ", ".join(f"{m} {n}" for m, n in sorted(wire.items())))
@@ -339,5 +375,6 @@ GENERIC_CASES: tuple[Case, ...] = (
     Case("update", "clear the review label, move the task to done, add a comment", update_and_comment),
     Case("iterations", "this month's iteration (ending today) and next month's; move items into both", iterations),
     Case("close", "close this month's iteration; a fresh read agrees; it refuses new items", close_iteration),
-    Case("no-delete", "no DELETE request was sent at any point in the run", no_delete),
+    Case("rollover", "what the closed iteration holds unfinished moves to the next; create_iteration finds, not duplicates", rollover),
+    Case("no-delete", "no DELETE request was sent at any point in the run", no_delete, always=True),
 )
