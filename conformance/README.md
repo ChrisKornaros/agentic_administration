@@ -48,7 +48,8 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
 | `update` | Clearing the review label leaves the item's level alone. A task moves to done. A comment is added. |
 | `iterations` | This month's iteration, ending **today**: whether the tracker still takes items into it shows whether the end day is open. Next month's iteration reads planned. The dates read back exactly as written. Items move into both, confirmed by the list read. |
 | `close` | `close_iteration` closes this month's iteration, a fresh read agrees, and the closed iteration refuses new items as a `ValidationError`. |
-| `no-delete` | No DELETE was sent at any point in the run. The count comes from the transport's own call log, across resumed runs. |
+| `rollover` | *Phase 6.* `create_iteration` with next month's name returns that iteration rather than a duplicate. `find_items(iteration=…)` on the closed iteration returns only items still in it. Everything there that is neither done nor cancelled moves to next month's iteration (board-wide, as a real rollover does), and fresh reads of both iterations agree. The note records what stayed, and what left along with a moved parent. Skips when nothing is unfinished. |
+| `no-delete` | No DELETE was sent at any point in the run. The count comes from the transport's own call log, across resumed runs. It runs again on every process, so a case added to a finished run is covered too. |
 
 ## Results
 
@@ -56,6 +57,34 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
 |---|---|---|
 | 2026-09-22 | Plane Cloud, throwaway project `AGADMIN` | **PASS 9/9**. The run sent GET 81, PATCH 5, POST 20 and no DELETE, with no 429 or edge wall. It needed three adapter fixes along the way, plus a fourth found by a read-only check after the run (below). |
 | 2026-09-27 | Jira Cloud (Premium trial), company-managed Scrum project `AGADM`, board 2 | **PASS 9/9** on the first run. It sent GET 48, POST 14, PUT 1 and no DELETE, with no 429. No adapter fix was needed; one fake-transport rule was wrong and is corrected (below). |
+| 2026-09-27 | Jira `AGADM`: run `20260927` resumed with the new `rollover` case | **PASS 10/10.** `rollover` sent GET 16 and POST 1; the run's total is GET 64, POST 15, PUT 1 and no DELETE. The fake had one more rule wrong, now corrected (below). |
+| 2026-09-27 | Plane `AGADMIN`: a new run, `20260927` | **PASS: 9 pass, 1 skip.** `iterations` skipped because `202609` was already closed; `close` and `rollover` ran on the ids it recorded first. GET 36, PATCH 2, POST 10 and no DELETE. |
+
+### What the 2026-09-27 rollover runs settled (Phase 6)
+
+- **Both trackers let an item leave a closed iteration.** A plain move
+  into the next one works: Plane's `POST …/cycles/{next}/cycle-issues/`
+  took AGADMIN-2 out of the completed `202609`, and Jira's `POST
+  …/sprint/{next}/issue` took AGADM-2 out of the closed `202609`. So
+  rollover can close first and move after, which Jira's one-active-sprint
+  rule requires. Plane's own `transfer-issues` isn't needed.
+- **Jira carries a moved story's sub-tasks, done ones too.** AGADM-4,
+  the story's done sub-task, left `202609` with AGADM-2. On Plane a task
+  is its own item, and the done one stayed in `202609`. A sub-task moved
+  *on its own* is still unproven.
+- **Jira's Sprint field keeps the closed sprint.** AGADM-2 now lists
+  `202609` (closed) then `202610` (future), and JQL `sprint = <202609>`
+  still matches it. So `find_items(iteration=…)` keeps only the issues
+  whose *current* sprint it is. On Plane an item is in one cycle, read
+  from the cycle's own `cycle-issues/` list.
+- **Find-or-create:** `create_iteration("202610")` returned the existing
+  iteration on both boards, with no second one made. Starting a Jira
+  sprint made ahead of time, once its first day comes, is covered only
+  offline until 2026-10-01.
+
+Left on the boards by these runs: `AGADMIN-12` to `AGADMIN-16` and
+module `Conformance 20260927` on Plane. `AGADMIN-2` and `AGADM-2`/`-4`
+now sit in `202610`.
 
 ### What the 2026-09-27 Jira run settled
 
@@ -75,7 +104,9 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
   API, and sets `completeDate`. A closed sprint refuses new items with
   HTTP 400 "You must specify a sprint which has not been completed."
   The case moved the story and its sub-task in one call and both carry
-  the sprint. A sub-task moved on its own is still unproven.
+  the sprint. A sub-task moved on its own is still unproven. The rollover
+  run found that moving the story alone carries its sub-tasks too
+  (above).
 - **Transitions and comments:** the task reached Done through its
   transition, and a comment posted as ADF came back with its author.
 - **Statuses:** on this run To Do and Cancelled still sat in the

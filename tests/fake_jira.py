@@ -11,7 +11,10 @@ them: a parent sits at a higher hierarchy level than its child, not
 necessarily the adjacent one (live Jira took a sub-task straight under an
 epic); labels hold no spaces; a sprint starts only from future with both
 dates and while no other is active, closes only from active, and takes no
-issues once closed. Ids are made up.
+issues once closed. From the Phase 6 rollover run (2026-09-27): an issue
+moved out of a closed sprint keeps it in its Sprint field, which JQL
+`sprint =` still matches, and a moved issue's sub-tasks come along, done
+ones too. Ids are made up.
 """
 
 from __future__ import annotations
@@ -106,6 +109,9 @@ class FakeJira:
 
     def _view(self, rec: dict[str, Any]) -> dict[str, Any]:
         out = copy.deepcopy(rec)
+        if out["fields"].get(SPRINT_FIELD):  # each sprint as it is now, as live Jira renders the field
+            out["fields"][SPRINT_FIELD] = [copy.deepcopy(self.sprints.get(str(s["id"]), s))
+                                           for s in out["fields"][SPRINT_FIELD]]
         parent_id = out["fields"].pop("_parent", None)
         if parent_id:
             p = self.issues[parent_id]
@@ -155,6 +161,8 @@ class FakeJira:
                 rows = [r for r in rows if r["fields"]["issuetype"]["id"] == value]
             elif (name, op) == ("status", "="):
                 rows = [r for r in rows if r["fields"]["status"]["id"] == value]
+            elif (name, op) == ("sprint", "="):  # any sprint in the field, closed history included
+                rows = [r for r in rows if any(str(s["id"]) == value for s in r["fields"].get(SPRINT_FIELD) or [])]
             else:
                 raise ValidationError(f"HTTP 400 on GET /rest/api/3/search/jql: the fake does not know {clause!r}")
         rows.sort(key=lambda r: int(r["id"]), reverse=True)
@@ -244,8 +252,14 @@ class FakeJira:
                                   "You must specify a sprint which has not been completed.")
         for ident in (body or {}).get("issues") or []:
             rec = self._find(ident)
-            history = [x for x in rec["fields"].get(SPRINT_FIELD) or [] if x["state"] == "closed"]
-            rec["fields"][SPRINT_FIELD] = history + [copy.deepcopy(s)]
+            # its sub-tasks come along, done ones too (live, 2026-09-27: AGADM-4 followed AGADM-2)
+            subs = [r for r in self.issues.values() if r["fields"].get("_parent") == rec["id"]
+                    and r["fields"]["issuetype"]["subtask"]]
+            for r in [rec, *subs]:
+                # the field keeps the closed sprints an issue was carried out of; an open one it leaves drops out
+                history = [x for x in r["fields"].get(SPRINT_FIELD) or []
+                           if self.sprints.get(str(x["id"]), x)["state"] == "closed" and str(x["id"]) != sid]
+                r["fields"][SPRINT_FIELD] = history + [copy.deepcopy(s)]
 
     # -- the transport surface ------------------------------------------------------
 

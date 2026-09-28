@@ -217,6 +217,7 @@ def test_describe_board_reports_the_confirm_mode_and_naming():
 def test_other_writes_pass_through_and_nothing_deletes():
     svc, t, _ = service()
     assert svc.find_items(external_id="req-0001")[0]["key"] == "AA-2"
+    assert [i["key"] for i in svc.find_items(iteration="202609")] == ["AA-2"]
     updated = svc.update_item("AA-2", state="in_progress", labels=["feature"])
     assert updated["state"] == "in_progress" and updated["labels"] == ["feature"]
     assert svc.add_comment("AA-2", "Looks good")["body"] == "Looks good"

@@ -268,6 +268,56 @@ def test_a_sprint_covering_today_starts_and_one_ahead_stays_planned():
         adapter.create_iteration(Iteration("Sprint 9"))
 
 
+def test_a_sprint_made_ahead_is_found_and_started_on_its_first_day():
+    fake = fj.FakeJira()
+    adapter, t = make(fake)
+    ahead = adapter.create_iteration(Iteration("202610", start=date(2026, 10, 1), end=date(2026, 10, 31)))
+    assert ahead.state is IterationState.PLANNED
+    later, _ = make(fake, today=date(2026, 10, 1))
+    started = later.create_iteration(Iteration("202610", start=date(2026, 10, 1), end=date(2026, 10, 31)))
+    assert started.id == ahead.id and started.state is IterationState.ACTIVE
+    assert later.create_iteration(Iteration("202610")).state is IterationState.ACTIVE  # again: nothing to do
+    assert [b["name"] for b in t.bodies("POST", "/rest/agile/1.0/sprint") if "name" in b] == ["202610"]  # no duplicate
+    assert t.bodies("POST", f"/rest/agile/1.0/sprint/{ahead.id}") == [{"state": "active"}]
+    with pytest.raises(ValidationError, match="already exists, dated 2026-10-01–2026-10-31"):
+        later.create_iteration(Iteration("202610", start=date(2026, 10, 2), end=date(2026, 10, 31)))
+
+
+def test_a_found_sprint_that_cannot_start_says_why():
+    fake = fj.FakeJira()
+    fake.add_sprint("202609", "active", "2026-09-01T00:00:00-04:00", "2026-10-02T23:59:00-04:00")
+    fake.add_sprint("202610", "future", "2026-10-01T00:00:00-04:00", "2026-10-31T23:59:00-04:00")
+    adapter, _ = make(fake, today=date(2026, 10, 1))
+    with pytest.raises(ValidationError, match="found sprint '202610' but Jira would not start it"):
+        adapter.create_iteration(Iteration("202610"))
+
+
+def test_find_items_in_a_sprint_keeps_the_issues_it_holds_now():
+    fake, epic, story, sprint = seeded()
+    adapter, t = make(fake)
+    assert [i.key for i in adapter.find_items(iteration="202609")] == [story["key"]]
+    assert 'sprint = ' + str(sprint["id"]) in t.calls[-1][2]["jql"]
+    # carried out of a closed sprint, the issue keeps it in its history but is no longer in it
+    fake.sprints[str(sprint["id"])]["state"] = "closed"
+    nxt = adapter.create_iteration(Iteration("202610", start=date(2026, 10, 1), end=date(2026, 10, 31)))
+    adapter.move_to_iteration([story["key"]], "202610")
+    assert adapter.find_items(iteration="202609") == []
+    assert [(i.key, i.iteration) for i in adapter.find_items(iteration="202610")] == [(story["key"], nxt.id)]
+    with pytest.raises(NotFound):
+        adapter.find_items(iteration="Sprint 12")
+
+
+def test_a_small_limit_still_finds_what_a_closed_sprint_holds_under_its_history():
+    fake = fj.FakeJira()
+    old = fake.add_sprint("202609", "closed", "2026-09-01T00:00:00-04:00", "2026-09-30T23:59:00-04:00")
+    nxt = fake.add_sprint("202610", "future", "2026-10-01T00:00:00-04:00", "2026-10-31T23:59:00-04:00")
+    left = fake.add_issue(fj.T_STORY, "Still In The Old Sprint", **{fj.SPRINT_FIELD: [old]})
+    for n in range(3):  # newer issues carried out of 202609: `sprint =` matches them first
+        fake.add_issue(fj.T_STORY, f"Rolled {n}", **{fj.SPRINT_FIELD: [old, nxt]})
+    adapter, _ = make(fake)
+    assert [i.key for i in adapter.find_items(iteration="202609", limit=1)] == [left["key"]]
+
+
 def test_starting_a_second_active_sprint_says_why():
     adapter, _ = make()
     adapter.create_iteration(Iteration("202609", start=date(2026, 9, 1), end=date(2026, 9, 30)))
