@@ -1,6 +1,7 @@
 """The product skills in skills/: the frontmatter every host reads, the tools
-they call (only the server's eleven), and the intake records they show the
-model, which must pass the schema so the examples teach a valid shape."""
+they call (only the server's eleven), the intake records they show the
+model, which must pass the schema so the examples teach a valid shape, and
+plan-sprint's order: reads and one yes, then close, create, move."""
 
 import json
 import re
@@ -15,8 +16,11 @@ from tests.test_mcp_app import TOOLS
 
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 CREATE = {"create-story": {"story"}, "create-bug": {"bug"}, "create-epic": {"epic", "story"}}
-NAMES = ["intake", *CREATE]
+NAMES = ["intake", *CREATE, "plan-sprint"]
+READS = {"describe_board", "find_items", "get_item", "get_iteration"}
+ROLLOVER = ["close_iteration", "create_iteration", "move_to_iteration"]  # Jira: one active sprint
 CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")  # describe_board(), propose_item(intake=…)
+ITERATION_READ = re.compile(r'find_items\(iteration="[^"]*"(?:, limit=(\d+))?\)')
 JSON_BLOCK = re.compile(r"```json\n(.*?)```", re.S)
 INTAKE_ID = re.compile(r"\d{8}-[a-z0-9-]+")  # the skills' convention: YYYYMMDD-<slug>
 
@@ -61,6 +65,20 @@ def test_intake_hands_off_to_every_create_skill():
 def test_a_create_skill_proposes_before_it_commits(name):
     _, body = read(name)
     assert body.index("propose_item(") < body.index("commit_item(")
+
+
+def test_plan_sprint_plans_on_reads_then_writes_in_rollover_order():
+    _, body = read("plan-sprint")
+    plan, sep, rollover = body.partition("## 5. Roll over")
+    assert sep, "plan-sprint has no rollover section"
+    assert "yes" in plan and set(CALL.findall(plan)) <= READS  # the PM's yes comes before any write
+    order = [rollover.index(f"{tool}(") for tool in ROLLOVER]
+    assert order == sorted(order)
+
+
+def test_plan_sprint_reads_an_iteration_with_a_generous_limit():
+    limits = ITERATION_READ.findall(read("plan-sprint")[1])
+    assert limits and all(limit and int(limit) >= 100 for limit in limits)  # the tool's default is 20
 
 
 @pytest.mark.parametrize("name", CREATE)

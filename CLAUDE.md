@@ -99,7 +99,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 |---|---|
 | [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml>`, stdio) |
 | [schema/](schema/) | The intake record (one request → its parts) and its Markdown rendering; `propose_item(intake=…, part=…)` consumes it |
-| [skills/](skills/) | The **product** skills (public): `intake`, `create-story` / `create-bug` / `create-epic`. Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 tools and the schema |
+| [skills/](skills/) | The **product** skills (public): `intake`, `create-story` / `create-bug` / `create-epic`, `plan-sprint` (rollover: one yes, then close → create → move). Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 tools and the schema |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` and `jira/` adapters (`jira/adf.py`: Markdown ↔ ADF) |
 | [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + the server (`board`, from `AGENTIC_ADMIN_BOARD`) as a Claude Code plugin. Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results |

@@ -81,7 +81,7 @@ agentic_administration/
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, generic/  ✅ base.py (interface + errors), plane/, jira/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
-├── skills/            # ✅ intake, create-story, create-bug, create-epic; plan-sprint, groom later
+├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint; groom later
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite  ✅ Plane and Jira pass live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/
@@ -170,7 +170,14 @@ skill-loading host reads it):
   one yes for the whole split, then files the epic first. It asks again
   only if an item's preview differs from what the requester saw.
 
-With the board's `confirm = "never"`, the skills commit without pausing.
+- **`plan-sprint`** is the PM's rollover. It shows the leftovers of the
+  current iteration and the backlog picks, and after one yes it closes the
+  old iteration, finds or creates the next one (which starts a Jira sprint
+  on its first day), and moves the work. Tasks move with their story or
+  bug.
+
+With the board's `confirm = "never"`, the create skills commit without
+pausing; `plan-sprint` still waits for its yes.
 Looking up related items happens in one step of `intake` (the board's own
 search by default), so another retrieval source replaces only that step.
 
