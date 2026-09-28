@@ -71,6 +71,41 @@ def test_round_trip(md):
     assert to_markdown(render(md)) == md
 
 
+def cell(kind, *content):
+    return {"type": kind, "content": [para(*content)]}
+
+
+def row(*cells):
+    return {"type": "tableRow", "content": list(cells)}
+
+
+def test_tables():
+    assert render("intro\n| a | b |\n| --- | :-: |\n| **1** | x \\| y |\n\nafter")["content"] == [
+        para(text("intro")),
+        {"type": "table", "content": [
+            row(cell("tableHeader", text("a")), cell("tableHeader", text("b"))),
+            row(cell("tableCell", text("1", STRONG)), cell("tableCell", text("x | y"))),
+        ]},
+        para(text("after")),
+    ]
+    # a short row is padded with an empty cell (no empty text node), a long one cut; no leading pipe needed
+    assert render("a | b\n--|--\n1 |\n1 | 2 | 3")["content"][0]["content"][1:] == [
+        row(cell("tableCell", text("1")), cell("tableCell")),
+        row(cell("tableCell", text("1")), cell("tableCell", text("2"))),
+    ]
+    # not tables: a rule row with another width, a setext-style rule with no pipe
+    assert render("| a | b |\n| --- |")["content"][0]["type"] == "paragraph"
+    assert render("a | b\n---")["content"][0]["type"] == "paragraph"
+
+
+@pytest.mark.parametrize("md", [
+    "| a | b |\n| --- | --- |\n| 1 | **2** |",
+    "| pipe |\n| --- |\n| x \\| y |",
+])
+def test_table_round_trip(md):
+    assert to_markdown(render(md)) == md
+
+
 def test_to_markdown_keeps_text_of_nodes_it_does_not_render():
     adf = doc(
         para(text("hi "), {"type": "mention", "attrs": {"id": "a", "text": "@Chris"}}, text(" "),

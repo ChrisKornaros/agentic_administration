@@ -72,6 +72,10 @@ def test_get_all_walks_start_at_pages_and_accepts_bare_lists():
         (403, '{"errorMessages": ["You do not have permission"], "errors": {}}', {}, AuthError, "permission"),
         (404, '{"errorMessages": ["Issue does not exist"], "errors": {}}', {}, NotFound, "does not exist"),
         (400, '{"errorMessages": [], "errors": {"labels": "contains spaces"}}', {}, ValidationError, "labels: contains spaces"),
+        (409, '{"errors": [{"status": 409, "code": "CONFLICT", "title": "Version must be incremented", "detail": null}]}',
+         {}, ValidationError, "HTTP 409 .*Version must be incremented"),  # Confluence v2
+        (400, '{"statusCode": 400, "message": "A page with this title already exists"}', {}, ValidationError,
+         "title already exists"),  # Confluence v1
         (429, "", {"Retry-After": "7"}, RateLimited, "retry after 7s"),
         (410, '{"errorMessages": ["The requested API has been removed."]}', {}, TransportError, "removed"),
         (503, "<html>unavailable</html>", {}, TransportError, "server error"),
