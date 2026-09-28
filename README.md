@@ -200,7 +200,7 @@ the requester's context:
 export PLANE_API_KEY=...                       # or the Bitwarden variables above
 export AGENTIC_ADMIN_BOARD=boards/<board>.toml
 T=mcp__plugin_agentic-administration_board__
-claude --plugin-dir /path/to/agentic_administration \
+ENABLE_CLAUDEAI_MCP_SERVERS=false claude --plugin-dir /path/to/agentic_administration \
   --tools Skill \
   --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}get_iteration ${T}propose_item" \
   --append-system-prompt "You are a team's backlog assistant. Every request is about the team's board, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, and reviewing what's waiting with groom."
@@ -215,8 +215,10 @@ The line names a first skill for each role: a requester's ask goes to
 intake, a PM's "roll the sprint over" to plan-sprint, and a PO's "groom"
 to groom.
 `--tools Skill` leaves out Claude Code's other built-in tools (shell,
-files, web), so the session gets the Skill tool and the board's eleven, as
-the Agent SDK example below does.
+files, web), and `ENABLE_CLAUDEAI_MCP_SERVERS=false` leaves out the
+requester's claude.ai connectors, so the session gets the Skill tool and
+the board's eleven, as the Agent SDK example below does. MCP servers from
+the requester's own Claude Code configuration still load.
 The tools pre-allowed above write nothing, so `commit_item` still asks
 through Claude Code's permission prompt, a second guard beside the skill's
 own yes. The server reads the token environment when Claude Code starts,

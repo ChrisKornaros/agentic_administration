@@ -93,7 +93,8 @@ def options(cwd: str, api_key: str, session_id: str) -> ClaudeAgentOptions:
         model=MODEL,
         cwd=cwd,
         session_id=session_id,
-        env={"ANTHROPIC_API_KEY": api_key},
+        # No claude.ai connectors, and so no notice that the API key has turned them off.
+        env={"ANTHROPIC_API_KEY": api_key, "ENABLE_CLAUDEAI_MCP_SERVERS": "false"},
         plugins=[{"type": "local", "path": str(ROOT)}],
         system_prompt={"type": "preset", "preset": "claude_code", "append": FRAMING},
         setting_sources=[],  # no user or project settings, hooks or CLAUDE.md
