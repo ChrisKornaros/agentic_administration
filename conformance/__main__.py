@@ -17,13 +17,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from adapters.plane.transport import DEFAULT_THROTTLE
-from conformance import plane, runner
+from conformance import jira, plane, runner
 from conformance.cases import Context
 from server.config import InvalidBoardConfig, load
 
 REPORTS = Path(__file__).resolve().parent / "reports"
-HARNESSES = {"plane": plane.make_adapter}
+HARNESSES = {"plane": plane.make_adapter, "jira": jira.make_adapter}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("config", help="path to the throwaway board's TOML config")
     parser.add_argument("--dry-run", action="store_true", help="list the cases and what the record shows; no calls")
     parser.add_argument("--run-id", help="names this run's items and record (default: today, YYYYMMDD)")
-    parser.add_argument("--throttle", type=float, default=DEFAULT_THROTTLE, help="seconds between calls")
+    parser.add_argument("--throttle", type=float, help="seconds between calls (default: the backend's own)")
     parser.add_argument("--reports", type=Path, default=REPORTS, help="where run records go")
     args = parser.parse_args(argv)
 
@@ -59,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     if harness is None:
         print(f"no conformance harness for backend {cfg.backend.value!r}", file=sys.stderr)
         return 2
-    adapter, calls = harness(cfg, throttle=args.throttle)
+    adapter, calls = harness(cfg, **({"throttle": args.throttle} if args.throttle is not None else {}))
     ctx = Context(adapter, cfg, run_id, today, calls)
     verdict = runner.run(cases, ctx, state, save=lambda s: runner.save_state(record, s))
     statuses = [c["status"] for c in state["cases"].values()]

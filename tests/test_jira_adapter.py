@@ -193,11 +193,16 @@ def test_create_task_is_a_sub_task_and_a_non_backlog_state_transitions():
     assert t.bodies("POST", "/transitions") == [{"transition": {"id": f"t{fj.S_PROGRESS}"}}]
 
 
-def test_the_tracker_refuses_a_task_straight_under_an_epic():
-    fake, epic, _, _ = seeded()
+def test_jira_takes_a_sub_task_under_an_epic_so_the_model_is_the_guard():
+    fake, epic, story, _ = seeded()
     adapter, _ = make(fake)
+    # live Jira accepted this (AGADM-5, 2026-09-27): only the model refuses it, when it knows the level
+    made = adapter.create_item(WorkItem(Level.TASK, "Misplaced", parent=ItemRef(epic["key"])))
+    assert made.level is Level.TASK and made.parent.level is Level.EPIC
+    # a parent below its child is still refused (the model never asks: an epic has no parent)
     with pytest.raises(ValidationError, match="appropriate hierarchy"):
-        adapter.create_item(WorkItem(Level.TASK, "Misplaced", parent=ItemRef(epic["key"])))
+        fake.request("POST", "/rest/api/3/issue", body={"fields": {
+            "summary": "x", "issuetype": {"id": fj.T_EPIC}, "parent": {"key": story["key"]}}})
 
 
 def test_create_refuses_bad_labels_members_components_before_writing():
@@ -281,7 +286,7 @@ def test_move_close_and_a_closed_sprint_refuses_items():
     assert adapter.get_item(story["key"]).iteration == cur.id
     closed = adapter.close_iteration("202610")
     assert closed.state is IterationState.CLOSED and adapter.close_iteration(cur.id or "").state is IterationState.CLOSED
-    with pytest.raises(ValidationError, match="closed sprint"):
+    with pytest.raises(ValidationError, match="has not been completed"):
         adapter.move_to_iteration([story["key"]], cur.id or "")
     planned = adapter.create_iteration(Iteration("202611", start=date(2026, 11, 1), end=date(2026, 11, 30)))
     with pytest.raises(ValidationError, match="has not started"):

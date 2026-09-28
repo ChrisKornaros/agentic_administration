@@ -7,12 +7,15 @@ from datetime import date
 import pytest
 
 from adapters.base import Blocked, NotFound
+from adapters.jira import JiraAdapter
 from adapters.plane import PlaneAdapter
 from conformance import __main__ as cli
 from conformance import runner
 from conformance.cases import Context, Skipped
 from server.config import BoardConfig
+from tests import fake_jira as fj
 from tests import fake_plane as fp
+from tests import test_jira_adapter as tests_jira
 
 CONFIG = {
     "backend": "plane",
@@ -170,8 +173,43 @@ def test_bad_config_exits_2(tmp_path, capsys):
 
 
 def test_a_backend_without_a_provisioner_skips_provisioning():
-    with pytest.raises(Skipped, match="no provisioner for jira; provision the board by hand"):
-        runner.cases_for("jira")[0].run(process(fp.FakeTransport()))
+    with pytest.raises(Skipped, match="no provisioner for ado; provision the board by hand"):
+        runner.cases_for("ado")[0].run(process(fp.FakeTransport()))
+
+
+# --- Jira, against the fake Jira transport --------------------------------------
+
+JIRA = tests_jira.CONFIG
+
+
+def jira_process(fake, today=date(2026, 9, 27)):
+    cfg = BoardConfig.from_dict(JIRA).check()
+    adapter = JiraAdapter(cfg, fake, secret=lambda name: "unused", today=lambda: today)
+    return Context(adapter, cfg, "20260927", today, lambda: fake.log)
+
+
+def test_jira_passes_every_case_with_feature_collapsed_to_a_label():
+    fake = fj.FakeJira()
+    state = new_state()
+    assert runner.run(runner.cases_for("jira"), jira_process(fake), state, save=lambda s: None, echo=lambda l: None) == runner.PASS
+    assert statuses(state) == {name: "pass" for name in ALL}
+    assert "nothing to create" in notes(state, "provision")
+    assert "the feature collapsed: the story carries it as ['feature:Conformance-20260927']" in notes(state, "placement")
+    assert "the tracker accepted" in notes(state, "hierarchy")  # as live Jira did (AGADM-5)
+    assert "dates read back as written: 202609 2026-09-01–2026-09-27, 202610 2026-10-01–2026-10-31" in notes(state, "iterations")
+    assert "a closed iteration refuses new items" in notes(state, "close")
+    assert "DELETE" not in state["wire"]
+    story = fake.issues[state["ids"]["story"]]["fields"]
+    assert story["labels"] == ["xid:conformance:20260927:story"]  # review cleared, the key kept
+
+
+def test_jira_provision_stops_for_the_operator_when_the_project_does_not_fit():
+    fake = fj.FakeJira()
+    fake.statuses = [s for s in fake.statuses if s["name"] != "Cancelled"]
+    state = new_state()
+    assert runner.run(runner.cases_for("jira"), jira_process(fake), state, save=lambda s: None) == runner.STOP
+    assert "states.cancelled: no status named 'Cancelled'" in notes(state, "provision")
+    assert {m for m, _ in fake.log} == {"GET"}
 
 
 def test_a_bad_token_on_the_features_patch_is_a_failure_not_a_ui_instruction():

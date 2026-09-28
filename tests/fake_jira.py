@@ -6,10 +6,12 @@ Shapes follow the Phase 5 probe (probes/jira_phase5_readonly.py, run
 category, the `values` envelope on labels and sprints, the bare lists of
 users and components, the `/search/jql` page with `isLast` and a
 `nextPageToken`, the global transitions named after their target status.
-The rules it enforces are Jira's: a parent sits exactly one hierarchy
-level above its child, labels hold no spaces, a sprint starts only from
-future with both dates and while no other is active, closes only from
-active, and takes no issues once closed. Ids are made up.
+The rules it enforces are Jira's, as the 2026-09-27 conformance run met
+them: a parent sits at a higher hierarchy level than its child, not
+necessarily the adjacent one (live Jira took a sub-task straight under an
+epic); labels hold no spaces; a sprint starts only from future with both
+dates and while no other is active, closes only from active, and takes no
+issues once closed. Ids are made up.
 """
 
 from __future__ import annotations
@@ -178,7 +180,7 @@ class FakeJira:
         parent_id = None
         if f.get("parent"):
             parent = self._find(f["parent"].get("id") or f["parent"].get("key"))
-            if parent["fields"]["issuetype"]["hierarchyLevel"] != itype["hierarchyLevel"] + 1:
+            if parent["fields"]["issuetype"]["hierarchyLevel"] <= itype["hierarchyLevel"]:
                 raise ValidationError(f"HTTP 400 on {where}: parent: Given parent work item does not belong to appropriate hierarchy.")
             parent_id = parent["id"]
         elif itype["subtask"]:
@@ -237,8 +239,9 @@ class FakeJira:
         s = self.sprints.get(sid)
         if s is None:
             raise NotFound(f"HTTP 404 on POST /rest/agile/1.0/sprint/{sid}/issue")
-        if s["state"] == "closed":
-            raise ValidationError(f"HTTP 400 on POST /rest/agile/1.0/sprint/{sid}/issue: Cannot move issues to a closed sprint")
+        if s["state"] == "closed":  # live Jira's words, 2026-09-27
+            raise ValidationError(f"HTTP 400 on POST /rest/agile/1.0/sprint/{sid}/issue: "
+                                  "You must specify a sprint which has not been completed.")
         for ident in (body or {}).get("issues") or []:
             rec = self._find(ident)
             history = [x for x in rec["fields"].get(SPRINT_FIELD) or [] if x["state"] == "closed"]

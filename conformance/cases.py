@@ -18,6 +18,7 @@ and labels the config names) and lives with its backend, e.g.
 from __future__ import annotations
 
 import calendar
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -26,6 +27,8 @@ from typing import Callable
 from adapters.base import Adapter, ItemPatch, NotFound, ValidationError
 from server.config import BoardConfig, Naming
 from server.model import (
+    CollapseRule,
+    CollapseTarget,
     Comment,
     InvalidWorkItem,
     ItemRef,
@@ -115,6 +118,23 @@ def _label_in(name: str, labels: tuple[str, ...]) -> bool:
     return name.lower() in (l.lower() for l in labels)
 
 
+def _carries(item: WorkItem, rule: CollapseRule | None, level: Level, ref: ItemRef) -> bool:
+    """Whether `item` carries a collapsed attachment where its rule puts it.
+    Spaces and dashes compare equal: a tracker's labels may hold no spaces."""
+    if rule is None:
+        return False
+    text = rule.template.format(level=level.value, name=ref.key or ref.id, id=ref.id, key=ref.key or "")
+
+    def squash(s: str) -> str:
+        return re.sub(r"[\s-]+", "-", s.strip().lower())
+
+    if rule.target is CollapseTarget.LABEL:
+        return any(squash(l) == squash(text) for l in item.labels)
+    if rule.target is CollapseTarget.COMPONENT:
+        return item.component is not None and squash(item.component) == squash(text)
+    return text in item.description
+
+
 # --- the cases ---------------------------------------------------------------------
 
 
@@ -166,12 +186,16 @@ def placement(ctx: Context) -> None:
     review = ctx.config.labels.review
 
     feature_name = f"Conformance {ctx.run_id}"
-    feature = next((f for f in a.find_items(feature_name, level=Level.FEATURE) if f.title == feature_name), None)
-    if feature is None:
-        feature = a.create_item(WorkItem(Level.FEATURE, feature_name, description="The conformance suite's feature."))
-    else:
-        ctx.note(f"reused feature {feature_name!r} from an earlier attempt")
-    feature_ref = ItemRef(feature.id or "", Level.FEATURE)
+    feature: WorkItem | None = None
+    if a.capabilities.materializes(Level.FEATURE):
+        feature = next((f for f in a.find_items(feature_name, level=Level.FEATURE) if f.title == feature_name), None)
+        if feature is None:
+            feature = a.create_item(WorkItem(Level.FEATURE, feature_name, description="The conformance suite's feature."))
+        else:
+            ctx.note(f"reused feature {feature_name!r} from an earlier attempt")
+        feature_ref = ItemRef(feature.id or "", Level.FEATURE)
+    else:  # collapsed: the name is the reference, as the MCP server passes it
+        feature_ref = ItemRef(feature_name, Level.FEATURE)
 
     story = find_or_create(ctx, WorkItem(
         Level.STORY, "Requester Files A Story", parent=epic, feature=feature_ref, labels=(review,),
@@ -192,11 +216,20 @@ def placement(ctx: Context) -> None:
     expect(b.level is Level.BUG and b.parent and b.parent.id == epic.id, f"bug {b.key} reads back as {b.level.value} under {b.parent}")
     expect(t.level is Level.TASK and t.parent and t.parent.id == story.id, f"task {t.key} reads back as {t.level.value} under {t.parent}")
     expect(_label_in(review, s.labels), f"story {s.key} lacks the review label {review!r}: {s.labels}")
-    expect(s.feature is not None and s.feature.id == feature.id, f"story {s.key} is not in feature {feature_name!r} (reads {s.feature})")
+    if feature is not None:
+        expect(s.feature is not None and s.feature.id == feature.id, f"story {s.key} is not in feature {feature_name!r} (reads {s.feature})")
+    else:
+        rule = ctx.config.levels[Level.FEATURE].collapse
+        expect(_carries(s, rule, Level.FEATURE, feature_ref),
+               f"story {s.key} does not carry feature {feature_name!r} by its collapse rule "
+               f"({rule.target.value if rule else '?'}): labels {s.labels}")
     ctx.note(f"epic > story {s.key} (in feature {feature_name!r}, labelled {review!r}) > task {t.key}; bug {b.key} under the epic")
+    if feature is None:
+        ctx.note(f"the feature collapsed: the story carries it as {[l for l in s.labels if not _label_in(l, (review,))]}")
 
-    single = a.get_item(story.id or "")
-    ctx.note("get_item alone " + ("also carries" if single.feature else "does NOT carry") + " feature membership; the list read does")
+    if feature is not None:
+        single = a.get_item(story.id or "")
+        ctx.note("get_item alone " + ("also carries" if single.feature else "does NOT carry") + " feature membership; the list read does")
 
     n = len(ctx.calls())
     try:
@@ -207,7 +240,8 @@ def placement(ctx: Context) -> None:
         raise Failed("the model let a task be parented under an epic it knew was an epic")
     expect(len(ctx.calls()) == n, "a model-invalid item reached the wire")
     ctx.note("a task under a known epic is refused by the model before any call")
-    ctx.ids.update(feature=feature.id or "", story=story.id or "", bug=bug.id or "", task=task.id or "")
+    ctx.ids.update(feature=(feature.id or "") if feature else feature_name,
+                   story=story.id or "", bug=bug.id or "", task=task.id or "")
 
 
 def hierarchy_probe(ctx: Context) -> None:
