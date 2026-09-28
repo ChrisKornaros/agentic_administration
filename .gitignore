@@ -17,6 +17,7 @@ __pycache__/
 # probe output — board content, never committed
 probes/probe-report.json
 probes/jira-probe-report.json
+probes/confluence-probe-report.json
 
 # real board configs (ids of live boards) — only examples/boards/*.example.toml is committed
 /boards/

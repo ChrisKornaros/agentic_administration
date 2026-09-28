@@ -58,8 +58,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 - **No delete path, anywhere.** Work is completed or cancelled; no adapter method, server
   tool, probe or conformance case may delete.
 - **Read-proven before write.** Adapter writes refuse until `describe_board` is clean; prove new
-  vendor behavior with a read first; writes go only to the throwaway boards (Plane `AGADMIN`, Jira `AGADM`),
-  never a company site.
+  vendor behavior with a read first; writes go only to the throwaway boards (Plane `AGADMIN`, Jira `AGADM`)
+  and the throwaway Confluence space `AGKB` (Phase 6b), never a company site.
 - **Secrets** resolve only via [server/secrets.py](server/secrets.py) (the env var named by
   `token_env`, or its Bitwarden item). Never print a token or `BW_SESSION`. Live runs: Chris writes
   `umask 077; bw unlock --raw > ~/.cache/bw_session`; then Plane is
@@ -67,6 +67,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   with the id from project memory (`plane-bitwarden-item`). The name `Plane` works too, since an
   ambiguous name now resolves to the exact match. AOR's `tools/plane/.env` no longer carries the field (2026-09-27). Jira: both `JIRA_API_TOKEN_BW_ITEM` and
   `JIRA_USER_BW_ITEM` name its one item (the email is its username: `JIRA_USER_BW_FIELD=username`).
+  Confluence reuses that token on the same site, under `/wiki` (D29).
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json`,
   `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and
   summarized `transcripts/*.md` (keys and checks, no item text) are committed.
