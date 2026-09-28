@@ -117,7 +117,9 @@ It prints the board's types, states, labels, members, modules and cycles
 and lists every config-vs-board mismatch; the adapter refuses every write
 until that list is empty. Secrets resolve through `server/secrets.py`
 only: the env var named by `token_env`, or the Bitwarden item named by
-`<token_env>_BW_ITEM` (custom field via `<token_env>_BW_FIELD`).
+`<token_env>_BW_ITEM` (custom field via `<token_env>_BW_FIELD`). The item
+is an id or a name; a name that several items match resolves to the one
+named exactly that.
 
 **Jira Cloud** works the same way from
 [examples/boards/jira.example.toml](examples/boards/jira.example.toml), for a
