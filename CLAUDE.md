@@ -78,9 +78,15 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   paths; its `.env` holds the Plane key and bot token), in the bot's Discord channel. Afterwards read the
   session from `~/.hermes/profiles/po/state.db` (open it `mode=ro`), and read the board back with `get_item`
   run inside the container (`docker exec --user hermes`, po's venv and `.env`).
+  **Through the Agent SDK:** `uv run --group agent-sdk python examples/agent-sdk/chat.py` from the repo
+  (it makes its own empty working directory), with the board env plus a metered `ANTHROPIC_API_KEY`
+  or `ANTHROPIC_API_KEY_BW_ITEM`, never a claude.ai login. The transcript is `<session id>.jsonl`
+  under `~/.claude/projects/`, with the id printed at start. Offline, point `ANTHROPIC_BASE_URL` at a
+  local stub to capture the exact request (model, tools, system prompt) without spending anything.
 - **Dependencies:** one runtime dependency, the official `mcp` SDK, pinned `>=2.2,<3` (v2: `MCPServer`,
   not `FastMCP`). The model, config, intake schema and adapters stay stdlib-only. Every new runtime dependency
-  needs its reason in the PR plus a `/substrate-preflight`.
+  needs its reason in the PR plus a `/substrate-preflight`. `claude-agent-sdk` (`>=0.2.160,<0.3`) is
+  not one: it is the optional `agent-sdk` dependency group, for the example alone.
 - **Layering:** adapters stay mechanical ([adapters/base.py](adapters/base.py)). Conventions (the review
   label, `external_id` = `intake_id[/part]`, propose → commit with a 30-minute token, title-case
   warnings) live in [server/service.py](server/service.py); [server/mcp_app.py](server/mcp_app.py) only
@@ -108,3 +114,4 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py` transports) |
 | [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira) |
 | [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio server, 11-tool include, skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
+| [examples/agent-sdk/](examples/agent-sdk/) | The Agent SDK terminal chat (`chat.py`): the repo as a plugin, the framing line, `tools=["Skill"]` + the 11 board tools only, no settings sources, reads unasked and each write behind a `y`. [tests/test_examples.py](tests/test_examples.py) reads its constants by AST (the SDK is optional) and ties them to the server's read-only annotations, SOUL.md and the README's `--allowedTools` |

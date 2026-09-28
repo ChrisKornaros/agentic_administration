@@ -67,8 +67,8 @@ module, area) is a separate axis, not a level.
 The chat bot is not the product. The server, the skills, and the intake
 schema are. A Discord, Slack, or Telegram front end is whatever agent
 runtime you already operate. The repo has a Hermes configuration
-([examples/hermes/](examples/hermes/)) as a reference wiring, and will add a
-runnable Claude Agent SDK example.
+([examples/hermes/](examples/hermes/)) as a reference wiring, and a
+runnable Claude Agent SDK example ([examples/agent-sdk/](examples/agent-sdk/)).
 
 ## Layout (planned; ✅ = exists)
 
@@ -84,7 +84,7 @@ agentic_administration/
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite  ✅ Plane and Jira pass live
-├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/
+├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/, agent-sdk/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 ├── transcripts/       # dated summaries of live requester sessions (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
@@ -199,8 +199,8 @@ export PLANE_API_KEY=...                       # or the Bitwarden variables abov
 export AGENTIC_ADMIN_BOARD=boards/<board>.toml
 T=mcp__plugin_agentic-administration_board__
 claude --plugin-dir /path/to/agentic_administration \
-  --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}propose_item" \
-  --append-system-prompt "You are a team's backlog assistant. Whatever someone asks for is work to add to the team's board, never something to build or design here. Start with the intake skill."
+  --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}get_iteration ${T}propose_item" \
+  --append-system-prompt "You are a team's backlog assistant. Every request is about the team's board, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, and reviewing what's waiting with groom."
 ```
 
 The skills show up as `/agentic-administration:intake` and so on, but a
@@ -208,6 +208,9 @@ requester needs none of them: they just type the request. The framing line
 is what makes that work. Without it, Claude Code reads "I'd like this
 automated" as a request to build the automation
 ([the gate record](transcripts/2026-09-24-phase3-gate.md), session A).
+The line names a first skill for each role: a requester's ask goes to
+intake, a PM's "roll the sprint over" to plan-sprint, and a PO's "groom"
+to groom.
 The tools pre-allowed above write nothing, so `commit_item` still asks
 through Claude Code's permission prompt, a second guard beside the skill's
 own yes. The server reads the token environment when Claude Code starts,
@@ -230,6 +233,26 @@ fragment's two `UV_*` lines, which put the venv on a writable path. Hermes
 has no permission prompt for MCP tools, so the skill's own "wait for yes" is
 the only guard before `commit_item`
 ([the Hermes gate record](transcripts/2026-09-26-phase4-gate.md)).
+
+To run it from your own code, the **Claude Agent SDK** example
+[examples/agent-sdk/chat.py](examples/agent-sdk/chat.py) is a terminal chat
+that loads the repo as a plugin, as the Claude Code command above does,
+with the same framing line. The session gets the board's eleven tools and
+the Skill tool, nothing else: no shell, files, web or memory, and no user
+or project settings. Reads run without asking; each write asks for a `y`
+at the terminal. It needs a metered API key, in `ANTHROPIC_API_KEY` or its
+Bitwarden item like the board token, because the SDK's terms don't allow
+a claude.ai login for products built on it:
+
+```sh
+export PLANE_API_KEY=...                       # or the Bitwarden variables above
+export AGENTIC_ADMIN_BOARD=boards/<board>.toml
+export ANTHROPIC_API_KEY=...                   # or ANTHROPIC_API_KEY_BW_ITEM
+uv run --group agent-sdk python examples/agent-sdk/chat.py
+```
+
+The `agent-sdk` dependency group installs `claude-agent-sdk`, which bundles
+the Claude Code CLI, so nothing else needs installing.
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:
