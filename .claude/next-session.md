@@ -28,7 +28,12 @@ It took three PRs:
      - A sprint whose dates cover today starts on create.
 2. **The roadmap/14 §4 table's Jira column is wrong.** Premium's custom levels sit only *above* Epic, so Feature can't be a Jira level. Both optional levels collapse on Jira.
 3. **§11:** "Iteration ownership on Jira" is answered by `connection.board_id` (one board per config), and the README says so in `jira.example.toml`.
-4. **Transferable lessons** for AOR modules or CONVENTIONS:
+4. **Azure DevOps is out of scope (Chris, 2026-09-27).** The build repo dropped the `ado` backend (`chore/remove-ado`). roadmap/14 needs a D-number that supersedes D2's "designed-for" clause. Ask Chris for the Why; don't invent one. Then drop ADO from:
+   - §3: line 111's "Jira and ADO", and the Azure DevOps bullet.
+   - §4: "ADO HTML", "an ADO area path", the matrix's ADO column, and "all three".
+   - §6: the `backend` enum.
+   - §11: the Bug-placement ADO note.
+5. **Transferable lessons** for AOR modules or CONVENTIONS:
    - A fake transport should model a vendor's *live* behavior, not its docs. The Jira fake enforced the documented adjacency rule, and live Jira broke it.
    - The `.gitignore` bug: `boards/` also ignored `examples/boards/`.
 
@@ -37,7 +42,7 @@ It took three PRs:
 - **Phase 6 (roadmap):** `plan-sprint` / `close_iteration` rollover, plus the `groom` skill, plus the Claude Agent SDK example bot. The gate is rollover verified on Plane *and* Jira.
 
 ## To run / verify
-- `uv run pytest`: 256 pass, offline.
+- `uv run pytest`: 255 pass, offline.
 - `uv run python -m adapters.jira describe boards/jira-agadm.toml`: a live read, with no writes.
 - Credentials: `JIRA_API_TOKEN_BW_ITEM` and `JIRA_USER_BW_ITEM` both name the Jira item, plus `JIRA_USER_BW_FIELD=username`, plus `BW_SESSION="$(cat ~/.cache/bw_session)"`. The site URL is in project memory (`jira-site`) and the gitignored board config.
 - The next Jira conformance run needs a new `--run-id` in October: `202609` is closed on board 2, and only one sprint can be active.

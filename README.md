@@ -29,9 +29,8 @@ the right sprint, on whatever tracker your team already runs.
   decomposition of one request into epic + stories with acceptance
   criteria, sprint planning and rollover, and a backlog-grooming pass.
 - **Backend adapters** that map the canonical model onto a real
-  tracker's API. Plane first; Jira Cloud (Premium/Enterprise) second;
-  Azure DevOps designed-for. A parent-only generic mode covers
-  trackers without typed hierarchies.
+  tracker's API: Plane and Jira Cloud (Premium/Enterprise). A
+  parent-only generic mode covers trackers without typed hierarchies.
 - **Propose-then-confirm by default.** The agent drafts in chat, the
   requester confirms, the item lands in the backlog flagged for a
   product owner's review. The tool has **no delete path**; work is
@@ -80,7 +79,7 @@ agentic_administration/
 ├── CLAUDE.md          # agent context; modules/ + .claude/skills/ vendored from agentic_optimization_research  ✅
 ├── .claude-plugin/    # plugin.json: loads skills/ + the MCP server into Claude Code  ✅
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
-├── adapters/          # plane/, jira/, ado/, generic/  ✅ base.py (interface + errors), plane/, jira/
+├── adapters/          # plane/, jira/, generic/  ✅ base.py (interface + errors), plane/, jira/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic; plan-sprint, groom later
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)

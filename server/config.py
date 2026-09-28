@@ -43,7 +43,6 @@ from server.model import (
 class Backend(enum.Enum):
     PLANE = "plane"
     JIRA = "jira"
-    ADO = "ado"
     GENERIC = "generic"
 
 
@@ -68,7 +67,6 @@ class ItemCase(enum.Enum):
 CONNECTION_KEYS: Mapping[Backend, frozenset[str]] = {
     Backend.PLANE: frozenset({"workspace", "project"}),
     Backend.JIRA: frozenset({"site", "project_key", "board_id"}),
-    Backend.ADO: frozenset({"organization", "project"}),
     Backend.GENERIC: frozenset(),
 }
 

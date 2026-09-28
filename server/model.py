@@ -11,7 +11,7 @@ rules are written for the three-level core, so nothing here assumes the
 optional levels exist on a given backend.
 
 Descriptions are Markdown — the source of truth. Each adapter renders it
-into the tracker's format (Plane HTML, Jira ADF, ADO HTML).
+into the tracker's format (Plane HTML, Jira ADF).
 
 `assignees` are opaque identifiers the adapter resolves against the board's
 member directory; the model does not know whether they are names or ids.
@@ -260,9 +260,9 @@ class Capabilities:
     backend: str
     levels: Mapping[Level, Materialization]
     description_format: DescriptionFormat
-    states_via_transitions: bool  # Jira: yes; Plane, ADO: no
+    states_via_transitions: bool  # Jira: yes; Plane: no
     native_idempotency_key: bool  # Plane `external_id`: yes; Jira: no
-    move_to_iteration_is_separate_call: bool = True  # true on all three
+    move_to_iteration_is_separate_call: bool = True  # true on both
     collapse: Mapping[Level, CollapseRule] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
