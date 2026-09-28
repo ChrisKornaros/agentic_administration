@@ -168,6 +168,15 @@ def test_find_items_lists_filters_and_searches():
     assert [h.key for h in adapter.find_items("file")] == ["AA-2"]
 
 
+def test_find_items_by_label_is_the_review_queue():
+    adapter, _ = make()
+    assert [i.key for i in adapter.find_items(label="needs-review")] == ["AA-2"]
+    assert [i.key for i in adapter.find_items(label="Needs-Review")] == ["AA-2"]  # names ignore case
+    assert adapter.find_items(label="bug") == []
+    assert [i.key for i in adapter.find_items(iteration="202609", label="needs-review")] == ["AA-2"]
+    assert adapter.find_items(state=State.BACKLOG, label="needs-review") == []  # AA-2 is todo
+
+
 def test_an_ignored_external_id_filter_refuses_to_guess():
     adapter, t = make()
     t.external_id_lookup = False  # Plane answers the plain list instead of one record or 404

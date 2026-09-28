@@ -65,16 +65,18 @@ def build(service: BoardService) -> MCPServer:
         level: LevelName | None = None,
         state: StateName | None = None,
         iteration: str | None = None,
+        label: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
         """Search the board's work items. `query` is free text on titles;
         `external_id` is an exact idempotency-key lookup; `level` and `state`
         narrow the result; `iteration` (a name or id) keeps the items that are
         in that iteration now, a closed one included, which is what a rollover
-        reads. With no arguments, lists the board. Use get_item for a known key
-        such as AA-12."""
-        return {"items": call(service.find_items, query, external_id=external_id,
-                              level=level, state=state, iteration=iteration, limit=limit)}
+        reads; `label` keeps the items carrying that label, so the board's
+        review label gives the review queue. With no arguments, lists the
+        board. Use get_item for a known key such as AA-12."""
+        return {"items": call(service.find_items, query, external_id=external_id, level=level,
+                              state=state, iteration=iteration, label=label, limit=limit)}
 
     @mcp.tool(annotations=READ)
     def get_item(ref: str) -> dict[str, Any]:

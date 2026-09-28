@@ -1,7 +1,8 @@
 """The product skills in skills/: the frontmatter every host reads, the tools
 they call (only the server's eleven), the intake records they show the
-model, which must pass the schema so the examples teach a valid shape, and
-plan-sprint's order: reads and one yes, then close, create, move."""
+model, which must pass the schema so the examples teach a valid shape,
+plan-sprint's order (reads and one yes, then close, create, move) and
+groom's (reads and one yes, then a fresh read before each update)."""
 
 import json
 import re
@@ -16,11 +17,14 @@ from tests.test_mcp_app import TOOLS
 
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 CREATE = {"create-story": {"story"}, "create-bug": {"bug"}, "create-epic": {"epic", "story"}}
-NAMES = ["intake", *CREATE, "plan-sprint"]
+NAMES = ["intake", *CREATE, "plan-sprint", "groom"]
 READS = {"describe_board", "find_items", "get_item", "get_iteration"}
 ROLLOVER = ["close_iteration", "create_iteration", "move_to_iteration"]  # Jira: one active sprint
 CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")  # describe_board(), propose_item(intake=…)
-ITERATION_READ = re.compile(r'find_items\(iteration="[^"]*"(?:, limit=(\d+))?\)')
+FULL_READ = {  # a read that must see everything: an iteration's items, the review queue
+    "plan-sprint": re.compile(r'find_items\(iteration="[^"]*"(?:, limit=(\d+))?\)'),
+    "groom": re.compile(r'find_items\(label="[^"]*"(?:, limit=(\d+))?\)'),
+}
 JSON_BLOCK = re.compile(r"```json\n(.*?)```", re.S)
 INTAKE_ID = re.compile(r"\d{8}-[a-z0-9-]+")  # the skills' convention: YYYYMMDD-<slug>
 
@@ -76,8 +80,17 @@ def test_plan_sprint_plans_on_reads_then_writes_in_rollover_order():
     assert order == sorted(order)
 
 
-def test_plan_sprint_reads_an_iteration_with_a_generous_limit():
-    limits = ITERATION_READ.findall(read("plan-sprint")[1])
+def test_groom_reviews_on_reads_then_rereads_before_each_update():
+    _, body = read("groom")
+    review, sep, apply = body.partition("## 5. Apply")
+    assert sep, "groom has no apply section"
+    assert "yes" in review and set(CALL.findall(review)) <= READS  # the PO's yes comes before any write
+    assert apply.index("get_item(") < apply.index("update_item(")  # labels replace the whole set
+
+
+@pytest.mark.parametrize("name", FULL_READ)
+def test_a_full_read_has_a_generous_limit(name):
+    limits = FULL_READ[name].findall(read(name)[1])
     assert limits and all(limit and int(limit) >= 100 for limit in limits)  # the tool's default is 20
 
 

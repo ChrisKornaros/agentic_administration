@@ -145,6 +145,15 @@ def test_find_items_by_external_id_text_level_and_state():
     assert len(adapter.find_items(limit=1)) == 1
 
 
+def test_find_items_by_label_is_the_review_queue():
+    fake, _, story, _ = seeded()
+    adapter, t = make(fake)
+    assert [i.key for i in adapter.find_items(label="needs-review")] == [story["key"]]
+    assert t.calls[-1][2]["jql"] == 'project = "AA" AND labels = "needs-review" ORDER BY created DESC'
+    assert adapter.find_items(label="bug") == []
+    assert [i.key for i in adapter.find_items(iteration="202609", label="needs-review")] == [story["key"]]
+
+
 def test_search_pages_follow_the_next_page_token():
     fake = fj.FakeJira()
     for n in range(120):
