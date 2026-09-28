@@ -16,7 +16,8 @@ the right sprint, on whatever tracker your team already runs.
 > rollover and grooming skills are written and haven't run live yet.
 > Publishing a repo's Markdown docs to Confluence, for people to read and
 > agents to search, has started: a read-only probe has checked the API
-> ([probes/](probes/README.md)). Watch the releases for the first usable
+> ([probes/](probes/README.md)), and the publisher is written and tested
+> offline but hasn't run live yet. Watch the releases for the first usable
 > version.
 
 ## What it is
@@ -86,8 +87,9 @@ agentic_administration/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
+├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (offline-tested)
 ├── conformance/       # the adapter test suite  ✅ Plane and Jira pass live
-├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/, agent-sdk/
+├── examples/          # board configs, an Agent SDK bot, a Hermes config, a publisher config  ✅ boards/, hermes/, agent-sdk/, knowledge/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 ├── transcripts/       # dated summaries of live requester sessions (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
@@ -270,6 +272,27 @@ a delete), run the conformance suite:
 `uv run python -m conformance boards/<board>.toml` (add `--dry-run` to
 list the cases first). See [conformance/README.md](conformance/README.md)
 for the cases and the dated results.
+
+To publish a folder of Markdown docs to **Confluence** (one way: git stays
+the source), copy
+[examples/knowledge/confluence.example.toml](examples/knowledge/confluence.example.toml)
+to `boards/<name>.toml`. It uses the same site, token and email as the Jira
+board config. Then:
+
+```sh
+uv run python -m knowledge publish docs/ --config boards/<name>.toml           # dry run: reads, plans, writes nothing
+uv run python -m knowledge publish docs/ --config boards/<name>.toml --apply   # writes
+```
+
+Each folder becomes a page, with its `index.md` (or `README.md`) as the
+body, and each other `.md` file becomes a page under it. The whole tree goes
+under the page named by `space.parent`. A page's title is its first `#`
+heading, or else its file name. Relative links between the files become
+links between the pages. A re-run writes only what changed, and an edit
+makes one new page version. A page whose file is gone is reported for a
+person to archive, and nothing is ever deleted. Each run writes at most
+`publish.max_writes` pages, and the next run picks up the rest. Images
+aren't published yet.
 
 ## License
 

@@ -1,13 +1,14 @@
 """Markdown ↔ Atlassian Document Format (ADF), the body shape Jira's v3 API
-takes and returns for descriptions and comments. Stdlib only, the same
-Markdown subset as the Plane renderer (`adapters.plane.markdown`): headings,
-paragraphs, bullet / numbered lists (nested by indentation), fenced code,
-block quotes, and inline bold / italic / code / links. Anything else stays
-literal text.
+takes and returns for descriptions and comments, and Confluence's v2 API for
+pages (Phase 6b). Stdlib only, the same Markdown subset as the Plane renderer
+(`adapters.plane.markdown`): headings, paragraphs, bullet / numbered lists
+(nested by indentation), fenced code, block quotes, and inline bold / italic /
+code / links, plus GitHub-style pipe tables, which the Plane renderer lacks.
+Anything else stays literal text.
 
 ADF rules this respects (developer.atlassian.com, …/apis/document/): a text
 node is never empty, a `code` mark combines only with `link`, and a
-`listItem` holds block nodes (a paragraph), never bare text.
+`listItem` or a table cell holds block nodes (a paragraph), never bare text.
 
 `to_markdown` is the read side: it walks whatever ADF Jira returns and
 writes Markdown back, keeping unknown inline nodes' text where they carry
@@ -25,6 +26,8 @@ _BULLET = re.compile(r"^(\s*)[-*+]\s+(.*)$")
 _NUMBERED = re.compile(r"^(\s*)\d+[.)]\s+(.*)$")
 _FENCE = re.compile(r"^\s*(```|~~~)\s*([\w-]*)\s*$")
 _QUOTE = re.compile(r"^\s*>\s?(.*)$")
+_TABLE_RULE = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")  # | --- | :---: |
+_PIPE = re.compile(r"(?<!\\)\|")
 
 _INLINE = re.compile(
     r"(?P<code>`[^`]+`)"
@@ -102,6 +105,31 @@ def _paragraph(lines: list[str]) -> Node:
     return {"type": "paragraph", "content": content}
 
 
+def _cells(line: str) -> list[str]:
+    """One table row's cells; a `\\|` stays in its cell as `|`."""
+    row = line.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    return [c.strip().replace("\\|", "|") for c in _PIPE.split(row)]
+
+
+def _is_table(line: str, rule: str) -> bool:
+    """A header row, then a rule row with the same number of cells; both hold a pipe."""
+    return ("|" in line and "|" in rule and _TABLE_RULE.match(rule) is not None
+            and len(_cells(line)) == len(_cells(rule)))
+
+
+def _table(header: list[str], rows: list[list[str]]) -> Node:
+    width = len(header)
+
+    def row(cells: list[str], kind: str) -> Node:
+        cells = (cells + [""] * width)[:width]  # a short row is padded, a long one cut, as GitHub does
+        return {"type": "tableRow", "content": [
+            {"type": kind, "content": [{"type": "paragraph", "content": render_inline(c)}]} for c in cells]}
+
+    return {"type": "table", "content": [row(header, "tableHeader"), *(row(r, "tableCell") for r in rows)]}
+
+
 def render(markdown: str) -> Node:
     """Render a Markdown document to an ADF `doc`. Empty input → an empty doc."""
     return {"version": 1, "type": "doc", "content": _blocks(markdown)}
@@ -176,6 +204,16 @@ def _blocks(markdown: str) -> list[Node]:
             blocks.append({"type": "heading", "attrs": {"level": len(heading.group(1))},
                            "content": render_inline(heading.group(2))})
             i += 1
+            continue
+
+        if i + 1 < len(lines) and _is_table(line, lines[i + 1]):
+            flush_all()
+            header, rows = _cells(line), []
+            i += 2
+            while i < len(lines) and lines[i].strip() and "|" in lines[i]:
+                rows.append(_cells(lines[i]))
+                i += 1
+            blocks.append(_table(header, rows))
             continue
 
         q = _QUOTE.match(line)
@@ -279,9 +317,23 @@ def _block_md(n: Node, depth: int) -> str:
         return "\n".join(f"> {line}" if line else ">" for line in inner.split("\n"))
     if kind == "rule":
         return "---"
-    if content:  # panels, expands, tables … keep their text
+    if kind == "table":
+        return _table_md(content)
+    if content:  # panels, expands … keep their text
         return "\n\n".join(b for b in (_block_md(c, depth) for c in content) if b)
     return ""
+
+
+def _table_md(rows: list[Node]) -> str:
+    """A table → pipe rows, the first row as the header; a cell's blocks join onto one line."""
+    cells = [[" ".join(_block_md(b, 0) for b in c.get("content") or []).replace("\n", " ").replace("|", "\\|")
+              for c in r.get("content") or []] for r in rows]
+    if not cells:
+        return ""
+    width = max(len(r) for r in cells)
+    cells = [r + [""] * (width - len(r)) for r in cells]
+    line = lambda r: "| " + " | ".join(r) + " |"
+    return "\n".join([line(cells[0]), line(["---"] * width), *(line(r) for r in cells[1:])])
 
 
 def _item_md(item: Node, depth: int, bullet: str) -> str:

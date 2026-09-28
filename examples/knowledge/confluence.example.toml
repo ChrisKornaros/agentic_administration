@@ -1,0 +1,24 @@
+# Publisher config: a git tree of Markdown into one Confluence space (design:
+# roadmap/14 Phase 6b, D26). Copy to boards/<name>.toml (gitignored), then
+#   uv run python -m knowledge publish <dir> --config boards/<name>.toml           # dry run
+#   uv run python -m knowledge publish <dir> --config boards/<name>.toml --apply   # write
+# Keep secrets OUT of this file: `token_env` names the env var holding the API
+# token and `user_env` the one holding the account email (Basic auth pairs
+# them). Either may instead name a Bitwarden item via `<env>_BW_ITEM` (see
+# server/secrets.py). It is the Jira adapter's classic (unscoped) token, sent
+# to the same site under /wiki (D29). That token can delete; this tool never
+# does (D28).
+
+[connection]
+token_env = "JIRA_API_TOKEN"              # the env var name — never the value
+user_env  = "JIRA_USER"                   # the env var holding the account email
+site      = "https://example.atlassian.net"
+
+[space]
+key    = "KB"
+parent = "123456"   # the page id the tree's root page goes under; this page is never written.
+                    # A new page under the space homepage works; the homepage itself is never written either.
+
+[publish]
+label      = "md-published"   # on every page this tool made, plus one label per file (<label>-<hash>)
+max_writes = 50               # page creates + updates per run; the next run picks up the rest

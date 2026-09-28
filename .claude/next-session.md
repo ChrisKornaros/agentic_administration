@@ -1,30 +1,34 @@
-# Next session: Phase 6b step 2 `publish`, or the Phase 6 gate from Oct 2 (written 2026-09-28)
+# Next session: Phase 6b step 3 `conformance`, or the Phase 6 gate from Oct 2 (written 2026-09-28)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 rows **6** and **6b**, decisions D26–D29 (AOR #216), and §8 (the context-provider seam).
-- **6b PRs (`feat/phase6b-<slug>`):** `probe` ✅ (this PR) → **`publish`** → `conformance` → `read`.
-- **Phase 6 PRs:** 1–4 ✅ → **`gate`**, which can run on or after **Oct 2**. See the gate notes below.
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 rows **6** and **6b**, D26–D29, and §11 (Confluence on Free).
+- **6b PRs (`feat/phase6b-<slug>`):** `probe` ✅ → `publish` ✅ (this PR) → **`conformance`** → `read`.
+- **Phase 6 PRs:** 1–4 ✅ → **`gate`**, which can run on or after **Oct 2**.
+- **Hard deadline: 2026-10-27.** The Jira *and* Confluence Premium trials both end that day. The gate, 6b `conformance` and 6b `read` are all live runs, so they all land before then.
 
-## 6b step 2: `publish` (can start now)
-- Command: `python -m knowledge publish <dir>`, stdlib only (D26). Dry run by default, with a cap on writes per run.
-- **Rendering:** Markdown → ADF through `adapters/jira/adf.py`, adding tables. On v2, the body is `atlas_doc_format` with `value` as a JSON **string** (the probe).
-- **Tree:** folders become parent pages, with `index.md` / `README.md` as the folder's page. Publish under a configured parent page, never over the space homepage. AGKB is a `knowledge_base` template space: its homepage has live-search macros, plus two `Template - …` children.
-- **Links:** a relative `.md` link becomes the URL of its target page, `_links.base` + `/spaces/<KEY>/pages/<id>`. That takes two passes: place every page first, then write the bodies.
-- **Finding a page again:** a per-file label via v1 `POST /content/{id}/label`, found with CQL `label = …` (an absent label comes back 200 and empty). A page property holds the source path and content hash, and an unchanged hash skips the write. Titles are unique per space, so collisions need disambiguating.
-- **Updates:** `version.number` + 1. A conflict may come back as 409 or 400.
-- **Orphans:** report only (D28). **No DELETE anywhere**, with a test like `test_no_delete_anywhere`, since the classic token can delete (D29).
-- **Tests and config:** offline against a new `tests/fake_confluence.py`; an `examples/knowledge/confluence.example.toml`.
-- **Open:** does the transport reuse `adapters/jira/transport.py` as-is? The probe saw no rate-limit headers at all, so rely on the throttle plus 429 `Retry-After`.
+## 6b step 3: `conformance` (can start now; live writes to `AGKB`, so ask Chris first)
+- The gate (§9 6b): publish a docs tree to `AGKB` under a fresh parent page (never the homepage, id 393328). A re-run writes 0 pages, links resolve, one edit makes exactly one new version, and a removed file is reported with nothing deleted.
+- Credentials: the Jira pair (`JIRA_API_TOKEN_BW_ITEM` + `JIRA_USER_BW_ITEM`, `JIRA_USER_BW_FIELD=username`); config from `examples/knowledge/confluence.example.toml` into `boards/`.
+- **Unproven live, check each** (the fake follows the docs on these):
+  - the `_links.next` forms (v2 under `/wiki`, v1 relative to it);
+  - whether a property PUT bumps the page version (if it does, every page reports drift);
+  - whether the v2 page listing includes archived pages, and whether archived titles block new ones;
+  - whether a v2 PUT with `parentId` moves a page;
+  - how long CQL lags a label write (the subtree scan covers it);
+  - the real 409/400 bodies.
+- Also in this step: a GitHub Actions example that publishes on push (roadmap row), and a dated results section in [conformance/README.md](../conformance/README.md).
 
-## The Phase 6 gate (unchanged; from Oct 2)
+## The Phase 6 gate (from Oct 2)
 - Roll `202610` → `202611` with `plan-sprint` through `examples/agent-sdk/chat.py`, on Plane `AGADMIN` and Jira `AGADM`.
 - **Chris first:** a metered Anthropic API key in Bitwarden, via `ANTHROPIC_API_KEY_BW_ITEM`, with its id saved to memory.
-- **Afterwards:** `transcripts/<date>-phase6-gate.md`, the README status line, then the Phase 6 AOR catch-up. Phase 6's decisions get **D30 and up**, because D26–D29 went to 6b.
+- Afterwards: `transcripts/<date>-phase6-gate.md`, the README status line, then the Phase 6 AOR catch-up (D30 and up).
+
+## After 2026-10-27
+- Re-run the read-only Confluence probe, and a Jira read, on Free. That answers roadmap/14 §11's two edition questions. §11 says the probe answered the Confluence one, but it ran on Premium: fix that wording at 6b's AOR catch-up.
 
 ## Open follow-ups (not blockers)
-- The 6b probe findings go into roadmap/14 §3 at 6b's AOR catch-up.
-- Confluence on Free, after the trial, is still unproven (roadmap/14 §11).
-- The README Claude Code command change (`--tools Skill`, no connectors) is proven offline only.
-- Carried over: the Phase 5 items.
+- 6b's AOR catch-up: the probe findings go into §3; add the publish calls (identity by the `md-source` property plus a subtree scan, titles with a folder suffix, links drop their `#fragment`, images unpublished).
+- The Plane Markdown renderer has no tables yet (ADF does now).
+- The README Claude Code command change is proven offline only. Carried over: the Phase 5 items.
 
 ---
-*Written at the end of Phase 6b step 1 by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
+*Written at the end of Phase 6b step 2 by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*

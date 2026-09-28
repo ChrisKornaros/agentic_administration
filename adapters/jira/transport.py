@@ -13,6 +13,9 @@ From the Phase 5 probe and preflight (probes/README.md, 2026-09-27):
   "jira-burst-based";q=100;w=1`); a 429 carries `Retry-After` and maps to
   `RateLimited`. Calls are paced `throttle` seconds apart regardless.
 - Errors come back as `{"errorMessages": [...], "errors": {field: msg}}`.
+  Confluence on the same site (Phase 6b rides this transport, D29) answers
+  v2 errors as `{"errors": [{"status", "code", "title", "detail"}]}` and v1
+  ones as `{"statusCode", "message"}`.
 - Paginated reads answer `{startAt, maxResults, total?, isLast, values}`
   or a bare list; `get_all` walks both. Search pages by `nextPageToken`,
   which the adapter walks itself.
@@ -183,7 +186,12 @@ def _map_http_error(method: str, path: str, status: int, raw: str, headers: Mapp
             parsed = None
         if isinstance(parsed, dict):
             parts = [str(m) for m in parsed.get("errorMessages") or []]
-            parts += [f"{k}: {v}" for k, v in (parsed.get("errors") or {}).items()]
+            errors = parsed.get("errors") or {}
+            if isinstance(errors, dict):
+                parts += [f"{k}: {v}" for k, v in errors.items()]
+            else:  # Confluence v2: a list of {title, detail, code}
+                parts += [" — ".join(str(e[k]) for k in ("title", "detail") if e.get(k)) or str(e.get("code") or e)
+                          if isinstance(e, dict) else str(e) for e in errors]
             message = "; ".join(parts) or parsed.get("message") or None
             detail = json.dumps(parsed)[:500]
     elif raw:
