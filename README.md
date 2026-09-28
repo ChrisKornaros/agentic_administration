@@ -13,8 +13,11 @@ the right sprint, on whatever tracker your team already runs.
 > ([the gate record](transcripts/2026-09-24-phase3-gate.md)), and did it
 > again from Discord through Hermes with no step dropped
 > ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). The sprint
-> rollover and grooming skills are written and haven't run live yet. Watch
-> the releases for the first usable version.
+> rollover and grooming skills are written and haven't run live yet.
+> Publishing a repo's Markdown docs to Confluence, for people to read and
+> agents to search, has started: a read-only probe has checked the API
+> ([probes/](probes/README.md)). Watch the releases for the first usable
+> version.
 
 ## What it is
 
