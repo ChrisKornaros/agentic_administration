@@ -53,6 +53,35 @@ def test_bitwarden_login_username():
         get("JIRA_USER", environ=env, runner=runner_returning({"login": {"password": "tok"}}))
 
 
+AMBIGUOUS = ("More than one result was found. Try getting a specific object by `id` instead. "
+             "The following objects were found:\nid-1\nid-2")
+
+
+def scripted(*answers):
+    calls = []
+
+    def run(argv):
+        calls.append(argv)
+        return answers[len(calls) - 1]
+
+    run.calls = calls
+    return run
+
+
+def test_a_name_several_items_match_takes_the_one_named_exactly_that():
+    listed = [{"name": "content_manager:plane:api_key", "login": {"password": "no"}},
+              {"name": "Plane", "fields": [{"name": "API", "value": "yes"}]}]
+    run = scripted((1, "", AMBIGUOUS), (0, json.dumps(listed), ""))
+    env = {"PLANE_API_KEY_BW_ITEM": "Plane", "PLANE_API_KEY_BW_FIELD": "API", "BW_SESSION": "sess"}
+    assert get("PLANE_API_KEY", environ=env, runner=run) == "yes"
+    assert run.calls[1] == ["bw", "list", "items", "--search", "Plane", "--nointeraction", "--session", "sess"]
+    # none named exactly that, or two: say so and ask for the id
+    for names in (["Plane API", "plane"], ["Plane", "Plane"]):
+        run = scripted((1, "", AMBIGUOUS), (0, json.dumps([{"name": n} for n in names]), ""))
+        with pytest.raises(SecretUnavailable, match="by its id"):
+            get("PLANE_API_KEY", environ=env, runner=run)
+
+
 def test_locked_vault_hints_at_unlock_without_echoing_anything():
     run = runner_returning("", code=1, err="Vault is locked.")
     with pytest.raises(SecretUnavailable) as exc:

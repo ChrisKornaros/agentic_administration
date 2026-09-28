@@ -64,8 +64,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   `token_env`, or its Bitwarden item). Never print a token or `BW_SESSION`. Live runs: Chris writes
   `umask 077; bw unlock --raw > ~/.cache/bw_session`; then Plane is
   `PLANE_API_KEY_BW_ITEM=<the Plane item's id> PLANE_API_KEY_BW_FIELD=API BW_SESSION="$(cat ~/.cache/bw_session)"`,
-  with the id from project memory (`plane-bitwarden-item`): the name `Plane` also matches
-  `content_manager:plane:api_key`, and AOR's `tools/plane/.env` no longer carries the field (2026-09-27). Jira: both `JIRA_API_TOKEN_BW_ITEM` and
+  with the id from project memory (`plane-bitwarden-item`). The name `Plane` works too, since an
+  ambiguous name now resolves to the exact match. AOR's `tools/plane/.env` no longer carries the field (2026-09-27). Jira: both `JIRA_API_TOKEN_BW_ITEM` and
   `JIRA_USER_BW_ITEM` name its one item (the email is its username: `JIRA_USER_BW_FIELD=username`).
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json`,
   `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and
@@ -114,4 +114,4 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py` transports) |
 | [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira) |
 | [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio server, 11-tool include, skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
-| [examples/agent-sdk/](examples/agent-sdk/) | The Agent SDK terminal chat (`chat.py`): the repo as a plugin, the framing line, `tools=["Skill"]` + the 11 board tools only, no settings sources, reads unasked and each write behind a `y`. [tests/test_examples.py](tests/test_examples.py) reads its constants by AST (the SDK is optional) and ties them to the server's read-only annotations, SOUL.md and the README's `--allowedTools` |
+| [examples/agent-sdk/](examples/agent-sdk/) | The Agent SDK terminal chat (`chat.py`): the repo as a plugin, the framing line, `tools=["Skill"]` + the 11 board tools only, no settings sources or claude.ai connectors, reads unasked and each write behind a `y`. [tests/test_examples.py](tests/test_examples.py) reads its constants by AST (the SDK is optional) and ties them to the server's read-only annotations, SOUL.md and the README's `--allowedTools` |

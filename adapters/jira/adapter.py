@@ -458,6 +458,8 @@ class JiraAdapter(Adapter):
         if level is not None and not self._caps.materializes(level):
             return []  # a collapsed level has no items of its own
         sprint_id = self._sprint_id(iteration) if iteration else None
+        if sprint_id and sprint_id not in self._sprints:  # off this board's list: JQL would 400 on a missing one
+            self._t.request("GET", f"/rest/agile/1.0/sprint/{sprint_id}")  # 404 → NotFound
         clauses = [f'project = "{_jql(self.project_key)}"']
         if sprint_id:
             clauses.append(f"sprint = {sprint_id}")

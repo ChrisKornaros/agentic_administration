@@ -162,6 +162,9 @@ class FakeJira:
             elif (name, op) == ("status", "="):
                 rows = [r for r in rows if r["fields"]["status"]["id"] == value]
             elif (name, op) == ("sprint", "="):  # any sprint in the field, closed history included
+                if value not in self.sprints:  # JQL rejects a sprint that does not exist; it has no 404
+                    raise ValidationError(f"HTTP 400 on GET /rest/api/3/search/jql: "
+                                          f"The value '{value}' does not exist for the field 'sprint'.")
                 rows = [r for r in rows if any(str(s["id"]) == value for s in r["fields"].get(SPRINT_FIELD) or [])]
             else:
                 raise ValidationError(f"HTTP 400 on GET /rest/api/3/search/jql: the fake does not know {clause!r}")

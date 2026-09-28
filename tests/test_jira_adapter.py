@@ -314,6 +314,8 @@ def test_find_items_in_a_sprint_keeps_the_issues_it_holds_now():
     assert [(i.key, i.iteration) for i in adapter.find_items(iteration="202610")] == [(story["key"], nxt.id)]
     with pytest.raises(NotFound):
         adapter.find_items(iteration="Sprint 12")
+    with pytest.raises(NotFound):  # a YYYYMM name is all digits, so it also reads as a sprint id
+        adapter.find_items(iteration="202611")
 
 
 def test_a_small_limit_still_finds_what_a_closed_sprint_holds_under_its_history():

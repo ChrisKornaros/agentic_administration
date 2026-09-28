@@ -2,7 +2,9 @@
 chat in examples/agent-sdk/. Each reaches exactly the server's eleven tools,
 and each frames the agent with the README's line, so every host frames it
 the same way. The SDK chat's reads run unasked, as the README's Claude Code
-command pre-allows them, and they are the tools the server marks read-only."""
+command pre-allows them, and they are the tools the server marks read-only.
+That command and the SDK chat give the same built-ins, and no claude.ai
+connectors."""
 
 import ast
 import re
@@ -26,6 +28,14 @@ def sdk_constant(name: str):
         if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == name for t in node.targets):
             return ast.literal_eval(node.value)
     raise AssertionError(f"no {name} in {SDK_CHAT}")
+
+
+def sdk_option(name: str) -> ast.expr:
+    """The expression chat.py passes to ClaudeAgentOptions as `name`."""
+    for node in ast.walk(ast.parse(SDK_CHAT.read_text())):
+        if isinstance(node, ast.keyword) and node.arg == name:
+            return node.value
+    raise AssertionError(f"no {name}= in {SDK_CHAT}")
 
 
 @pytest.fixture
@@ -63,3 +73,17 @@ def test_readme_pre_allows_the_sdk_chats_reads():
     allowed = re.search(r'--allowedTools "([^"]*)"', (ROOT / "README.md").read_text())
     assert allowed, "no --allowedTools in the README"
     assert set(re.findall(r"\$\{T\}([a-z_]+)", allowed.group(1))) == set(sdk_constant("READS"))
+
+
+def test_readme_gives_claude_code_the_sdk_chats_built_in_tools():
+    tools = re.search(r"--tools (\S+)", (ROOT / "README.md").read_text())
+    assert tools, "no --tools in the README"
+    assert tools.group(1).split(",") == ast.literal_eval(sdk_option("tools")) == ["Skill"]
+
+
+def test_neither_claude_host_loads_claude_ai_connectors():
+    env = sdk_option("env")
+    assert isinstance(env, ast.Dict), "the SDK chat's env= is not a dict literal"
+    values = {ast.literal_eval(k): v for k, v in zip(env.keys, env.values)}
+    assert ast.literal_eval(values["ENABLE_CLAUDEAI_MCP_SERVERS"]) == "false"
+    assert "ENABLE_CLAUDEAI_MCP_SERVERS=false claude --plugin-dir" in (ROOT / "README.md").read_text()

@@ -27,13 +27,14 @@
   - Update the README status line: rollover is live.
 - **Then the Phase 6 AOR catch-up:** D-numbers for memory `phase6-decisions` items 1–7.
 
+## Housekeeping done (`chore/pre-gate-housekeeping`, 2026-09-28)
+- Jira `find_items(iteration="<missing YYYYMM>")` is NotFound now, not a JQL 400.
+- `server/secrets.py`: a Bitwarden name that several items match resolves to the one named exactly that.
+- The README's Claude Code command gets `--tools Skill` and `ENABLE_CLAUDEAI_MCP_SERVERS=false`: Skill + the 11 board tools, like the SDK example and Hermes. **Proven offline only** (stub capture), not in a live session.
+- The SDK example sets `ENABLE_CLAUDEAI_MCP_SERVERS=false`, so the connectors notice is gone.
+
 ## Open follow-ups (not blockers)
-- **The README's Claude Code command** still gives the full set of Claude Code built-in tools. The SDK example and Hermes give only the board. Align them, or keep the command as the Phase 3 gate proved it?
-- **A cosmetic stderr notice.** The example prints Claude Code's "claude.ai connectors are disabled" notice on a machine that's logged in to claude.ai.
-- **Carried over:**
-  - `server/secrets.py`: an exact name match when several items match.
-  - Jira: a digit-only iteration name that doesn't exist gives a JQL 400 rather than NotFound.
-  - The Phase 5 items.
+- **Carried over:** the Phase 5 items.
 
 ---
 *Written at the end of Phase 6 step 4 by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
