@@ -28,6 +28,14 @@ def sdk_constant(name: str):
     raise AssertionError(f"no {name} in {SDK_CHAT}")
 
 
+def sdk_option(name: str) -> ast.expr:
+    """The expression chat.py passes to ClaudeAgentOptions as `name`."""
+    for node in ast.walk(ast.parse(SDK_CHAT.read_text())):
+        if isinstance(node, ast.keyword) and node.arg == name:
+            return node.value
+    raise AssertionError(f"no {name}= in {SDK_CHAT}")
+
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -63,3 +71,9 @@ def test_readme_pre_allows_the_sdk_chats_reads():
     allowed = re.search(r'--allowedTools "([^"]*)"', (ROOT / "README.md").read_text())
     assert allowed, "no --allowedTools in the README"
     assert set(re.findall(r"\$\{T\}([a-z_]+)", allowed.group(1))) == set(sdk_constant("READS"))
+
+
+def test_readme_gives_claude_code_the_sdk_chats_built_in_tools():
+    tools = re.search(r"--tools (\S+)", (ROOT / "README.md").read_text())
+    assert tools, "no --tools in the README"
+    assert tools.group(1).split(",") == ast.literal_eval(sdk_option("tools")) == ["Skill"]
