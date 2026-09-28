@@ -15,6 +15,9 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8"]
+# The Agent SDK example only (examples/agent-sdk/, `uv run --group agent-sdk`),
+# not a runtime dependency. The SDK bundles the Claude Code CLI (~230 MB).
+agent-sdk = ["claude-agent-sdk>=0.2.160,<0.3"]
 
 [tool.pytest.ini_options]
 # async tests (`@pytest.mark.anyio`) use anyio's own plugin, which the mcp SDK brings
