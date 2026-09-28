@@ -12,9 +12,9 @@ the right sprint, on whatever tracker your team already runs.
 > review label from a plain-language Claude Code conversation
 > ([the gate record](transcripts/2026-09-24-phase3-gate.md)), and did it
 > again from Discord through Hermes with no step dropped
-> ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). Next are
-> sprint rollover and the grooming pass. Watch the releases for the first
-> usable version.
+> ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). The sprint
+> rollover and grooming skills are written and haven't run live yet. Watch
+> the releases for the first usable version.
 
 ## What it is
 
@@ -81,7 +81,7 @@ agentic_administration/
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, generic/  ✅ base.py (interface + errors), plane/, jira/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
-├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint; groom later
+├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── conformance/       # the adapter test suite  ✅ Plane and Jira pass live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/
@@ -175,9 +175,15 @@ skill-loading host reads it):
   old iteration, finds or creates the next one (which starts a Jira sprint
   on its first day), and moves the work. Tasks move with their story or
   bug.
+- **`groom`** is the PO's review pass over what carries the review label
+  (`find_items(label=…)`). It proposes fixes to each item's title, parent,
+  feature or state and flags duplicates. After one yes it signs each item
+  off: it clears the label and moves a story, bug or task from Backlog to
+  `todo`, where `plan-sprint` looks for ready work. An item the PO holds
+  stays in the queue.
 
 With the board's `confirm = "never"`, the create skills commit without
-pausing; `plan-sprint` still waits for its yes.
+pausing; `plan-sprint` and `groom` still wait for their yes.
 Looking up related items happens in one step of `intake` (the board's own
 search by default), so another retrieval source replaces only that step.
 

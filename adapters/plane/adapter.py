@@ -459,7 +459,7 @@ class PlaneAdapter(Adapter):
         return self._to_iteration(self._t.request("GET", f"{self._pp}/cycles/{cycle_id}/"))
 
     def find_items(self, query: str = "", *, external_id=None, level=None, state=None, iteration=None,
-                   limit=50) -> list[WorkItem]:
+                   label=None, limit=50) -> list[WorkItem]:
         self._ready_maps()
         cycle_id = self._cycle_id(iteration) if iteration else None
         # modules and initiatives are never in a cycle: with one, fall through to an empty item read
@@ -517,6 +517,8 @@ class PlaneAdapter(Adapter):
             items = [i for i in items if i.state is state]
         if cycle_id:
             items = [i for i in items if i.iteration == cycle_id]
+        if label:  # label names match as the config's do: ignoring case
+            items = [i for i in items if label.lower() in {name.lower() for name in i.labels}]
         return items[:limit]
 
     def _ready_maps(self) -> None:

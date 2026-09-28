@@ -211,12 +211,14 @@ class Adapter(ABC):
         level: Level | None = None,
         state: State | None = None,
         iteration: str | None = None,
+        label: str | None = None,
         limit: int = 50,
     ) -> list[WorkItem]:
         """Search the board. `external_id` is the idempotency lookup (exact);
         `query` is free text; `level` / `state` narrow the result;
         `iteration` (id or name) keeps the items whose *current* iteration
-        it is, a closed one included — the read a rollover starts from."""
+        it is, a closed one included — the read a rollover starts from;
+        `label` (a name) keeps the items carrying it — the review queue."""
 
     @abstractmethod
     def get_item(self, ref: ItemRef | str) -> WorkItem:

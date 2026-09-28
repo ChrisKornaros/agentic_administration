@@ -453,7 +453,7 @@ class JiraAdapter(Adapter):
         return out
 
     def find_items(self, query: str = "", *, external_id=None, level=None, state=None, iteration=None,
-                   limit=50) -> list[WorkItem]:
+                   label=None, limit=50) -> list[WorkItem]:
         self._ready_maps()
         if level is not None and not self._caps.materializes(level):
             return []  # a collapsed level has no items of its own
@@ -463,6 +463,8 @@ class JiraAdapter(Adapter):
             clauses.append(f"sprint = {sprint_id}")
         if external_id:
             clauses.append(f'labels = "{_jql(XID + external_id)}"')
+        if label:
+            clauses.append(f'labels = "{_jql(label)}"')
         if query:
             clauses.append(f'text ~ "{_jql(_TEXT_RESERVED.sub(" ", query).strip())}"')
         if level is not None:
@@ -488,6 +490,8 @@ class JiraAdapter(Adapter):
             items = [i for i in items if i.level is level]
         if state is not None:
             items = [i for i in items if i.state is state]
+        if label:  # the lagging-search item above came back unfiltered; case as the JQL decided
+            items = [i for i in items if label.lower() in {name.lower() for name in i.labels}]
         if sprint_id:  # `sprint =` also matches the closed sprints in an issue's history
             items = [i for i in items if i.iteration == sprint_id]
         return items[:limit]
