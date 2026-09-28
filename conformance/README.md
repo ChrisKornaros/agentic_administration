@@ -5,7 +5,7 @@ adapter passes this suite live against a **throwaway** project on that
 tracker (design: agentic_optimization_research `roadmap/14` D7). It
 lives outside `tests/` because it writes to a real board: the default
 `uv run pytest` never runs it. `tests/test_conformance.py` runs it
-offline against the fake Plane transport.
+offline against the fake Plane and Jira transports.
 
 ## Run it
 
@@ -14,10 +14,10 @@ uv run python -m conformance boards/<board>.toml --dry-run   # the cases; no cal
 uv run python -m conformance boards/<board>.toml             # live: real writes, no deletes
 ```
 
-The token resolves the same way as `adapters.plane describe` (see the
-top-level README). Options: `--run-id` (default: today, `YYYYMMDD`),
-`--throttle` (seconds between calls, default 1.5), `--reports` (where
-run records go).
+The credentials resolve the same way as `adapters.<backend> describe`
+(see the top-level README). Options: `--run-id` (default: today,
+`YYYYMMDD`), `--throttle` (seconds between calls; default the backend's
+own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
 
 - **Point it only at a throwaway project.** A run files an epic, a
   story, a bug and two tasks, plus a feature, two iterations, types and
@@ -33,16 +33,17 @@ run records go).
   3 stopped (act on the last note, or wait out the wall, then re-run).
 - **Budget:** one Plane run is about 20 POSTs and 5 PATCHes. Cloudflare's
   managed challenge showed up after about 24 creates in a burst. Keep
-  the throttle.
+  the throttle. One Jira run is about 50 GETs, 14 POSTs and 1 PUT, far
+  under its burst limit.
 
 ## The cases
 
 | Case | Checks |
 |---|---|
-| `provision` | *Backend-specific.* Turns on the features the config needs, then creates the missing non-epic types and labels, each by name so a re-run is safe. Stops for the operator where the API can't help. |
+| `provision` | *Backend-specific.* Plane: turns on the features the config needs, then creates the missing non-epic types and labels, each by name so a re-run is safe. Jira: nothing to create (labels are free-form; types and statuses are admin settings), so it reads the board and stops for the operator if the config does not fit. Either stops for the operator where the API can't help. |
 | `describe` | `describe_board` reports no problems, and every materialized level resolves. |
 | `epic` | An epic written with an `external_id` is found by `find_items(external_id=…)`: exactly that item, and nothing for an id nobody wrote. `get_item` by key and by id agree, and the Markdown description reads back. |
-| `placement` | A feature; a story under the epic, in the feature, with the review label; a bug under the epic; a task under the story. All are confirmed from the board's list read. A task under a *known* epic is refused by the model before any call. |
+| `placement` | A feature; a story under the epic, in the feature, with the review label; a bug under the epic; a task under the story. All are confirmed from the board's list read. Where the board collapses Feature, the story names it and must carry it where the collapse rule says. A task under a *known* epic is refused by the model before any call. |
 | `hierarchy` | A task straight under the epic, with the epic's level left unstated so only the tracker can object. Either answer passes: accepted, or refused as a mapped `ValidationError`. The note says which. |
 | `update` | Clearing the review label leaves the item's level alone. A task moves to done. A comment is added. |
 | `iterations` | This month's iteration, ending **today**: whether the tracker still takes items into it shows whether the end day is open. Next month's iteration reads planned. The dates read back exactly as written. Items move into both, confirmed by the list read. |
@@ -54,6 +55,36 @@ run records go).
 | Ran | Backend / board | Verdict |
 |---|---|---|
 | 2026-09-22 | Plane Cloud, throwaway project `AGADMIN` | **PASS 9/9**. The run sent GET 81, PATCH 5, POST 20 and no DELETE, with no 429 or edge wall. It needed three adapter fixes along the way, plus a fourth found by a read-only check after the run (below). |
+| 2026-09-27 | Jira Cloud (Premium trial), company-managed Scrum project `AGADM`, board 2 | **PASS 9/9** on the first run. It sent GET 48, POST 14, PUT 1 and no DELETE, with no 429. No adapter fix was needed; one fake-transport rule was wrong and is corrected (below). |
+
+### What the 2026-09-27 Jira run settled
+
+- **Jira takes a sub-task straight under an epic.** The `hierarchy`
+  case's sub-task landed as AGADM-5 with the epic as its parent. The
+  REST create does not hold a child to the adjacent level, whatever the
+  docs say, so on Jira too the model is the only guard. The fake had
+  modelled the documented rule; it now accepts any higher-level parent.
+- **The `xid:<external_id>` label works as the idempotency key.** Colons
+  are fine in a label. `find_items(external_id=…)` found the new epic in
+  one `/search/jql` call, so this run met no search lag. The adapter's
+  memory of what it created stays as the guard for when it does.
+- **Sprints:** a sprint created with dates and then set `active` keeps
+  its dates, which were written on the account time zone's day edges
+  (`202609` = 2026-09-01 00:00 to 09-27 23:59 New York) and read back as
+  written. Closing it with incomplete items in it just works through the
+  API, and sets `completeDate`. A closed sprint refuses new items with
+  HTTP 400 "You must specify a sprint which has not been completed."
+  The case moved the story and its sub-task in one call and both carry
+  the sprint. A sub-task moved on its own is still unproven.
+- **Transitions and comments:** the task reached Done through its
+  transition, and a comment posted as ADF came back with its author.
+- **Statuses:** on this run To Do and Cancelled still sat in the
+  `indeterminate` category. The adapter maps by name, so it made no
+  difference here, but Jira's own reports count cancelled work as
+  unfinished until Cancelled moves into Done.
+
+Left on `AGADM` by that run: AGADM-1 to AGADM-5, one comment on AGADM-2,
+sprints `202609` (closed) and `202610` (future).
 
 ### What the 2026-09-22 run settled
 

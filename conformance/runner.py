@@ -27,9 +27,9 @@ PASS, SKIP, FAIL, STOP = "pass", "skip", "fail", "stop"
 
 
 def cases_for(backend: str) -> tuple[Case, ...]:
-    from conformance import plane
+    from conformance import jira, plane
 
-    provisioner = {"plane": plane.provision}.get(backend)
+    provisioner = {"plane": plane.provision, "jira": jira.provision}.get(backend)
 
     def provision(ctx: Context) -> None:
         if provisioner is None:

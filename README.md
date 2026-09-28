@@ -5,16 +5,16 @@ request typed into a chat window into a well-formed backlog item —
 epic, feature, story, bug, or task — filed under the right parent, in
 the right sprint, on whatever tracker your team already runs.
 
-> **Status: building (2026-09).** Nothing is released yet. The first
-> backend (Plane) passes its conformance suite against a live throwaway
-> project. The MCP server, the intake schema and the first four skills
+> **Status: building (2026-09).** Nothing is released yet. Both backends,
+> Plane and Jira Cloud, pass the conformance suite against live throwaway
+> projects ([the results](conformance/README.md#results)). The MCP server, the intake schema and the first four skills
 > have filed a correctly placed story with acceptance criteria and the
 > review label from a plain-language Claude Code conversation
 > ([the gate record](transcripts/2026-09-24-phase3-gate.md)), and did it
 > again from Discord through Hermes with no step dropped
-> ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). The Jira
-> Cloud adapter reads a live company-managed project and fits its config;
-> its conformance run is next. Watch the releases for the first usable version.
+> ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). Next are
+> sprint rollover and the grooming pass. Watch the releases for the first
+> usable version.
 
 ## What it is
 
@@ -84,7 +84,7 @@ agentic_administration/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic; plan-sprint, groom later
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
-├── conformance/       # the adapter test suite  ✅ Plane passes live; Jira next
+├── conformance/       # the adapter test suite  ✅ Plane and Jira pass live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config  ✅ boards/, hermes/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 ├── transcripts/       # dated summaries of live requester sessions (evidence)  ✅
