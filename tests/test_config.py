@@ -107,7 +107,7 @@ def test_unknown_and_missing_sections_are_reported_together():
 
 def test_bad_enum_values():
     p = problems_of(variant(backend="trello", confirm="sometimes"))
-    assert any("backend: 'trello' is not one of plane, jira, ado, generic" in x for x in p)
+    assert any("backend: 'trello' is not one of plane, jira, generic" in x for x in p)
     assert any("confirm: 'sometimes' is not one of always, never" in x for x in p)
 
 
@@ -134,7 +134,6 @@ def test_credential_looking_connection_keys_are_rejected(key):
     [
         ("plane", "project, workspace"),
         ("jira", "board_id, project_key, site"),
-        ("ado", "organization, project"),
     ],
 )
 def test_backend_specific_connection_keys(backend, missing):

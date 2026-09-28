@@ -173,8 +173,8 @@ def test_bad_config_exits_2(tmp_path, capsys):
 
 
 def test_a_backend_without_a_provisioner_skips_provisioning():
-    with pytest.raises(Skipped, match="no provisioner for ado; provision the board by hand"):
-        runner.cases_for("ado")[0].run(process(fp.FakeTransport()))
+    with pytest.raises(Skipped, match="no provisioner for generic; provision the board by hand"):
+        runner.cases_for("generic")[0].run(process(fp.FakeTransport()))
 
 
 # --- Jira, against the fake Jira transport --------------------------------------
