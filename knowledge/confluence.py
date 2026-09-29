@@ -18,6 +18,12 @@ From the Phase 6b probe (probes/README.md, 2026-09-28):
   the conformance run (2026-09-28) saw; `_walk` takes either.
 - Labels are written through v1 (`POST /content/{id}/label`); content
   properties through v2.
+- The read side (a read-only check on `AGKB`, 2026-09-28): `siteSearch ~`
+  ranks its hits and matched a question ("how do I set up"), where `text ~`
+  scored every hit 0 and found nothing for that question. A hit's `title` and
+  `excerpt` carry `@@@hl@@@…@@@endhl@@@` around the matched words;
+  `content.title` is the plain title; `breadcrumbs` came back empty. A
+  query's quotes, escaped, and its brackets and hyphens answer 200.
 
 No delete: the classic token *can* delete (D29), so the no-delete rule is
 held here, in code. There is no DELETE request in this file, and
@@ -49,6 +55,11 @@ class Space:
 
 def _body(doc: dict[str, Any]) -> dict[str, str]:
     return {"representation": "atlas_doc_format", "value": json.dumps(doc)}
+
+
+def cql_string(value: str) -> str:
+    """A CQL string literal: in double quotes, with `\\` and `"` escaped."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def page_version(record: Any, default: int = 1) -> int:
@@ -101,6 +112,17 @@ class Confluence:
     def property(self, page_id: str, key: str) -> dict[str, Any] | None:
         rows = self._walk(f"{WIKI}/api/v2/pages/{page_id}/properties", {"key": key})
         return next((r for r in rows if r.get("key") == key), None)
+
+    def labels(self, page_id: str) -> set[str]:
+        return {str(r.get("name")) for r in self._walk(f"{WIKI}/api/v2/pages/{page_id}/labels", {"limit": 250})}
+
+    def search(self, space_key: str, label: str, text: str, limit: int) -> list[dict[str, Any]]:
+        """The first `limit` pages of the space carrying `label` that match `text`, best
+        first: one call, no walk. Each hit is v1's, with the page under `content`."""
+        cql = (f"space = {cql_string(space_key)} and type = page and label = {cql_string(label)}"
+               f" and siteSearch ~ {cql_string(text)}")
+        return (self.t.request("GET", f"{WIKI}/rest/api/search", params={"cql": cql, "limit": limit}) or {}) \
+            .get("results") or []
 
     # -- writes: create and update only ---------------------------------------------------
 

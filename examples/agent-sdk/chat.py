@@ -5,8 +5,11 @@ plus the board's MCP server, framed by the README's line. The session gets
 the board's eleven tools and the Skill tool, nothing else: no shell, files,
 web or memory, and no user or project settings. Reads run without asking;
 each write waits for a y here, a second guard beside the skill's own yes.
+With AGENTIC_ADMIN_KNOWLEDGE set, the plugin's knowledge server adds the
+team's docs: search_docs and get_doc, both reads.
 
     export AGENTIC_ADMIN_BOARD=boards/<board>.toml   # plus the board's token env
+    export AGENTIC_ADMIN_KNOWLEDGE=boards/<docs>.toml   # optional, plus its token env
     export ANTHROPIC_API_KEY=...                     # or ANTHROPIC_API_KEY_BW_ITEM
     uv run --group agent-sdk python examples/agent-sdk/chat.py
 
@@ -44,6 +47,7 @@ from server.secrets import SecretUnavailable, get
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["name"]
 TOOL_PREFIX = f"mcp__plugin_{PLUGIN}_board__"  # how Claude Code names a plugin server's tools
+DOCS_PREFIX = f"mcp__plugin_{PLUGIN}_knowledge__"
 MODEL = "claude-opus-5-5"  # the Phase 3 and 4 gates' model
 
 # The README's framing line; examples/hermes/SOUL.md holds the same one.
@@ -56,6 +60,8 @@ FRAMING = (
 READS = ("describe_board", "find_items", "get_item", "get_iteration", "propose_item")
 WRITES = ("commit_item", "update_item", "add_comment", "create_iteration",
           "move_to_iteration", "close_iteration")
+# The knowledge server's two tools, both reads; it has none without AGENTIC_ADMIN_KNOWLEDGE.
+DOCS = ("search_docs", "get_doc")
 # The SDK warns that allowed reads skip ask_before_write; that is the point.
 warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)
 
@@ -100,7 +106,7 @@ def options(cwd: str, api_key: str, session_id: str) -> ClaudeAgentOptions:
         setting_sources=[],  # no user or project settings, hooks or CLAUDE.md
         tools=["Skill"],  # the only built-in; the board's tools come from the plugin
         skills=[f"{PLUGIN}:{p.parent.name}" for p in sorted((ROOT / "skills").glob("*/SKILL.md"))],
-        allowed_tools=[TOOL_PREFIX + name for name in READS],
+        allowed_tools=[TOOL_PREFIX + name for name in READS] + [DOCS_PREFIX + name for name in DOCS],
         can_use_tool=ask_before_write,
     )
 

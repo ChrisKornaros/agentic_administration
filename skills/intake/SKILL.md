@@ -50,19 +50,28 @@ field empty.
 
 ## 3. Context provider: what already exists
 
-Look for related work before proposing placement. All retrieval happens in
-this step. To use a different provider, change this step and nothing else.
+Look for related work, and for docs that already answer the ask, before
+proposing placement. All retrieval happens in this step. To use a
+different provider, change this step and nothing else.
 
 - **Input:** a short query taken from the problem and outcome (2–4 key
   words).
-- **Output:** candidate items, each with a key, title and level.
-- **Default provider,** the board's own search:
+- **Output:** candidate items, each with a key, title and level, and doc
+  pages, each with a title and URL.
+- **The board's own search,** always:
   - `find_items(query="<key words>", limit=5)`, once or twice. Keep
     `limit` small, because each hit is read one at a time and 20 hits can
     take a minute on a throttled tracker.
   - `find_items(level="epic")`: the epics a story or bug could go under.
-- **Another provider** (a knowledge graph, document search): swap in its
-  tool here, and have it return the same key, title and level.
+- **The team's docs,** when you have the `search_docs` tool (not every
+  host does):
+  - `search_docs(query="<key words>", k=5)`, once or twice. Each hit has a
+    title, a URL and an excerpt.
+  - `get_doc(ref="<the hit's id>")` for a hit that looks like it answers
+    the ask. An excerpt is a fragment, so read the page before you tell
+    the requester anything from it.
+- **Another provider** (a knowledge graph): swap in its tool here, and
+  have it return the same key, title and level.
 
 Bring a find up with the requester only when it matters. For example:
 "AA-12, Export Reports, already exists. Is this part of it, or separate?"
@@ -74,6 +83,11 @@ Then:
 - If an item already is this request, say so. Offer to add their details
   to it with `add_comment(ref, body)`, and do that only after they say
   yes. File a new item only if they want one.
+- If a doc already answers the ask (the thing exists, or it says how to
+  do it), tell them what the page says, in a sentence or two and in its
+  own terms, with its URL. Add nothing it doesn't say. Then ask whether
+  that settles it. File an item only if they still want one. A page
+  they confirm as related goes into `related` as its URL.
 
 ## 4. Decide the shape
 

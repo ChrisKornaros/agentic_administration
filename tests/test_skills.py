@@ -1,5 +1,6 @@
 """The product skills in skills/: the frontmatter every host reads, the tools
-they call (only the server's eleven), the intake records they show the
+they call (only the board server's eleven and the knowledge server's two),
+intake's retrieval all in its context step, the intake records they show the
 model, which must pass the schema so the examples teach a valid shape,
 plan-sprint's order (reads and one yes, then close, create, move) and
 groom's (reads and one yes, then a fresh read before each update)."""
@@ -13,6 +14,7 @@ import pytest
 from schema.intake import SIBLING, Intake
 from server import titlecase
 from server.config import ItemCase
+from tests.test_docs import DOC_TOOLS
 from tests.test_mcp_app import TOOLS
 
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
@@ -57,7 +59,16 @@ def test_frontmatter_is_the_portable_subset(name):
 def test_a_skill_calls_only_the_servers_tools(name):
     _, body = read(name)
     calls = set(CALL.findall(body))
-    assert calls and calls <= TOOLS, f"not server tools: {sorted(calls - TOOLS)}"
+    assert calls and calls <= TOOLS | DOC_TOOLS, f"not server tools: {sorted(calls - TOOLS - DOC_TOOLS)}"
+
+
+def test_intake_retrieves_only_in_its_context_step():
+    _, body = read("intake")
+    before, sep, rest = body.partition("## 3. Context provider")
+    step, _, after = rest.partition("\n## 4.")
+    assert sep and {"find_items", "search_docs", "get_doc"} <= set(CALL.findall(step))
+    assert not {"find_items", *DOC_TOOLS} & set(CALL.findall(before + after))  # swap a provider in one place
+    assert step.index("search_docs(") < step.index("get_doc(")  # an excerpt is read in full before use
 
 
 def test_intake_hands_off_to_every_create_skill():

@@ -72,8 +72,9 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and
   summarized `transcripts/*.md` (keys and checks, no item text) are committed.
 - **Live requester runs** load this repo as a plugin from an empty directory: Chris runs
-  `claude --plugin-dir <repo>` with `AGENTIC_ADMIN_BOARD` + the token env exported and the
-  framing `--append-system-prompt` (exact block: README → Claude Code). Chris plays the requester;
+  `claude --plugin-dir <repo>` with `AGENTIC_ADMIN_BOARD` + the token env exported (plus
+  `AGENTIC_ADMIN_KNOWLEDGE` for the docs) and the framing `--append-system-prompt` (exact block:
+  README → Claude Code). Chris plays the requester;
   afterwards read the session JSONL under `~/.claude/projects/<cwd-key>/` and check the board read-only.
   **Through Hermes** (ms01, Docker): the `po` profile ([examples/hermes/](examples/hermes/) with ms01's
   paths; its `.env` holds the Plane key and bot token), in the bot's Discord channel. Afterwards read the
@@ -92,6 +93,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   label, `external_id` = `intake_id[/part]`, propose → commit with a 30-minute token, title-case
   warnings) live in [server/service.py](server/service.py); [server/mcp_app.py](server/mcp_app.py) only
   registers the 11 tools. The SDK runs sync tools in threads, so the service serializes adapter calls.
+  The docs are a second server (D27), never board tools: [knowledge/mcp_app.py](knowledge/mcp_app.py)
+  registers `search_docs` / `get_doc` over [knowledge/docs.py](knowledge/docs.py), same pattern.
 - **Public-bound (D9):** MIT, public at Phase 7. No company names or company data in code, docs,
   fixtures or commits.
 - **Git:** `main` only; `feat/phase<N>-<slug>` (one PR per phase step), `chore/<slug>`,
@@ -106,15 +109,15 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 |---|---|
 | [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml>`, stdio) |
 | [schema/](schema/) | The intake record (one request → its parts) and its Markdown rendering; `propose_item(intake=…, part=…)` consumes it |
-| [skills/](skills/) | The **product** skills (public): `intake`, `create-story` / `create-bug` / `create-epic`, `plan-sprint` (rollover: one yes, then close → create → move), `groom` (the review queue via `find_items(label=…)`; one yes, then a fresh `get_item` before each `update_item`). Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 tools and the schema |
+| [skills/](skills/) | The **product** skills (public): `intake` (its context step, and only it, also calls `search_docs` → `get_doc` where the host has them), `create-story` / `create-bug` / `create-epic`, `plan-sprint` (rollover: one yes, then close → create → move), `groom` (the review queue via `find_items(label=…)`; one yes, then a fresh `get_item` before each `update_item`). Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 + 2 tools and the schema |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` and `jira/` adapters (`jira/adf.py`: Markdown ↔ ADF, tables included, shared with Confluence) |
-| [knowledge/](knowledge/) | Phase 6b, stdlib only: `python -m knowledge publish <dir> --config <toml>`, a dry run unless `--apply`. It publishes Markdown → Confluence pages over the Jira transport (`confluence.py` is the only file that knows the wire) and finds its pages by the `md-source` property, both under the configured parent and by CQL label, since the search index lags. No DELETE: the classic token can delete (D29), so [tests/test_knowledge.py](tests/test_knowledge.py) scans for one. The `knowledge` MCP server (`search_docs` / `get_doc`) is step 4 |
-| [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + the server (`board`, from `AGENTIC_ADMIN_BOARD`) as a Claude Code plugin. Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
+| [knowledge/](knowledge/) | Phase 6b, stdlib only: `python -m knowledge publish <dir> --config <toml>`, a dry run unless `--apply`. It publishes Markdown → Confluence pages over the Jira transport (`confluence.py` is the only file that knows the wire) and finds its pages by the `md-source` property, both under the configured parent and by CQL label, since the search index lags. No DELETE: the classic token can delete (D29), so [tests/test_knowledge.py](tests/test_knowledge.py) scans for one. `python -m knowledge serve --config <toml>` is the `knowledge` MCP server (step 4, [tests/test_docs.py](tests/test_docs.py)): the same TOML, scoped to its space + label, CQL `siteSearch` (ranked; `text ~` isn't), `get_doc` refusing any page outside that scope; an empty `--config` serves no tools |
+| [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + two servers as a Claude Code plugin: `board` (from `AGENTIC_ADMIN_BOARD`) and `knowledge` (from `${AGENTIC_ADMIN_KNOWLEDGE:-}`; the `:-` matters, since an unset variable fails a plugin server, and empty means no tools). Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results; `knowledge.py` is the publisher's live suite (`python -m conformance.knowledge <kb.toml>`: a fresh, empty parent page per run id, one stop for a person to archive the orphan) |
 | [probes/](probes/) | Dated read-only API evidence |
 | [transcripts/](transcripts/) | Dated summaries of live requester sessions (the Phase 3 and Phase 4 gates) |
 | [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py`, `fake_confluence.py` transports) |
 | [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira) |
 | [examples/knowledge/](examples/knowledge/) | The publisher's config template (site, space, parent page, label, write cap); the real one goes in gitignored `boards/`. `publish-docs.yml`: the publish-on-push GitHub Actions job, tied to the CLI and the template by [tests/test_knowledge.py](tests/test_knowledge.py) |
-| [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio server, 11-tool include, skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
-| [examples/agent-sdk/](examples/agent-sdk/) | The Agent SDK terminal chat (`chat.py`): the repo as a plugin, the framing line, `tools=["Skill"]` + the 11 board tools only, no settings sources or claude.ai connectors, reads unasked and each write behind a `y`. [tests/test_examples.py](tests/test_examples.py) reads its constants by AST (the SDK is optional) and ties them to the server's read-only annotations, SOUL.md and the README's `--allowedTools` |
+| [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio servers: `board` with the 11-tool include, an optional `knowledge` with the 2; skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
+| [examples/agent-sdk/](examples/agent-sdk/) | The Agent SDK terminal chat (`chat.py`): the repo as a plugin, the framing line, `tools=["Skill"]` + the 11 board tools and the 2 docs tools only, no settings sources or claude.ai connectors, reads unasked and each write behind a `y`. [tests/test_examples.py](tests/test_examples.py) reads its constants by AST (the SDK is optional) and ties them to the servers' read-only annotations, SOUL.md and the README's `--allowedTools` (`${T}` board, `${K}` docs) |

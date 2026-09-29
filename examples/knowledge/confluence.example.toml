@@ -17,7 +17,8 @@ site      = "https://example.atlassian.net"
 [space]
 key    = "KB"
 parent = "123456"   # the page id the tree's root page goes under; this page is never written.
-                    # A new page under the space homepage works; the homepage itself is never written either.
+                    # A new, empty page under the space homepage works; the homepage itself is never written either.
+                    # One tree per parent: a page another config published below it would be taken as this tree's.
 
 [publish]
 label      = "md-published"   # on every page this tool made, plus one label per file (<label>-<hash>)
