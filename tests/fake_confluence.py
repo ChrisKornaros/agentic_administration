@@ -4,15 +4,19 @@ Shapes follow the Phase 6b probe (probes/confluence_phase6b_readonly.py, run
 2026-09-28 against a `knowledge_base` space): v2 lists answer `{results,
 _links}` with `_links.base` the site's `/wiki`; a page row carries
 `parentId`, `status` and `version`; v2 holds ADF as a JSON string in
-`value`; a v1 search hit holds the page under `content`. `_links.next`
-follows the docs, since the probe saw none: under `/wiki` on v2, relative to
-it on v1. It pages small (`page_size`) so the cursor walk is exercised.
+`value`; a v1 search hit holds the page under `content`. `_links.next` is
+under `/wiki` on v2 and relative to it on v1, as the docs say and the
+conformance run (2026-09-28) saw. It pages small (`page_size`) so the
+cursor walk is exercised.
 
-The rules it enforces are Confluence's as documented, until the live run
-meets them: a title is unique in its space, case aside (archived pages
-included); an update names the next version number, for a page and for a
-property alike; a label holds no spaces. The page listing includes archived
-pages, and CQL finds only current ones. Ids are made up.
+Seen live by that run, with its error text: a title is unique in its space
+(400), an archived page's too; the page listing includes archived pages;
+a page update names the next version number (409); a PUT with a new
+`parentId` moves the page; a property write leaves the page version alone.
+Page ids are not in creation order, so a row carries `createdAt`. Still
+as documented: titles clash case aside, a property update names its next
+version too, a label holds no spaces, and CQL finds only current pages.
+Ids are made up.
 """
 
 from __future__ import annotations
@@ -56,7 +60,8 @@ class FakeConfluence:
                  labels: tuple[str, ...] = (), props: dict[str, Any] | None = None) -> dict[str, Any]:
         """Seed a page directly (no call logged)."""
         pid = page_id or str(next(self._ids))
-        self.pages[pid] = {"id": pid, "title": title, "parentId": parent, "status": "current",
+        created = f"2026-09-28T12:{len(self.pages) // 60:02d}:{len(self.pages) % 60:02d}.000Z"
+        self.pages[pid] = {"id": pid, "title": title, "parentId": parent, "status": "current", "createdAt": created,
                            "version": {"number": 1}, "value": json.dumps({"version": 1, "type": "doc", "content": []}),
                            "labels": set(labels), "properties": {}}
         for key, value in (props or {}).items():
@@ -82,7 +87,7 @@ class FakeConfluence:
         return self.pages[pid]
 
     def _row(self, p: dict[str, Any]) -> dict[str, Any]:
-        return {"id": p["id"], "title": p["title"], "parentId": p["parentId"],
+        return {"id": p["id"], "title": p["title"], "parentId": p["parentId"], "createdAt": p["createdAt"],
                 "parentType": "page" if p["parentId"] else None, "status": p["status"], "spaceId": SPACE_ID,
                 "version": dict(p["version"]), "_links": {"webui": f"/spaces/{KEY}/pages/{p['id']}"}}
 
@@ -152,7 +157,13 @@ class FakeConfluence:
                          "status": "current", "homepageId": HOME, "_links": {"webui": f"/spaces/{KEY}"}}
                 return {"results": [space] if params.get("keys") == KEY else [], "_links": {"base": BASE}}
             if path == f"/wiki/api/v2/spaces/{SPACE_ID}/pages":
-                return self._listing(path, [self._row(p) for p in self.pages.values()], params)
+                rows = [self._row(p) for p in self.pages.values() if params.get("status") in (None, p["status"])]
+                return self._listing(path, rows, params)
+            m = re.fullmatch(r"/wiki/api/v2/pages/(\d+)", path)
+            if m:
+                page = self._get(m.group(1), where)
+                body = {"atlas_doc_format": {"representation": "atlas_doc_format", "value": page["value"]}}
+                return {**self._row(page), "body": body if params.get("body-format") == "atlas_doc_format" else {}}
             if path == "/wiki/rest/api/search":
                 return self._search(params)
             m = re.fullmatch(r"/wiki/api/v2/pages/(\d+)/properties", path)
@@ -189,8 +200,10 @@ class FakeConfluence:
                 page, b = self._get(m.group(1), where), body or {}
                 if str(b.get("id")) != page["id"]:
                     raise ValidationError(f"HTTP 400 on {where}: the id in the body does not match")
-                if (b.get("version") or {}).get("number") != page["version"]["number"] + 1:
-                    raise ValidationError(f"HTTP 409 on {where}: Version must be incremented")
+                current, given = page["version"]["number"], (b.get("version") or {}).get("number")
+                if given != current + 1:
+                    raise ValidationError(f"HTTP 409 on {where}: Version must be incremented when updating a page. "
+                                          f"Current Version: [{current}]. Provided version: [{given}]")
                 self._title_free(b.get("title") or "", page["id"], where)
                 if b.get("parentId"):
                     self._get(b["parentId"], where)

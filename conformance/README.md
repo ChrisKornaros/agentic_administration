@@ -5,7 +5,9 @@ adapter passes this suite live against a **throwaway** project on that
 tracker (design: agentic_optimization_research `roadmap/14` D7). It
 lives outside `tests/` because it writes to a real board: the default
 `uv run pytest` never runs it. `tests/test_conformance.py` runs it
-offline against the fake Plane and Jira transports.
+offline against the fake Plane and Jira transports. The knowledge
+publisher has its own live suite, on the same runner:
+[below](#the-knowledge-publisher-phase-6b).
 
 ## Run it
 
@@ -175,3 +177,93 @@ the suite passes it explicitly.
 
 Left on `AGADMIN` by that run: AGADMIN-1 to AGADMIN-5, module
 `Conformance 20260922`, cycles `202609` (closed) and `202610`.
+
+## The knowledge publisher (Phase 6b)
+
+`knowledge.py` proves the Markdown → Confluence publisher against a
+**throwaway** space (roadmap/14 §9 row 6b). It publishes a six-page tree
+it writes itself, then edits, moves and removes parts of it.
+`tests/test_conformance.py` runs it offline against the fake Confluence.
+
+```sh
+uv run python -m conformance.knowledge boards/<kb>.toml --dry-run   # the cases; no calls
+uv run python -m conformance.knowledge boards/<kb>.toml             # live: real writes, no deletes
+```
+
+- **The config is the publisher's own**
+  ([examples/knowledge/confluence.example.toml](../examples/knowledge/confluence.example.toml)),
+  with the Jira adapter's credentials. `space.parent` must be a fresh,
+  empty page: the `space` case stops if it holds anything.
+- **Runs keep apart.** A run labels its pages `<publish.label>-<run id>`
+  and ends each title in the run id. Titles are unique across a whole
+  space, so a new run id also needs a new parent page.
+- **It stops once, on purpose.** At `archived`, it exits 3 and asks you to
+  archive the removed file's page by hand, as the design leaves orphans to
+  people. Run the same command again to resume.
+- **Options, record, exit codes:** the same as the adapter suite's.
+  `--run-id` must be lowercase, because it goes into a label.
+
+| Case | Checks |
+|---|---|
+| `space` | Read before any write: the space, its homepage, and a parent page that isn't the homepage and holds nothing. |
+| `publish` | A dry run writes nothing and plans six creates. The real run makes them in the planned number of writes. Read back apart from the publisher, each page has its title and sits under its folder's page. Each page's version equals its `md-source` property's. Every relative link lands on its target page's URL, and the external link survives. |
+| `search` | How long CQL takes to find the pages by the run's label (polls every 5 s, up to 180 s); a file's own label then finds exactly its page. |
+| `paging` | The v2 page listing and v1 CQL, read one row at a time: the form `_links.next` takes, and whether the walk reaches the same rows as one call. |
+| `rerun` | The same tree again: no write at all, every page unchanged, none reported as drift. |
+| `edit` | One file edited: exactly its page PUT and its property PUT, its version +1, and no other page's version changed. |
+| `move` | A v2 PUT naming a new `parentId` moves the page. The publisher then reports it as drift and writes nothing. The file's next edit puts it back. |
+| `remove` | A removed file's page is reported as an orphan, with nothing written, and stays current. |
+| `refusals` | The real errors for a PUT at a stale version and a create with a taken title. |
+| `archived` | *Needs a person.* Once the orphan is archived: whether the default listing still holds it, whether its title still blocks a new page, and that the publisher then leaves it alone. |
+| `no-delete` | No DELETE across the run's processes, from the transport's own log. |
+
+### Its results
+
+| Ran | Space | Verdict |
+|---|---|---|
+| 2026-09-28 | Confluence Cloud (Premium trial), throwaway space `AGKB`, under a fresh page | **PASS 11/11**, over two processes with one stop for the archive. It sent GET 106, POST 20, PUT 16 and no DELETE, with no 429. It found one publisher bug, fixed in the same PR (below). |
+
+### What the 2026-09-28 run settled
+
+The six points the offline fake had only taken from the docs:
+
+- **`_links.next`:** v2 gives a path under `/wiki`
+  (`/wiki/api/v2/spaces/{id}/pages?limit=…&cursor=…`). v1 search gives one
+  relative to it (`/rest/api/search?next=true&cursor=…&limit=…&start=…&cql=…`).
+  Walked one row at a time, both reached the same rows as a single call.
+- **A property or label write leaves the page version alone.** So the
+  publisher's own writes never read as drift, and the re-run reported
+  none.
+- **A v2 PUT with a new `parentId` moves the page.** The publisher found
+  the moved page, still inside the tree, and reported drift without
+  writing. The file's next edit put the page back.
+- **CQL lag:** a poll 16 s after the publish ended found all six pages by
+  their shared label. A file's own label then found exactly its page. The
+  scan below the parent page covers the gap.
+- **The real errors** come back as a v2 `errors[]` list, and both map to
+  `ValidationError`, which the publisher reports as a conflict. A stale
+  version gets HTTP 409 `CONFLICT` "Version must be incremented when
+  updating a page. Current Version: [2]. Provided version: [2]", which the
+  fake now matches. A taken title gets HTTP 400 `BAD_REQUEST` "A page with
+  this title already exists: A page already exists with the same TITLE in
+  this space".
+- **Archived pages:** the default v2 page listing still holds one, with
+  status `archived`, and its title still blocks a new page (the same 400).
+  The publisher already counts every listed title as taken, so a file
+  whose title clashes gets its folder added instead of meeting that 400.
+  Once a page is archived, the publisher stops reporting it.
+
+What the fake didn't model:
+
+- **Page ids are not in creation order.** `old.md`'s page got a lower id
+  than the root page made before it. When two pages claim one file, the
+  publisher kept the lowest id as the oldest. It now orders them by the
+  listing's `createdAt`. The fake carries `createdAt` too, and a test puts
+  a newer copy at a lower id.
+- **Links:** each relative link came back as a link mark on
+  `<site>/wiki/spaces/AGKB/pages/<id>`. A page's own `webui` is that path
+  plus a title slug.
+
+Left on `AGKB` by this run: `Conformance 20260928` and its five pages
+under `Conformance Test`, with `Old 20260928` archived. The duplicate-title
+attempts made no page.

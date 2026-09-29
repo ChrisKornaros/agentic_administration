@@ -10,9 +10,13 @@ from adapters.base import Blocked, NotFound
 from adapters.jira import JiraAdapter
 from adapters.plane import PlaneAdapter
 from conformance import __main__ as cli
+from conformance import knowledge as kb
 from conformance import runner
 from conformance.cases import Context, Skipped
+from knowledge.config import KnowledgeConfig
+from knowledge.confluence import Confluence
 from server.config import BoardConfig
+from tests import fake_confluence as fc
 from tests import fake_jira as fj
 from tests import fake_plane as fp
 from tests import test_jira_adapter as tests_jira
@@ -244,3 +248,53 @@ def test_a_bad_token_on_the_features_patch_is_a_failure_not_a_ui_instruction():
     assert go(process(t), state) == runner.FAIL
     assert "AuthError: HTTP 401" in notes(state, "provision")
     assert "Project Settings" not in notes(state, "provision")
+
+
+# --- the knowledge publisher's suite, against the fake Confluence ----------------
+
+KB = ["space", "publish", "search", "paging", "rerun", "edit", "move", "remove", "refusals", "archived", "no-delete"]
+
+
+def kb_process(fake, tmp_path, since=0):
+    cfg = KnowledgeConfig("JIRA_API_TOKEN", "JIRA_USER", fc.SITE, fc.KEY, fake.parent, label="md-published-20260928")
+    return kb.KbContext(Confluence(fake), cfg, "20260928", tmp_path, lambda: fake.log[since:], sleep=lambda s: None)
+
+
+def test_the_knowledge_suite_stops_once_for_the_archive_then_passes(tmp_path):
+    fake, state = fc.FakeConfluence(), new_state()
+    assert runner.run(kb.CASES, kb_process(fake, tmp_path), state, save=lambda s: None, echo=lambda l: None) == runner.STOP
+    assert statuses(state) == {**{name: "pass" for name in KB[:-2]}, "archived": "stop"}
+    assert "archive old.md's page by hand" in notes(state, "archived")
+    assert "a property or label write does not bump it" in notes(state, "publish")
+    assert "v1 CQL search: _links.next is /rest/api/search?cql=…&limit=…&cursor=…" in notes(state, "paging")
+    assert "moved setup.md's page" in notes(state, "move")
+    assert "Version must be incremented" in notes(state, "refusals")
+    fake.pages[state["ids"]["page:guides/old.md"]]["status"] = "archived"  # the person's part
+    second = kb_process(fake, tmp_path, since=len(fake.log))
+    assert runner.run(kb.CASES, second, state, save=lambda s: None, echo=lambda l: None) == runner.PASS
+    assert statuses(state) == {name: "pass" for name in KB}
+    assert "the default v2 page listing holds the archived page" in notes(state, "archived")  # as the docs say
+    assert "an archived page's title blocks a new page" in notes(state, "archived")
+    assert "DELETE" not in state["wire"] and "DELETE" not in {m for m, _ in fake.log}
+    titles = {p["title"] for p in fake.pages.values() if p["parentId"] == fake.parent}
+    assert titles == {"Conformance 20260928"}
+
+
+def test_the_knowledge_suite_wants_a_fresh_parent(tmp_path):
+    fake, state = fc.FakeConfluence(), new_state()
+    fake.add_page("Someone's page", parent=fake.parent)
+    assert runner.run(kb.CASES, kb_process(fake, tmp_path), state, save=lambda s: None, echo=lambda l: None) == runner.STOP
+    assert "space.parent already holds 1 page(s)" in notes(state, "space")
+    assert {m for m, _ in fake.log} == {"GET"}
+
+
+def test_the_knowledge_suite_dry_run_makes_no_call_and_checks_the_run_id(tmp_path, monkeypatch, capsys):
+    cfg = tmp_path / "kb.toml"
+    cfg.write_text('[connection]\ntoken_env = "JIRA_API_TOKEN"\nuser_env = "JIRA_USER"\nsite = "https://x.invalid"\n'
+                   '[space]\nkey = "KB"\nparent = "42"\n')
+    monkeypatch.setattr(kb, "make_client", lambda *a, **k: (_ for _ in ()).throw(AssertionError("a client was built")))
+    assert kb.main([str(cfg), "--dry-run", "--run-id", "t1", "--reports", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "label md-published-t1" in out and out.count("[not run]") == len(KB)
+    with pytest.raises(SystemExit):
+        kb.main([str(cfg), "--dry-run", "--run-id", "Has Space"])
