@@ -15,7 +15,8 @@ a page update names the next version number (409); a PUT with a new
 `parentId` moves the page; a property write leaves the page version alone.
 Page ids are not in creation order, so a row carries `createdAt`. Still
 as documented: titles clash case aside, a property update names its next
-version too, a label holds no spaces, and CQL finds only current pages.
+version too, a label holds no spaces, and CQL finds only current pages
+(and, while its index lags a write, not those in `unindexed`).
 Ids are made up.
 
 `siteSearch ~` as the read-only check on `AGKB` (2026-09-28) saw it: hits
@@ -74,6 +75,7 @@ class FakeConfluence:
         self.pages: dict[str, dict[str, Any]] = {}
         self.calls: list[tuple[str, str, dict, Any]] = []
         self.fail: dict[str, Exception] = {}  # "METHOD path" -> raise
+        self.unindexed: set[str] = set()  # page ids CQL does not see yet: the index lags a write
         self._ids = itertools.count(4000)
         self.add_page("Knowledge base", parent=None, page_id=HOME)
         self.parent = self.add_page("Docs")["id"]  # the configured parent in the tests
@@ -161,7 +163,7 @@ class FakeConfluence:
         clauses = list(_CLAUSE.finditer(cql))
         if " and ".join(m.group(0) for m in clauses) != cql.strip():
             raise ValidationError(f"HTTP 400 on {where}: could not parse {cql!r}")
-        rows, words = [p for p in self.pages.values() if p["status"] == "current"], []
+        rows, words = [p for p in self.pages.values() if p["status"] == "current" and p["id"] not in self.unindexed], []
         for m in clauses:
             name, op = m.group("name"), m.group("op")
             value = re.sub(r"\\(.)", r"\1", m.group("quoted") if m.group("quoted") is not None else m.group("bare"))

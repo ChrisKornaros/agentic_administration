@@ -18,8 +18,8 @@ site      = "https://example.atlassian.net"
 key    = "KB"
 parent = "123456"   # the page id the tree's root page goes under; this page is never written.
                     # A new, empty page under the space homepage works; the homepage itself is never written either.
-                    # One tree per parent: a page another config published below it would be taken as this tree's.
 
 [publish]
-label      = "md-published"   # on every page this tool made, plus one label per file (<label>-<hash>)
+label      = "md-published"   # on every page this tool made, plus one label per file (<label>-<hash>).
+                              # One label per tree: trees may share a parent page, never a label.
 max_writes = 50               # page creates + updates per run; the next run picks up the rest

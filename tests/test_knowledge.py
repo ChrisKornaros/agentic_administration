@@ -134,11 +134,27 @@ def test_a_rerun_writes_nothing(tmp_path):
 def test_a_rerun_finds_its_pages_even_before_the_search_index_has_them(tmp_path):
     fake, root = FakeConfluence(), tree(tmp_path)
     run(root, fake)
-    for p in fake.pages.values():
-        p["labels"].clear()  # CQL sees none of them yet
+    fake.unindexed.update(fake.pages)  # CQL sees none of them yet
     since = len(fake.calls)
     report = run(root, fake)
     assert fake.writes(since) == [] and len(actions(report, "unchanged")) == 7
+
+
+def test_a_tree_under_the_same_parent_with_another_label_is_left_alone(tmp_path):
+    # the read gate (2026-09-28): a second tree's dry run took the first tree's root as its own
+    fake, first = FakeConfluence(), tree(tmp_path)
+    run(first, fake)
+    fake.unindexed.update(fake.pages)  # so its own re-run below finds its pages by the scan, like the other's
+    firsts = set(fake.pages)
+    second = tree(tmp_path / "other", {"README.md": "# Runbooks\n", "deploy.md": "# Deploy\n"})
+    since = len(fake.calls)
+    report = publish(second, config(fake, label="runbooks"), Confluence(fake), apply=True)
+    assert report.ok and actions(report, "create") == [ROOT, "deploy.md"]
+    assert not [e for e in report.entries if e.action not in ("create", "update")]  # no orphan, drift or skip
+    touched = {m.group(1) for _, path in fake.writes(since) if (m := re.search(r"/(?:pages|content)/(\d+)", path))}
+    assert not touched & firsts and fake.by_title("Runbooks")["parentId"] == fake.parent
+    report = run(first, fake)  # and the first tree, re-run, finds only its own
+    assert report.writes == 0 and len(actions(report, "unchanged")) == 7 and not actions(report, "orphan")
 
 
 def test_an_edit_makes_exactly_one_new_version(tmp_path):
@@ -175,7 +191,8 @@ def test_of_two_pages_for_one_file_the_older_is_kept_though_its_id_is_lower(tmp_
     run(root, fake)
     setup = fake.by_title("Setup")
     # a newer page carrying the same md-source, with a lower id: live ids are not in creation order
-    fake.add_page("Setup copy", setup["parentId"], page_id="10", props={"md-source": fake.prop("Setup")["value"]})
+    fake.add_page("Setup copy", setup["parentId"], page_id="10", labels=("md-published",),
+                  props={"md-source": fake.prop("Setup")["value"]})
     report = run(root, fake)
     assert [(e.key, e.title) for e in report.entries if e.action == "orphan"] == [("guides/setup.md", "Setup copy")]
     assert "a second page for this file" in next(e.note for e in report.entries if e.action == "orphan")

@@ -266,6 +266,7 @@ def test_the_knowledge_suite_stops_once_for_the_archive_then_passes(tmp_path):
     assert statuses(state) == {**{name: "pass" for name in KB[:-2]}, "archived": "stop"}
     assert "archive old.md's page by hand" in notes(state, "archived")
     assert "a property or label write does not bump it" in notes(state, "publish")
+    assert "the v2 labels route holds the shared label on all 6 pages" in notes(state, "search")
     assert "v1 CQL search: _links.next is /rest/api/search?cql=…&limit=…&cursor=…" in notes(state, "paging")
     assert "moved setup.md's page" in notes(state, "move")
     assert "Version must be incremented" in notes(state, "refusals")
