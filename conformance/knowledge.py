@@ -10,7 +10,8 @@ nothing, one edit makes exactly one new version, and a removed file is
 reported with nothing deleted. On the way it answers what the offline fake
 could only take from the docs: how `_links.next` pages each listing,
 whether a property write bumps the page version, whether a PUT with
-`parentId` moves a page, how long CQL lags a label write, the real 409 and
+`parentId` moves a page, how long CQL lags a label write (and that a page's
+own labels, which the publisher's label check reads, do not), the real 409 and
 400 bodies, and whether the page listing holds archived pages and an
 archived page's title blocks a new one. That last needs a person: the run
 stops (exit 3) for the orphan to be archived by hand, which is how the
@@ -243,6 +244,10 @@ def first_publish(ctx: KbContext) -> None:
 def search_lag(ctx: KbContext) -> None:
     ids = {v for k, v in ctx.ids.items() if k.startswith("page:")}
     expect(ids, "no pages recorded; `publish` runs first")
+    stale = sorted(pid for pid in ids if ctx.config.label not in ctx.client.labels(pid))
+    expect(not stale, f"the v2 labels route lacks the shared label on {stale} after the publish: "
+                      "the subtree scan would pass those pages over")
+    ctx.note(f"before any wait, the v2 labels route holds the shared label on all {len(ids)} pages")
     start = float(ctx.ids.get("published_at") or ctx.clock())
     while True:
         found = set(ctx.client.labelled(ctx.config.space, ctx.config.label))
@@ -386,7 +391,8 @@ CASES: tuple[Case, ...] = (
     Case("space", "read-proven before write: the space, its homepage, a fresh and empty parent", space_check),
     Case("publish", "a dry run writes nothing; the tree lands under the parent, titled and nested, links resolving",
          first_publish),
-    Case("search", "how long CQL lags the label writes; a file's own label finds its page", search_lag),
+    Case("search", "a page's own labels hold the shared label at once, and how long CQL lags them; "
+                   "a file's own label finds its page", search_lag),
     Case("paging", "_links.next on the v2 listing and v1 CQL, one row at a time: its form, and the walk follows it",
          paging),
     Case("rerun", "the same tree again writes nothing: every page unchanged, none drifted", rerun),
