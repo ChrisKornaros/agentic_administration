@@ -17,11 +17,19 @@ Page ids are not in creation order, so a row carries `createdAt`. Still
 as documented: titles clash case aside, a property update names its next
 version too, a label holds no spaces, and CQL finds only current pages.
 Ids are made up.
+
+`siteSearch ~` as the read-only check on `AGKB` (2026-09-28) saw it: hits
+ranked best first, and the matched words in `title` and `excerpt` wrapped in
+`@@@hl@@@…@@@endhl@@@`. Here a page matches when its title or text holds
+any of the query's words, ranked by how many, a title's twice; the excerpt is its text,
+HTML-escaped as the docs describe the default excerpt (the live text held
+nothing to escape).
 """
 
 from __future__ import annotations
 
 import copy
+import html
 import itertools
 import json
 import re
@@ -33,6 +41,29 @@ from adapters.base import NotFound, ValidationError
 SITE = "https://example.atlassian.net"
 BASE = f"{SITE}/wiki"
 KEY, SPACE_ID, HOME = "KB", "3000", "3001"
+_CLAUSE = re.compile(r'(?P<name>\w+) (?P<op>[=~]) (?:"(?P<quoted>(?:[^"\\]|\\.)*)"|(?P<bare>\w+))')
+
+
+def _text(page: dict[str, Any]) -> str:
+    """A page body's text, its text nodes joined by spaces."""
+    out: list[str] = []
+
+    def visit(node: dict[str, Any]) -> None:
+        if node.get("type") == "text":
+            out.append(node.get("text") or "")
+        for child in node.get("content") or []:
+            visit(child)
+
+    visit(json.loads(page["value"]))
+    return " ".join(out)
+
+
+def _highlight(text: str, words: list[str]) -> str:
+    """The matched words wrapped as a live hit wraps them."""
+    if not words:
+        return text
+    return re.sub(r"\w+", lambda m: f"@@@hl@@@{m.group(0)}@@@endhl@@@" if m.group(0).lower() in words else m.group(0),
+                  text)
 
 
 class FakeConfluence:
@@ -126,23 +157,36 @@ class FakeConfluence:
     # -- routes ------------------------------------------------------------------
 
     def _search(self, params: dict[str, Any]) -> dict[str, Any]:
-        rows = [p for p in self.pages.values() if p["status"] == "current"]
-        for clause in (params.get("cql") or "").split(" and "):
-            m = re.fullmatch(r'(\w+)\s*=\s*"?([^"]*)"?', clause.strip())
-            if not m:
-                raise ValidationError(f"HTTP 400 on GET /wiki/rest/api/search: could not parse {clause!r}")
-            name, value = m.groups()
-            if name == "space":
+        cql, where = params.get("cql") or "", "GET /wiki/rest/api/search"
+        clauses = list(_CLAUSE.finditer(cql))
+        if " and ".join(m.group(0) for m in clauses) != cql.strip():
+            raise ValidationError(f"HTTP 400 on {where}: could not parse {cql!r}")
+        rows, words = [p for p in self.pages.values() if p["status"] == "current"], []
+        for m in clauses:
+            name, op = m.group("name"), m.group("op")
+            value = re.sub(r"\\(.)", r"\1", m.group("quoted") if m.group("quoted") is not None else m.group("bare"))
+            if (name, op) == ("space", "="):
                 rows = rows if value == KEY else []
-            elif name == "type":
+            elif (name, op) == ("type", "="):
                 rows = rows if value == "page" else []
-            elif name == "label":
+            elif (name, op) == ("label", "="):
                 rows = [p for p in rows if value in p["labels"]]
+            elif (name, op) == ("siteSearch", "~"):
+                words = re.findall(r"\w+", value.lower())
+                rows = sorted((p for p in rows if self._score(p, words)), key=lambda p: -self._score(p, words))
             else:
-                raise ValidationError(f"HTTP 400 on GET /wiki/rest/api/search: the fake does not know {clause!r}")
+                raise ValidationError(f"HTTP 400 on {where}: the fake does not know {m.group(0)!r}")
         hits = [{"content": {"id": p["id"], "type": "page", "status": p["status"], "title": p["title"]},
-                 "title": p["title"], "url": f"/spaces/{KEY}/pages/{p['id']}", "excerpt": ""} for p in rows]
+                 "title": _highlight(p["title"], words), "url": f"/spaces/{KEY}/pages/{p['id']}",
+                 "excerpt": _highlight(html.escape(_text(p)), words) if words else "",
+                 "breadcrumbs": []} for p in rows]
         return self._listing("/wiki/rest/api/search", hits, params, relative=True)
+
+    @staticmethod
+    def _score(page: dict[str, Any], words: list[str]) -> int:
+        """A word in the title counts double: live, the page titled Setup ranked first for "setup"."""
+        title, text = (set(re.findall(r"\w+", s.lower())) for s in (page["title"], _text(page)))
+        return sum(2 if w in title else w in text for w in words)
 
     def request(self, method: str, path: str, *, params: dict | None = None, body: Any = None) -> Any:
         split = urllib.parse.urlsplit(path)
@@ -170,6 +214,11 @@ class FakeConfluence:
             if m:
                 props = self._get(m.group(1), where)["properties"].values()
                 rows = [copy.deepcopy(p) for p in props if params.get("key") in (None, p["key"])]
+                return self._listing(path, rows, params)
+            m = re.fullmatch(r"/wiki/api/v2/pages/(\d+)/labels", path)
+            if m:
+                names = sorted(self._get(m.group(1), where)["labels"])
+                rows = [{"prefix": "global", "name": n, "id": str(5000 + i)} for i, n in enumerate(names)]
                 return self._listing(path, rows, params)
         if method == "POST":
             if path == "/wiki/api/v2/pages":

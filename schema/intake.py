@@ -89,7 +89,8 @@ class Intake:
     """One request, as the intake conversation filled it. `id` is stable for
     the request's life (the idempotency key's root); `problem` is the need and
     who feels it; `outcome` is what done looks like, in the requester's words;
-    `related` holds item keys, or the requester's words when no key was found."""
+    `related` holds item keys, doc page URLs, or the requester's words when
+    neither was found."""
 
     id: str
     problem: str

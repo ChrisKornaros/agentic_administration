@@ -5,7 +5,8 @@
 # The profile's .env holds the secrets: the board's token_env (here
 # PLANE_API_KEY), plus that profile's own DISCORD_BOT_TOKEN and
 # DISCORD_ALLOWED_USERS. Each profile runs its own gateway, so it needs its
-# own bot.
+# own bot. With the knowledge server, it also holds the docs config's
+# token_env and user_env (here JIRA_API_TOKEN and JIRA_USER).
 #
 # Replace /path/to/agentic_administration with the repo's path as Hermes
 # sees it: inside the container, if Hermes runs in Docker.
@@ -28,6 +29,23 @@ mcp_servers:
                 move_to_iteration, close_iteration]
       prompts: false
       resources: false
+  # Only where the team publishes docs to Confluence: search_docs and get_doc
+  # over the pages that publisher config names. Otherwise leave this block,
+  # and `knowledge` in platform_toolsets below, out.
+  knowledge:
+    command: uv
+    args: [run, --frozen, --no-dev, --directory, /path/to/agentic_administration,
+           python, -m, knowledge, serve, --config, boards/<docs>.toml]
+    env:
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+      JIRA_USER: ${JIRA_USER}
+      UV_PROJECT_ENVIRONMENT: /opt/data/profiles/po/mcp/venv
+      UV_CACHE_DIR: /opt/data/profiles/po/mcp/uv-cache
+    connect_timeout: 120
+    tools:
+      include: [search_docs, get_doc]
+      prompts: false
+      resources: false
 
 skills:
   external_dirs:
@@ -38,12 +56,12 @@ skills:
   # set, every skill write waits in pending/skills/ for the operator.
   write_approval: true
 
-# A requester reaches the board and nothing else: no shell, files, web or
-# delegation. Naming the server here also keeps it off other platforms'
-# default MCP set.
+# A requester reaches the board (and the docs) and nothing else: no shell,
+# files, web or delegation. Naming the servers here also keeps them off
+# other platforms' default MCP set.
 platform_toolsets:
-  cli: [clarify, skills, board]
-  discord: [clarify, skills, board]
+  cli: [clarify, skills, board, knowledge]
+  discord: [clarify, skills, board, knowledge]
 
 agent:
   disabled_toolsets: [terminal, file, code_execution]

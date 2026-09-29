@@ -19,8 +19,11 @@ the right sprint, on whatever tracker your team already runs.
 > ([probes/](probes/README.md)), and the publisher has passed its own
 > conformance suite against a throwaway Confluence space
 > ([the results](conformance/README.md#the-knowledge-publisher-phase-6b)).
-> Agents can't search the published docs yet. Watch the releases for the
-> first usable version.
+> Agents can search and read the published docs through a second MCP
+> server. In a Claude Code session, the intake skill found a published page
+> that already answered a request, and answered from it instead of filing
+> a duplicate ([the record](transcripts/2026-09-28-phase6b-read-gate.md)).
+> Watch the releases for the first usable version.
 
 ## What it is
 
@@ -89,7 +92,7 @@ agentic_administration/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
-├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (passes live)
+├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (passes live), the server
 ├── conformance/       # the adapter and publisher test suites  ✅ Plane, Jira and the publisher pass live
 ├── examples/          # board configs, an Agent SDK bot, a Hermes config, a publisher config + CI job  ✅ boards/, hermes/, agent-sdk/, knowledge/
 ├── probes/            # dated read-only API checks (evidence)  ✅
@@ -194,7 +197,8 @@ skill-loading host reads it):
 With the board's `confirm = "never"`, the create skills commit without
 pausing; `plan-sprint` and `groom` still wait for their yes.
 Looking up related items happens in one step of `intake` (the board's own
-search by default), so another retrieval source replaces only that step.
+search, plus the team's docs where the host has them), so another
+retrieval source replaces only that step.
 
 To try it in **Claude Code**, load the repo as a plugin.
 [.claude-plugin/plugin.json](.claude-plugin/plugin.json) registers the
@@ -206,10 +210,12 @@ the requester's context:
 ```sh
 export PLANE_API_KEY=...                       # or the Bitwarden variables above
 export AGENTIC_ADMIN_BOARD=boards/<board>.toml
+export AGENTIC_ADMIN_KNOWLEDGE=boards/<docs>.toml   # optional: the team's published docs (below)
 T=mcp__plugin_agentic-administration_board__
+K=mcp__plugin_agentic-administration_knowledge__
 ENABLE_CLAUDEAI_MCP_SERVERS=false claude --plugin-dir /path/to/agentic_administration \
-  --tools Skill \
-  --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}get_iteration ${T}propose_item" \
+  --tools Skill --permission-mode manual \
+  --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}get_iteration ${T}propose_item ${K}search_docs ${K}get_doc" \
   --append-system-prompt "You are a team's backlog assistant. Every request is about the team's board, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, and reviewing what's waiting with groom."
 ```
 
@@ -224,11 +230,14 @@ to groom.
 `--tools Skill` leaves out Claude Code's other built-in tools (shell,
 files, web), and `ENABLE_CLAUDEAI_MCP_SERVERS=false` leaves out the
 requester's claude.ai connectors, so the session gets the Skill tool and
-the board's eleven, as the Agent SDK example below does. MCP servers from
-the requester's own Claude Code configuration still load.
+the board's eleven, plus the two docs tools when `AGENTIC_ADMIN_KNOWLEDGE`
+is set, as the Agent SDK example below does. MCP servers from the
+requester's own Claude Code configuration still load.
 The tools pre-allowed above write nothing, so `commit_item` still asks
 through Claude Code's permission prompt, a second guard beside the skill's
-own yes. The server reads the token environment when Claude Code starts,
+own yes. `--permission-mode manual` keeps that prompt even when the
+requester's own default is auto mode, which lets writes through without
+one ([the Phase 6b record](transcripts/2026-09-28-phase6b-read-gate.md)). The server reads the token environment when Claude Code starts,
 so after unlocking a vault, restart Claude Code.
 
 To run it from chat through **Hermes**, give it a profile of its own:
@@ -239,7 +248,9 @@ into the profile's `config.yaml` and copy
 line, next to it. The fragment starts the server over stdio with `uv run`,
 passes the token through `env`, registers exactly the eleven tools (Hermes
 names them `mcp__board__<tool>`), loads [skills/](skills/) in place, and gives
-the chat platforms nothing else: no shell, files, web or memory. It also
+the chat platforms nothing else: no shell, files, web or memory. Where the
+team publishes docs, its `knowledge` block adds the two docs tools; leave
+it out otherwise. It also
 holds every skill write for the operator's approval, so the agent can't
 replace a skill with its own local copy. The profile's `.env` holds the
 board token and its own Discord bot token, since each profile runs its own
@@ -262,6 +273,7 @@ a claude.ai login for products built on it:
 ```sh
 export PLANE_API_KEY=...                       # or the Bitwarden variables above
 export AGENTIC_ADMIN_BOARD=boards/<board>.toml
+export AGENTIC_ADMIN_KNOWLEDGE=boards/<docs>.toml   # optional: the team's published docs
 export ANTHROPIC_API_KEY=...                   # or ANTHROPIC_API_KEY_BW_ITEM
 uv run --group agent-sdk python examples/agent-sdk/chat.py
 ```
@@ -288,7 +300,10 @@ uv run python -m knowledge publish docs/ --config boards/<name>.toml --apply   #
 
 Each folder becomes a page, with its `index.md` (or `README.md`) as the
 body, and each other `.md` file becomes a page under it. The whole tree goes
-under the page named by `space.parent`. A page's title is its first `#`
+under the page named by `space.parent`. Give each tree its own parent page:
+the publisher takes any page it published below that parent as part of
+this tree, whatever its label, so a second tree there would overwrite the
+first one's root. A page's title is its first `#`
 heading, or else its file name. Relative links between the files become
 links between the pages. A re-run writes only what changed, and an edit
 makes one new page version. A page whose file is gone is reported for a
@@ -303,6 +318,22 @@ and the two repository secrets it needs. To prove the publisher against a
 **throwaway** space, under a fresh, empty parent page, run
 `uv run python -m conformance.knowledge boards/<name>.toml`. It stops once,
 for you to archive a page by hand, and then resumes.
+
+Agents read the published docs through a second MCP server, `knowledge`,
+with two read-only tools. `search_docs(query, k)` returns up to `k` pages,
+best first, each with its id, title, URL and an excerpt. `get_doc(ref)`
+reads one page, by that id or URL, as Markdown. They see only the pages
+the same config publishes: its space, carrying its label. Search is
+Confluence's own ranked search (CQL `siteSearch`), so a page published a
+moment ago may take a few seconds to show up. The `intake` skill searches
+the docs alongside the board, and when a page already answers the request,
+it tells the requester what the page says before filing anything. The
+plugin starts the server with the config in `AGENTIC_ADMIN_KNOWLEDGE`, and
+with no config it serves no tools, so a team without docs sets nothing:
+
+```sh
+uv run python -m knowledge serve --config boards/<name>.toml   # stdio
+```
 
 ## License
 
