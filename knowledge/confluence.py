@@ -13,9 +13,9 @@ From the Phase 6b probe (probes/README.md, 2026-09-28):
 - v2 carries an ADF body as a JSON *string* in `value`.
 - CQL (v1 `/rest/api/search`) finds pages by label, and an absent label
   answers 200 and empty. A hit holds the page under `content`.
-- `_links.next` pages a listing. The probe's lists were too short to show
-  one, so `_walk` takes it either as a path under `/wiki` (v2, per the docs)
-  or relative to it (v1, per the docs), until the conformance run shows which.
+- `_links.next` pages a listing: a path under `/wiki` on v2, and relative
+  to it on v1 (`/rest/api/search?next=true&cursor=…`), as the docs say and
+  the conformance run (2026-09-28) saw; `_walk` takes either.
 - Labels are written through v1 (`POST /content/{id}/label`); content
   properties through v2.
 
@@ -91,6 +91,12 @@ class Confluence:
         cql = f'space = "{space_key}" and type = page and label = "{label}"'
         hits = self._walk(f"{WIKI}/rest/api/search", {"cql": cql, "limit": 100})
         return [str(h["content"]["id"]) for h in hits if (h.get("content") or {}).get("id")]
+
+    def page(self, page_id: str) -> dict[str, Any]:
+        """One page with its body, parsed from v2's JSON string into `doc` (None when it has none)."""
+        record = self.t.request("GET", f"{WIKI}/api/v2/pages/{page_id}", params={"body-format": "atlas_doc_format"}) or {}
+        value = ((record.get("body") or {}).get("atlas_doc_format") or {}).get("value")
+        return {**record, "doc": json.loads(value) if value else None}
 
     def property(self, page_id: str, key: str) -> dict[str, Any] | None:
         rows = self._walk(f"{WIKI}/api/v2/pages/{page_id}/properties", {"key": key})

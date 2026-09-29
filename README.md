@@ -16,9 +16,11 @@ the right sprint, on whatever tracker your team already runs.
 > rollover and grooming skills are written and haven't run live yet.
 > Publishing a repo's Markdown docs to Confluence, for people to read and
 > agents to search, has started: a read-only probe has checked the API
-> ([probes/](probes/README.md)), and the publisher is written and tested
-> offline but hasn't run live yet. Watch the releases for the first usable
-> version.
+> ([probes/](probes/README.md)), and the publisher has passed its own
+> conformance suite against a throwaway Confluence space
+> ([the results](conformance/README.md#the-knowledge-publisher-phase-6b)).
+> Agents can't search the published docs yet. Watch the releases for the
+> first usable version.
 
 ## What it is
 
@@ -87,9 +89,9 @@ agentic_administration/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the template
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
-├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (offline-tested)
-├── conformance/       # the adapter test suite  ✅ Plane and Jira pass live
-├── examples/          # board configs, an Agent SDK bot, a Hermes config, a publisher config  ✅ boards/, hermes/, agent-sdk/, knowledge/
+├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (passes live)
+├── conformance/       # the adapter and publisher test suites  ✅ Plane, Jira and the publisher pass live
+├── examples/          # board configs, an Agent SDK bot, a Hermes config, a publisher config + CI job  ✅ boards/, hermes/, agent-sdk/, knowledge/
 ├── probes/            # dated read-only API checks (evidence)  ✅
 ├── transcripts/       # dated summaries of live requester sessions (evidence)  ✅
 └── tests/             # offline unit tests — never a live tracker  ✅
@@ -293,6 +295,14 @@ makes one new page version. A page whose file is gone is reported for a
 person to archive, and nothing is ever deleted. Each run writes at most
 `publish.max_writes` pages, and the next run picks up the rest. Images
 aren't published yet.
+
+To publish on every push instead, copy
+[examples/knowledge/publish-docs.yml](examples/knowledge/publish-docs.yml)
+into the docs repo's `.github/workflows/`. Its header lists the config file
+and the two repository secrets it needs. To prove the publisher against a
+**throwaway** space, under a fresh, empty parent page, run
+`uv run python -m conformance.knowledge boards/<name>.toml`. It stops once,
+for you to archive a page by hand, and then resumes.
 
 ## License
 

@@ -1,0 +1,48 @@
+# Publish a repo's docs/ tree to Confluence on every push to main (design:
+# agentic_optimization_research roadmap/14 Phase 6b, D26–D29). Git stays the
+# source; the publisher creates and updates pages and never deletes one.
+#
+# In the repo whose docs you publish:
+#   1. Copy this file to .github/workflows/publish-docs.yml.
+#   2. Commit a publisher config as .confluence.toml, made from
+#      examples/knowledge/confluence.example.toml. It holds no secrets.
+#   3. Add two repository secrets: JIRA_USER (the Atlassian account email)
+#      and JIRA_API_TOKEN (its classic API token, the one the Jira adapter
+#      uses). The config's token_env and user_env name them.
+#
+# The job log lists what was created or updated, plus orphans (a file is
+# gone: archive its page by hand) and drift (a page was edited in
+# Confluence: the file's next change replaces that). The job fails when a
+# page was skipped or hit a conflict; the next run picks up what a failed
+# run or the write cap left. Pin PUBLISHER to a commit rather than main.
+# The repo is public from Phase 7 (D9); until then the install needs a
+# token that can read it.
+name: publish-docs
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".confluence.toml", ".github/workflows/publish-docs.yml"]
+  workflow_dispatch:
+
+# One publish at a time: two at once would race on page versions (a 409).
+concurrency:
+  group: publish-docs
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Publish docs/ to Confluence
+        env:
+          JIRA_USER: ${{ secrets.JIRA_USER }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          PUBLISHER: git+https://github.com/ChrisKornaros/agentic_administration@main
+        run: uv run --no-project --with "$PUBLISHER" python -m knowledge publish docs --config .confluence.toml --apply

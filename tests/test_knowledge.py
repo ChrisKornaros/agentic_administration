@@ -3,20 +3,23 @@ the tree, the two passes, idempotency, links, the cap, titles, orphans, and no
 delete anywhere."""
 
 import re
+import shlex
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from adapters.base import AuthError, ValidationError
+from knowledge import __main__ as cli
 from knowledge.__main__ import main, summary
 from knowledge.config import InvalidKnowledgeConfig, KnowledgeConfig, from_dict, load
 from knowledge.confluence import Confluence
-from knowledge.publish import ROOT, file_label, publish, walk
+from knowledge.publish import ROOT, Report, file_label, publish, walk
 from tests.fake_confluence import BASE, HOME, KEY, SITE, FakeConfluence
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLE = REPO / "examples" / "knowledge" / "confluence.example.toml"
+WORKFLOW = REPO / "examples" / "knowledge" / "publish-docs.yml"
 
 DOCS = {
     "README.md": "# Handbook\n\nStart with [setup](guides/setup.md) and [the guides](guides/).\n",
@@ -167,6 +170,18 @@ def test_a_removed_file_is_reported_and_nothing_is_deleted(tmp_path):
     assert fake.pages[fake.by_title("todo (docs)")["id"]]["parentId"] == fake.by_title("Handbook")["id"]
 
 
+def test_of_two_pages_for_one_file_the_older_is_kept_though_its_id_is_lower(tmp_path):
+    fake, root = FakeConfluence(), tree(tmp_path)
+    run(root, fake)
+    setup = fake.by_title("Setup")
+    # a newer page carrying the same md-source, with a lower id: live ids are not in creation order
+    fake.add_page("Setup copy", setup["parentId"], page_id="10", props={"md-source": fake.prop("Setup")["value"]})
+    report = run(root, fake)
+    assert [(e.key, e.title) for e in report.entries if e.action == "orphan"] == [("guides/setup.md", "Setup copy")]
+    assert "a second page for this file" in next(e.note for e in report.entries if e.action == "orphan")
+    assert report.writes == 0 and not actions(report, "drift")
+
+
 def test_no_delete_anywhere(tmp_path):
     for path in (REPO / "knowledge").glob("*.py"):
         assert not re.search(r"""['"]DELETE['"]""", path.read_text()), path
@@ -267,6 +282,26 @@ def test_the_example_config_loads():
     cfg = load(EXAMPLE)
     assert (cfg.token_env, cfg.user_env, cfg.space, cfg.parent, cfg.label, cfg.max_writes) == (
         "JIRA_API_TOKEN", "JIRA_USER", "KB", "123456", "md-published", 50)
+
+
+def test_the_ci_example_runs_the_real_cli_with_the_example_configs_secrets(tmp_path, monkeypatch):
+    text = WORKFLOW.read_text()
+    argv = shlex.split(re.search(r"run: (.*python -m knowledge .*)", text).group(1))
+    args = argv[argv.index("knowledge") + 1:]
+    tree_dir, config_path = args[1], args[args.index("--config") + 1]
+    cfg = load(EXAMPLE)
+    for env in (cfg.token_env, cfg.user_env):
+        assert f"{env}: ${{{{ secrets.{env} }}}}" in text  # the names the config gives, fed from secrets
+    assert re.search(r"concurrency:\n  group: publish-docs\n  cancel-in-progress: false", text)
+    assert f'"{tree_dir}/**", "{config_path}"' in text  # a push that changes either publishes
+    # the command is one the CLI takes, and it writes
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / tree_dir).mkdir()
+    (tmp_path / config_path).write_text(EXAMPLE.read_text())
+    seen = {}
+    monkeypatch.setattr(cli, "publish", lambda root, cfg, client, *, apply, max_writes:
+                        seen.update(root=root, apply=apply) or Report(applied=apply))
+    assert cli.main(args) == 0 and seen == {"root": Path(tree_dir), "apply": True}
 
 
 def test_a_bad_config_lists_every_problem():

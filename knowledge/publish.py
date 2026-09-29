@@ -199,7 +199,9 @@ class _Run:
     def _match(self) -> None:
         """Pin each page this tool made to its node, by the md-source property; report the rest."""
         candidates = self._under(self.cfg.parent) | set(self.client.labelled(self.space.key, self.cfg.label))
-        for pid in sorted(candidates, key=lambda i: (len(i), i)):  # oldest first
+        # oldest first, by createdAt: page ids are not in creation order (the conformance run, 2026-09-28)
+        oldest = lambda i: (str((self.listing.get(i) or {}).get("createdAt") or ""), len(i), i)
+        for pid in sorted(candidates, key=oldest):
             page = self.listing.get(pid)
             if page is None or page.get("status", "current") != "current":  # archived: a person's call, done
                 continue
