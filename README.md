@@ -300,10 +300,10 @@ uv run python -m knowledge publish docs/ --config boards/<name>.toml --apply   #
 
 Each folder becomes a page, with its `index.md` (or `README.md`) as the
 body, and each other `.md` file becomes a page under it. The whole tree goes
-under the page named by `space.parent`. Give each tree its own parent page:
-the publisher takes any page it published below that parent as part of
-this tree, whatever its label, so a second tree there would overwrite the
-first one's root. A page's title is its first `#`
+under the page named by `space.parent`. A tree is known by its
+`publish.label`: the publisher takes a page as part of this tree only if
+it carries that label, so trees can share a parent page but each needs a
+label of its own. A page's title is its first `#`
 heading, or else its file name. Relative links between the files become
 links between the pages. A re-run writes only what changed, and an edit
 makes one new page version. A page whose file is gone is reported for a

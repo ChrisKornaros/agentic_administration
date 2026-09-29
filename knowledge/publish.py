@@ -15,7 +15,10 @@ the page version that write made. The property is what pins a page to its
 file. A run looks for its pages under the configured parent in the page
 listing, which already holds a page written a moment ago, and by the shared
 label through CQL, which also finds a page someone moved elsewhere but reads
-a search index that can lag a write (as Jira's did, Phase 5).
+a search index that can lag a write (as Jira's did, Phase 5). A page is this
+tree's only if it carries the shared label; for a page CQL did not return,
+that is read from the page itself, not the index. So trees may share a
+parent page, but never a label.
 
 A run reads first, then writes in two passes, since a link needs its
 target's page id:
@@ -198,10 +201,10 @@ class _Run:
 
     def _match(self) -> None:
         """Pin each page this tool made to its node, by the md-source property; report the rest."""
-        candidates = self._under(self.cfg.parent) | set(self.client.labelled(self.space.key, self.cfg.label))
+        labelled = set(self.client.labelled(self.space.key, self.cfg.label))
         # oldest first, by createdAt: page ids are not in creation order (the conformance run, 2026-09-28)
         oldest = lambda i: (str((self.listing.get(i) or {}).get("createdAt") or ""), len(i), i)
-        for pid in sorted(candidates, key=oldest):
+        for pid in sorted(self._under(self.cfg.parent) | labelled, key=oldest):
             page = self.listing.get(pid)
             if page is None or page.get("status", "current") != "current":  # archived: a person's call, done
                 continue
@@ -209,6 +212,8 @@ class _Run:
             value = (prop or {}).get("value")
             if not isinstance(value, dict) or not value.get("path"):
                 continue  # not ours: a page someone added under the tree
+            if pid not in labelled and self.cfg.label not in self.client.labels(pid):
+                continue  # another tree's, under the same parent (the read gate, 2026-09-28)
             path, title = str(value["path"]), str(page.get("title") or "")
             node = self.nodes.get(path)
             if node is None or node.page_id is not None:
@@ -269,9 +274,10 @@ class _Run:
                     self.report.add("conflict", n.key, n.title, str(exc))
                     continue
                 n.page_id, n.version = str(page["id"]), page_version(page)
+                # the labels first, so a page with the property always carries them
+                self.client.add_labels(n.page_id, [self.cfg.label, file_label(self.cfg.label, n.key)])
                 value = {"path": n.key, "hash": _hash(n.title, parent_id, empty), "version": n.version}
                 n.prop = self.client.set_property(n.page_id, PROPERTY, value, None)
-                self.client.add_labels(n.page_id, [self.cfg.label, file_label(self.cfg.label, n.key)])
             else:
                 n.page_id, n.version = f"new-{self.report.writes + 1}", 1
                 n.prop = {"value": {"hash": _hash(n.title, parent_id, empty)}}
