@@ -1,24 +1,18 @@
-# Next session: 6b's AOR catch-up now, or the Phase 6 gate from Oct 2 (written 2026-09-29)
+# Next session: the Phase 6 gate from Oct 2 (written 2026-09-29, updated the same day)
 
 - **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 rows **6** and **6b**, D26–D29, §8 (the context-provider seam), §11 (Confluence on Free).
 - **6b is complete:** `probe` ✅ → `publish` ✅ → `conformance` ✅ → `read` ✅ (PR #26; the gate passed in a Claude Code session, [the record](../transcripts/2026-09-28-phase6b-read-gate.md)).
 - **Phase 6 PRs:** 1–4 ✅ → **`gate`**, which can run on or after **Oct 2**.
 - **Hard deadline: 2026-10-27.** The Jira *and* Confluence Premium trials both end that day, so the gate must run before then.
 
-## 6b's AOR catch-up (a docs PR in AOR; can start now)
-- Flip §9 row 6b to done, and fill §3 with the probe findings and the [conformance settled list](../conformance/README.md#what-the-2026-09-28-run-settled): page ids not in creation order, archived titles still block, a PUT with `parentId` moves a page.
-- The publish calls: identity by `md-source` plus a subtree scan, and a page counts only if it carries the tree's label (one label per tree, trees may share a parent: the `chore/publisher-label-guard` PR, gate finding 3). Titles take a folder suffix, links drop their `#fragment`, images stay unpublished.
-- The read calls ([the gate record](../transcripts/2026-09-28-phase6b-read-gate.md), `knowledge/docs.py`):
-  - Scope is the publish config's space + label, and `get_doc` refuses anything outside it.
-  - Search uses CQL `siteSearch`, because `text ~` scored every hit 0 and missed a question.
-  - The plugin needs `${AGENTIC_ADMIN_KNOWLEDGE:-}`: an unset variable fails a plugin server, and an empty config serves no tools.
-- Naming gap with roadmap/07: its tool is `search(query, k)` → `{path, heading, score, excerpt}`, and ours is `search_docs(query, k)` → `{id, title, url, excerpt}` + `get_doc`. Reconcile, or record the difference.
-- §11 says the probe answered the Confluence Free question, but the probe ran on Premium. Fix that wording.
+## Done since this was written
+- AOR caught up on 6b and Phase 6 steps 1–4 (AOR #217: D30–D36, §3.6/§3.6b, §11's Free question kept open, and the D27 interface gap recorded). No AOR catch-up is owed before the gate.
+- 2026-09-29 permission fixes (`chore/permission-rules-2026-09`): the push-to-main deny `git push:* main` never fired. It's now `git push * main` / `git push * main *`, trip-tested. `no-sudo-as-shortcut` v2 and `external-api-adapter-boundary` v2 are re-vendored, and the 15 dead `Write(...)` denies are gone. The `stay-in-project-tree` Override note was kept.
 
 ## The Phase 6 gate (from Oct 2)
 - Roll `202610` → `202611` with `plan-sprint` through `examples/agent-sdk/chat.py`, on Plane `AGADMIN` and Jira `AGADM`.
 - **Chris first:** a metered Anthropic API key in Bitwarden, via `ANTHROPIC_API_KEY_BW_ITEM`, with its id saved to memory.
-- Afterwards: `transcripts/<date>-phase6-gate.md`, the README status line, then the Phase 6 AOR catch-up (D30 and up).
+- Afterwards: `transcripts/<date>-phase6-gate.md`, the README status line, then the Phase 6 AOR catch-up (calls from D37; D30–D36 are taken).
 
 ## After 2026-10-27
 - Re-run the read-only Confluence probe, and a Jira read, on Free. That answers §11's two edition questions.

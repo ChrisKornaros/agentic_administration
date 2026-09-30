@@ -134,6 +134,13 @@ that ends with secrets in a transcript.
   credential stores take `~/`, which resolves per machine. A host
   that vendored v1 should re-vendor. Found by the
   agentic_administration build repo, 2026-09-25.
+  **`Edit`, not `Write` (2026-09-29):** only `Edit(path)` rules are
+  matched by file permission checks, and they cover every
+  file-editing tool. The snippet's 15 `Write(...)` twins never fired,
+  and each had an `Edit(...)` twin, so they were dropped. That changes
+  no behaviour, so there's no version bump. A headless `claude -p`
+  from a repo root prints any rule it can't match (a free settings
+  lint).
 
 ## Related
 
