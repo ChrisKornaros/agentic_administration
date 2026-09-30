@@ -18,7 +18,7 @@
       "Bash(docker run --privileged:*)",
 
       "Bash(kubectl exec * --as=*)",
-      "Bash(kubectl exec * --user=root:*)",
+      "Bash(kubectl exec * --user=root*)",
 
       "Bash(visudo:*)",
       "Bash(usermod:*)",

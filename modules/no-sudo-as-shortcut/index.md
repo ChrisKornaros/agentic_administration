@@ -10,7 +10,7 @@ evidence:
   - agents/_shared/common-guardrails.md#never-without-explicit-human-approval
 applies_when:
   - any session on a host where the agent has shell access (local dev box, dev container, deploy target)
-version: 1
+version: 2
 ---
 
 # No `sudo` as a shortcut around the actual fix
@@ -143,6 +143,11 @@ a task but leaves the host in a state nobody reviewed.
   guardrail family at the settings layer. The
   `enforced_by:` frontmatter field is still future work (see
   [roadmap/03-instruction-modules.md §8](../../roadmap/03-instruction-modules.md#8-open-questions)).
+  **Fixed in v2 (2026-09-29):** v1's `Bash(kubectl exec * --user=root:*)`
+  mixed `*` with the trailing `:*` prefix syntax, so it was matched as
+  a literal prefix and never fired. It's now
+  `Bash(kubectl exec * --user=root*)`. A host that vendored v1 should
+  re-vendor.
 
 ## Related
 

@@ -7,9 +7,10 @@ dependencies: []
 evidence:
   - playbook/03-design-patterns.md#the-seven-patterns
   - tools-stack/web.md#patterns-to-keep-framework-agnostic
+  - roadmap/14-agentic-administration.md
 applies_when:
   - project integrates ≥1 third-party API or SDK (payments, social platforms, LLM providers, storage)
-version: 1
+version: 2
 ---
 
 # Wrap each external API behind an adapter — depend on your interface, not their SDK
@@ -72,6 +73,44 @@ boundary — proof the pattern isn't social-media-specific.
   interface, tests inject a fake adapter — which is exactly what
   [[no-live-external-in-tests]] requires, and the adapter boundary is
   what makes it cheap.
+
+### Verify against the vendor, not your reading of it (v2)
+
+A fake, a filter or a recorded vendor fact is a *claim about the
+vendor*. Offline tests prove the claim is self-consistent, not that
+it's true. Four habits keep the claims honest. They come from the
+agentic_administration build, where the Plane, Jira and Confluence
+adapters each went through a live conformance run
+([roadmap/14 §3.1–§3.6b](../../roadmap/14-agentic-administration.md#3-evidence-base-research-2026-09-16)):
+
+- **Know which rules your fake has seen live.** A fake transport built
+  from the vendor's docs tests your reading of the docs. Mark each of
+  its rules as *seen live* or *only read* (a header comment is enough).
+  Feed every surprise from a live run back into the fake in the same
+  PR. Seen four times across three adapters:
+  - Plane's slash-less 301 and its two label shapes surfaced only live.
+  - The Jira fake refused a sub-task under an epic that live Jira took.
+  - The Jira fake left a moved story's sub-tasks behind; live Jira
+    carried them.
+  - The Confluence fake didn't know that page ids aren't in creation
+    order.
+- **Check a read-side filter with a known hit and a known miss.**
+  "200, empty" fits a working filter and an ignored parameter equally
+  well. Plane's search ignored `external_id` entirely, and an
+  idempotency lookup had been built on the empty answer. Ask for a
+  record you know exists (expect exactly it), then for a wrong value
+  (expect nothing).
+- **Read the vendor's own SDK before probing live.** Its route strings
+  are the vendor's current map, and a missing client method is evidence
+  of a missing endpoint. The live probe then confirms known paths
+  instead of guessing: 68 known Plane paths, and the only 404 was the
+  one guessed URL.
+- **Date the vendor facts.** "No official X exists" and "the API has no
+  Y" are true *on a date*. Write a "verified against <date / SDK
+  version>" next to each one, and re-check them before a successor
+  builds on them. Three months after the Plane CLI's premise was
+  recorded, an official MCP server, an epics-model change and a route
+  rename had all landed.
 
 ## Anti-patterns
 
