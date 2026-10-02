@@ -115,7 +115,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + two servers as a Claude Code plugin: `board` (from `AGENTIC_ADMIN_BOARD`) and `knowledge` (from `${AGENTIC_ADMIN_KNOWLEDGE:-}`; the `:-` matters, since an unset variable fails a plugin server, and empty means no tools). Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results; `knowledge.py` is the publisher's live suite (`python -m conformance.knowledge <kb.toml>`: a fresh, empty parent page per run id, one stop for a person to archive the orphan) |
 | [probes/](probes/) | Dated read-only API evidence |
-| [transcripts/](transcripts/) | Dated summaries of live requester sessions (the Phase 3 and Phase 4 gates) |
+| [transcripts/](transcripts/) | Dated summaries of live gate sessions (Phases 3, 4 and 6, and the 6b read gate) |
 | [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py`, `fake_confluence.py` transports) |
 | [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira) |
 | [examples/knowledge/](examples/knowledge/) | The publisher's config template (site, space, parent page, label, write cap); the real one goes in gitignored `boards/`. `publish-docs.yml`: the publish-on-push GitHub Actions job, tied to the CLI and the template by [tests/test_knowledge.py](tests/test_knowledge.py) |

@@ -34,7 +34,9 @@ problems for them. Note `naming.iteration`, `review_label` and the board's
   its first day to its last: after `202610` comes `202611`, 2026-11-01 to
   2026-11-30. For any other pattern, ask the PM for the name and dates.
   If the next one is already in the board's `iterations`, read it with
-  `get_iteration("<next>")` and use its dates as they are.
+  `get_iteration("<next>")` and use its dates as they are. Read what's
+  already in it too, with `find_items(iteration="<next>", limit=200)`.
+  Never call it empty without that read.
 
 ## 3. What's left, and what comes in
 
@@ -69,7 +71,8 @@ Show it in plain words:
 - **Closing:** the old iteration's name and dates. On Plane, closing early
   moves its end date to yesterday.
 - **Next:** its name and dates, whether it exists already or will be
-  created, and whether it starts now (its dates cover today) or later.
+  created, and whether it starts now (its dates cover today) or later. If
+  it exists, list what's already in it by key.
 - **Carried over:** each unfinished item by key, title and state, with its
   tasks under it.
 - **From the backlog:** each pick by key and title.

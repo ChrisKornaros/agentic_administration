@@ -81,8 +81,9 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
   from the cycle's own `cycle-issues/` list.
 - **Find-or-create:** `create_iteration("202610")` returned the existing
   iteration on both boards, with no second one made. Starting a Jira
-  sprint made ahead of time, once its first day comes, is covered only
-  offline until 2026-10-01.
+  sprint made ahead of time, once its first day comes, was covered only
+  offline until the Phase 6 gate ran it live on 2026-10-01
+  ([the gate record](../transcripts/2026-10-02-phase6-gate.md)).
 
 Left on the boards by these runs: `AGADMIN-12` to `AGADMIN-16` and
 module `Conformance 20260927` on Plane. `AGADMIN-2` and `AGADM-2`/`-4`
