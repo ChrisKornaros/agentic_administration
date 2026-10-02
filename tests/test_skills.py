@@ -87,6 +87,7 @@ def test_plan_sprint_plans_on_reads_then_writes_in_rollover_order():
     plan, sep, rollover = body.partition("## 5. Roll over")
     assert sep, "plan-sprint has no rollover section"
     assert "yes" in plan and set(CALL.findall(plan)) <= READS  # the PM's yes comes before any write
+    assert 'find_items(iteration="<next>"' in plan  # an existing next one is read, never assumed empty
     order = [rollover.index(f"{tool}(") for tool in ROLLOVER]
     assert order == sorted(order)
 
