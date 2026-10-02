@@ -5,7 +5,7 @@ request typed into a chat window into a well-formed backlog item —
 epic, feature, story, bug, or task — filed under the right parent, in
 the right sprint, on whatever tracker your team already runs.
 
-> **Status: building (2026-09).** Nothing is released yet. Both backends,
+> **Status: building (2026-10).** Nothing is released yet. Both backends,
 > Plane and Jira Cloud, pass the conformance suite against live throwaway
 > projects ([the results](conformance/README.md#results)). The MCP server, the intake schema and the first four skills
 > have filed a correctly placed story with acceptance criteria and the
@@ -13,7 +13,10 @@ the right sprint, on whatever tracker your team already runs.
 > ([the gate record](transcripts/2026-09-24-phase3-gate.md)), and did it
 > again from Discord through Hermes with no step dropped
 > ([the Hermes record](transcripts/2026-09-26-phase4-gate.md)). The sprint
-> rollover and grooming skills are written and haven't run live yet.
+> rollover skill has rolled a sprint over on both trackers through the
+> Claude Agent SDK example, with one yes from the PM
+> ([the record](transcripts/2026-10-02-phase6-gate.md)). The grooming
+> skill is written and hasn't run live yet.
 > Publishing a repo's Markdown docs to Confluence, for people to read and
 > agents to search, has started: a read-only probe has checked the API
 > ([probes/](probes/README.md)), and the publisher has passed its own
@@ -279,7 +282,9 @@ uv run --group agent-sdk python examples/agent-sdk/chat.py
 ```
 
 The `agent-sdk` dependency group installs `claude-agent-sdk`, which bundles
-the Claude Code CLI, so nothing else needs installing.
+the Claude Code CLI, so nothing else needs installing. The Phase 6 gate
+rolled a sprint over through it on Plane and Jira
+([the gate record](transcripts/2026-10-02-phase6-gate.md)).
 
 To prove an adapter against a **throwaway** project (real writes, never
 a delete), run the conformance suite:
