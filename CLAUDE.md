@@ -77,7 +77,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   README → Claude Code). Chris plays the requester;
   afterwards read the session JSONL under `~/.claude/projects/<cwd-key>/` and check the board read-only.
   **Through Hermes** (ms01, Docker): the `po` profile ([examples/hermes/](examples/hermes/) with ms01's
-  paths; its `.env` holds the Plane key and bot token), in the bot's Discord channel. Afterwards read the
+  paths, `knowledge` included; its `.env` holds the Plane key, the bot token and the Jira token + email),
+  in the bot's Discord channel. Afterwards read the
   session from `~/.hermes/profiles/po/state.db` (open it `mode=ro`), and read the board back with `get_item`
   run inside the container (`docker exec --user hermes`, po's venv and `.env`).
   **Through the Agent SDK:** `uv run --group agent-sdk python examples/agent-sdk/chat.py` from the repo
@@ -115,7 +116,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + two servers as a Claude Code plugin: `board` (from `AGENTIC_ADMIN_BOARD`) and `knowledge` (from `${AGENTIC_ADMIN_KNOWLEDGE:-}`; the `:-` matters, since an unset variable fails a plugin server, and empty means no tools). Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results; `knowledge.py` is the publisher's live suite (`python -m conformance.knowledge <kb.toml>`: a fresh, empty parent page per run id, one stop for a person to archive the orphan) |
 | [probes/](probes/) | Dated read-only API evidence |
-| [transcripts/](transcripts/) | Dated summaries of live gate sessions (Phases 3, 4 and 6, and the 6b read gate) |
+| [transcripts/](transcripts/) | Dated summaries of live gate sessions (Phases 3, 4 and 6, the 6b read gate, and the Hermes docs run) |
 | [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py`, `fake_confluence.py` transports) |
 | [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira) |
 | [examples/knowledge/](examples/knowledge/) | The publisher's config template (site, space, parent page, label, write cap); the real one goes in gitignored `boards/`. `publish-docs.yml`: the publish-on-push GitHub Actions job, tied to the CLI and the template by [tests/test_knowledge.py](tests/test_knowledge.py) |

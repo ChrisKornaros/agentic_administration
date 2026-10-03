@@ -25,7 +25,9 @@ the right sprint, on whatever tracker your team already runs.
 > Agents can search and read the published docs through a second MCP
 > server. In a Claude Code session, the intake skill found a published page
 > that already answered a request, and answered from it instead of filing
-> a duplicate ([the record](transcripts/2026-09-28-phase6b-read-gate.md)).
+> a duplicate ([the record](transcripts/2026-09-28-phase6b-read-gate.md)),
+> and did the same from Discord through Hermes
+> ([the Hermes record](transcripts/2026-10-03-hermes-docs-run.md)).
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -253,7 +255,7 @@ passes the token through `env`, registers exactly the eleven tools (Hermes
 names them `mcp__board__<tool>`), loads [skills/](skills/) in place, and gives
 the chat platforms nothing else: no shell, files, web or memory. Where the
 team publishes docs, its `knowledge` block adds the two docs tools; leave
-it out otherwise. It also
+it out otherwise ([the Hermes docs record](transcripts/2026-10-03-hermes-docs-run.md)). It also
 holds every skill write for the operator's approval, so the agent can't
 replace a skill with its own local copy. The profile's `.env` holds the
 board token and its own Discord bot token, since each profile runs its own
