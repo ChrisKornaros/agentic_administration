@@ -1,4 +1,4 @@
-# Next session: the Phase 7 kickoff (written 2026-10-03; AOR catch-up done 2026-10-04)
+# Next session: the Phase 7 kickoff (written 2026-10-03; AOR catch-up done 2026-10-04; Food Content run 2026-10-05)
 
 - **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 rows **6** and **7**, §10 (the done definition), §11 (Confluence on Free).
 - **Phase 6 is complete:** PRs 1–4 ✅ → `gate` ✅ (`feat/phase6-gate`). `202610` → `202611` rolled through `examples/agent-sdk/chat.py` on Plane and Jira, one yes each ([the record](../transcripts/2026-10-02-phase6-gate.md)). Done-def #3 holds: the server ran unchanged under Hermes (Phase 4) and the SDK example.
@@ -12,6 +12,7 @@
 ## Next: Phase 7, the public flip (`/phase-kickoff`, on the Mac)
 - Roadmap row 7: README, conformance docs for adapter authors, the first release, and the AOR case study from the Phase 1–6 transcripts. The gate is *someone other than Chris can point it at a tracker with only config*.
 - Done-def #4: public under MIT with no company-identifying content (D9).
+- **Undecided (2026-10-05):** Chris proposed board types and story templates *before* Phase 7, so personal or hobby boards fit too. The first real-board run on Food Content couldn't pass the "only config" gate ([the record](../transcripts/2026-10-05-food-content-week.md), findings 1–4): it needed a Bug level and a review label added outside the product, and it had no dates, no custom fields and no caption-style descriptions. Chris's alternative for the Bug level is a Bug type on every project. Settle it in AOR roadmap/14 (D38+) before the kickoff.
 
 ## After 2026-10-27
 - Re-run the read-only Confluence probe on Free (§11). A Jira read on Free is no longer needed (§11, D2 stands, 2026-10-01).
@@ -20,8 +21,9 @@
 - **Plane `get_item` by key reports no iteration** (gate finding 6): the workspace by-key read returns `cycle_id: null`; the by-id read and the list carry it. Fix the adapter and the fake transport.
 - **Today comes from the machine's date** (gate finding 7) in both adapters, though iteration dates are read in the board's time zone. Count today in the board's zone.
 - **No Jira sprint is active** until `202611` is started. "On Nov 1 or later" falls after the trial ends on Oct 27, so decide whether to start it early or let it go.
-- `groom` hasn't run live. `AGADM-6` (Backlog, `needs-review`) is answered by the Team Docs overview page, which is a job for it, before Oct 27.
+- `groom`'s sign-off has run live only from a dev session (Food Content, 2026-10-05), not under a host. `AGADM-6` (Backlog, `needs-review`) is answered by the Team Docs overview page, which is a job for it, before Oct 27.
+- **Food Content for the rest of October** is to be planned through Discord. po on ms01 has no Food Content board config yet, and it would hit the same gaps: no dates or custom fields, and `boards/food-content.toml` maps `bug` to a label.
 - `publish-docs.yml` has never run in GitHub Actions (private until Phase 7). Plane's renderer has no tables. The Phase 5 items carry over.
 
 ---
-*Written after the Hermes docs run (`docs/hermes-knowledge-run`) by the session-handoff module. If the roadmap has moved on, trust the roadmap over this file.*
+*Written after the Hermes docs run (`docs/hermes-knowledge-run`) by the session-handoff module; updated after the Food Content run (`docs/food-content-week-run`). If the roadmap has moved on, trust the roadmap over this file.*
