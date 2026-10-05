@@ -1,0 +1,23 @@
+{
+  "_comment": "Portable deny-list snippet for the python-uv-only module. Paste these entries into the `permissions.deny` array of a Python host repo's .claude/settings.json. It denies the commands that install or uninstall packages outside uv.lock (pip/pip3 install and uninstall, including `python -m pip`), the parallel managers (pipx, poetry, pdm) and the non-uv env builders (virtualenv, `python -m venv`). Read-only pip calls (`pip list`, `pip show`) stay allowed because they can't diverge an env from the lockfile; `uv pip` is uv's own interface and is not touched. A path-prefixed call such as `.venv/bin/pip install` is not matched, so the prose rule still carries that case. See the companion index.md for the rule.",
+  "permissions": {
+    "deny": [
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(pip uninstall:*)",
+      "Bash(pip3 uninstall:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(python -m pip uninstall:*)",
+      "Bash(python3 -m pip uninstall:*)",
+
+      "Bash(pipx:*)",
+      "Bash(poetry:*)",
+      "Bash(pdm:*)",
+
+      "Bash(virtualenv:*)",
+      "Bash(python -m venv:*)",
+      "Bash(python3 -m venv:*)"
+    ]
+  }
+}

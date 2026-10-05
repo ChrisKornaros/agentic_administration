@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment_purpose": "agentic_administration .claude/settings.json — copied from AOR templates/_shared/claude-settings.example.json (bee8f3c) with the stay-in-project-tree and no-sudo-as-shortcut settings-snippet.json deny arrays merged in (deduplicated). Three layers: allow = day-to-day autonomy; ask = anything that mutates a remote, destroys local state, or (host-specific) runs the live conformance suite, which writes to a real Plane board; deny = paths outside the project, elevation, destructive ops on main, and gh pr merge (Chris merges in the GitHub UI). A task needing a denied command is a chat discussion, not a deny-list edit.",
+  "_comment_purpose": "agentic_administration .claude/settings.json — copied from AOR templates/_shared/claude-settings.example.json (bee8f3c) with the stay-in-project-tree, no-sudo-as-shortcut and python-uv-only settings-snippet.json deny arrays merged in (deduplicated). Three layers: allow = day-to-day autonomy; ask = anything that mutates a remote, destroys local state, or (host-specific) runs the live conformance suite, which writes to a real Plane board; deny = paths outside the project, elevation, destructive ops on main, and gh pr merge (Chris merges in the GitHub UI). A task needing a denied command is a chat discussion, not a deny-list edit.",
   "permissions": {
     "allow": [
       "Read",
@@ -169,7 +169,21 @@
       "Bash(visudo:*)",
       "Bash(usermod:*)",
       "Bash(groupmod:*)",
-      "Bash(passwd:*)"
+      "Bash(passwd:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(pip uninstall:*)",
+      "Bash(pip3 uninstall:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(python -m pip uninstall:*)",
+      "Bash(python3 -m pip uninstall:*)",
+      "Bash(pipx:*)",
+      "Bash(poetry:*)",
+      "Bash(pdm:*)",
+      "Bash(virtualenv:*)",
+      "Bash(python -m venv:*)",
+      "Bash(python3 -m venv:*)"
     ]
   },
   "_comment_hooks": "No hooks block here on purpose. The four module hooks (session-handoff SessionStart kickoff, git-flow-session-end Stop guard + PreToolUse gh-pr-create nudge, no-cat-head-via-bash PreToolUse re-read guard) already run from the shared global ~/.claude/settings.json (AOR dotfiles) on every Chris machine; three of them resolve to AOR-checkout paths, so repeating them here would double-fire. The vendored scripts under modules/ are what the global SessionStart hook finds via $CLAUDE_PROJECT_DIR. Re-add a hooks block (see each module settings-snippet.json) if this repo is ever run without those dotfiles — e.g. at the Phase 7 public flip. Recorded in MODULES.md Override."
