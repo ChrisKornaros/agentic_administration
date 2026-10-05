@@ -16,7 +16,9 @@ the right sprint, on whatever tracker your team already runs.
 > rollover skill has rolled a sprint over on both trackers through the
 > Claude Agent SDK example, with one yes from the PM
 > ([the record](transcripts/2026-10-02-phase6-gate.md)). The grooming
-> skill is written and hasn't run live yet.
+> skill's sign-off has run once, in the first run on a real (non-software)
+> board, driven from a dev session rather than a host
+> ([the record](transcripts/2026-10-05-food-content-week.md)).
 > Publishing a repo's Markdown docs to Confluence, for people to read and
 > agents to search, has started: a read-only probe has checked the API
 > ([probes/](probes/README.md)), and the publisher has passed its own
