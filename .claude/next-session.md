@@ -1,4 +1,4 @@
-# Next session: the Phase 7 kickoff (written 2026-10-03; AOR catch-up done 2026-10-04; Food Content run 2026-10-05)
+# Next session: board types, then the Phase 7 kickoff (written 2026-10-03; AOR catch-up done 2026-10-04; Food Content run and board-types decision 2026-10-05)
 
 - **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 rows **6** and **7**, §10 (the done definition), §11 (Confluence on Free).
 - **Phase 6 is complete:** PRs 1–4 ✅ → `gate` ✅ (`feat/phase6-gate`). `202610` → `202611` rolled through `examples/agent-sdk/chat.py` on Plane and Jira, one yes each ([the record](../transcripts/2026-10-02-phase6-gate.md)). Done-def #3 holds: the server ran unchanged under Hermes (Phase 4) and the SDK example.
@@ -12,7 +12,13 @@
 ## Next: Phase 7, the public flip (`/phase-kickoff`, on the Mac)
 - Roadmap row 7: README, conformance docs for adapter authors, the first release, and the AOR case study from the Phase 1–6 transcripts. The gate is *someone other than Chris can point it at a tracker with only config*.
 - Done-def #4: public under MIT with no company-identifying content (D9).
-- **Undecided (2026-10-05):** Chris proposed board types and story templates *before* Phase 7, so personal or hobby boards fit too. The first real-board run on Food Content couldn't pass the "only config" gate ([the record](../transcripts/2026-10-05-food-content-week.md), findings 1–4): it needed a Bug level and a review label added outside the product, and it had no dates, no custom fields and no caption-style descriptions. Chris's alternative for the Bug level is a Bug type on every project. Settle it in AOR roadmap/14 (D38+) before the kickoff.
+- **First, board types (Chris decided on 2026-10-05):** personal and hobby boards should work with only config too. The first real-board run on Food Content couldn't pass that gate ([the record](../transcripts/2026-10-05-food-content-week.md), findings 1–4). The decisions:
+  - two board types, `software` and `calendar`;
+  - every board has a Bug type, and calendar boards have one but don't use it;
+  - story templates, with dates and a custom-field pass-through in the model;
+  - planning covers a full cycle.
+
+  AOR records them as D38+ first (handed off in [AOR #240](https://github.com/ChrisKornaros/agentic_optimization_research/pull/240)). Then run `/phase-kickoff` here, and Phase 7 follows. Jira's side of dates and custom fields needs a live run before 2026-10-27.
 
 ## After 2026-10-27
 - Re-run the read-only Confluence probe on Free (§11). A Jira read on Free is no longer needed (§11, D2 stands, 2026-10-01).
