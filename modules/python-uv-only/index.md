@@ -11,7 +11,7 @@ evidence:
 applies_when:
   - project is Python
   - host hasn't explicitly opted into a different toolchain
-version: 1
+version: 2
 ---
 
 # Python — `uv` only, never `pip`/`poetry`/`pdm`
@@ -74,6 +74,22 @@ which is exactly what the lockfile was supposed to prevent.
   `uv.lock`. The two diverge silently.
 - A `Dockerfile` `RUN pip install` step that bypasses the
   lockfile inside the container build.
+
+## Companion files
+
+- [`settings-snippet.json`](settings-snippet.json) — a portable
+  deny-list snippet a Python host repo can merge into its
+  `.claude/settings.json` to enforce this rule at the permission layer
+  ([VENDORING §6](../VENDORING.md#6-inherit-the-matching-permission-settings-and-hooks)).
+  It denies `pip`/`pip3` install and uninstall (also as
+  `python -m pip`), `pipx`, `poetry`, `pdm`, `virtualenv` and
+  `python -m venv`. It leaves read-only `pip list` / `pip show` and
+  uv's own `uv pip` alone. It can't match a path-prefixed call such as
+  `.venv/bin/pip install`, so the prose rule above still covers that.
+  Added in v2 (2026-10-01, Chris's call; roadmap/06 §7). Trip-tested
+  both ways the same day: with an allow rule and no snippet,
+  `pip3 install --dry-run …` and `python3 -m venv` ran; with the
+  snippet, both were refused.
 
 ## Related
 
