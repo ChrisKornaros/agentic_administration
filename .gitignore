@@ -18,6 +18,8 @@ __pycache__/
 probes/probe-report.json
 probes/jira-probe-report.json
 probes/confluence-probe-report.json
+probes/plane-6c-probe-report.json
+probes/jira-6c-probe-report.json
 
 # real board configs (ids of live boards) — only examples/boards/*.example.toml is committed
 /boards/

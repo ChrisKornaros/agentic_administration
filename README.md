@@ -30,6 +30,9 @@ the right sprint, on whatever tracker your team already runs.
 > a duplicate ([the record](transcripts/2026-09-28-phase6b-read-gate.md)),
 > and did the same from Discord through Hermes
 > ([the Hermes record](transcripts/2026-10-03-hermes-docs-run.md)).
+> Board types, so a content calendar or a hobby board works with only
+> config, have started: a read-only probe has checked both trackers' date
+> and custom-field APIs ([probes/](probes/README.md)).
 > Watch the releases for the first usable version.
 
 ## What it is
