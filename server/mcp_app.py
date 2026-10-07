@@ -53,7 +53,8 @@ def build(service: BoardService) -> MCPServer:
     def describe_board() -> dict[str, Any]:
         """Read the live board and check the board config against it: work-item
         types, states, labels, members, features (modules), iterations, the
-        capabilities record, the confirm mode and the naming rules. `problems`
+        capabilities record, the board type, the confirm mode, the review label
+        (null when review is off) and the naming rules. `problems`
         lists every mismatch, and every write refuses until it is empty. Call
         it first, and again after the board changes."""
         return call(service.describe_board)
@@ -111,9 +112,9 @@ def build(service: BoardService) -> MCPServer:
         """Draft a new work item and check it against the live board. Writes
         nothing. Returns a token (valid 30 minutes), the preview to show the
         requester, and any warnings, such as a suggested title when the board's
-        title case isn't met. The server adds the review label and sets
-        external_id to `intake_id`, or `intake_id/part` when one intake becomes
-        several items.
+        title case isn't met. The server adds the review label when the board
+        has one and sets external_id to `intake_id`, or `intake_id/part` when
+        one intake becomes several items.
 
         From an intake record (the usual path): pass `intake` and, when it has
         several parts, the `part` to propose. The record supplies the id, level,

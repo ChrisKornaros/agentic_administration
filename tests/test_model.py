@@ -163,6 +163,15 @@ def test_capabilities_requires_every_level():
         )
 
 
+def test_an_absent_level_needs_no_collapse_rule_and_is_not_materialized():
+    caps = Capabilities(
+        "plane", {**PLANE_LEVELS, Level.BUG: Materialization.ABSENT}, DescriptionFormat.HTML,
+        states_via_transitions=False, native_idempotency_key=True, collapse=INITIATIVE_AS_LABEL,
+    )
+    assert not caps.materializes(Level.BUG) and caps.materializes(Level.STORY)
+    assert to_jsonable(caps)["levels"]["bug"] == "absent"
+
+
 def test_capabilities_collapse_rules_match_unmaterialized_levels():
     with pytest.raises(ValueError, match="without a collapse rule: initiative"):
         Capabilities("x", PLANE_LEVELS, DescriptionFormat.HTML, states_via_transitions=False, native_idempotency_key=True)

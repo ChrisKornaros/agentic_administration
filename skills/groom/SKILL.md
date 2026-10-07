@@ -21,6 +21,9 @@ stop. Every write refuses until the operator fixes the board, so list the
 problems for them. Note `review_label`, `naming.item_case`, the board's
 `features` and `capabilities.levels.feature`.
 
+If `review_label` is null, review is off on this board (a calendar board
+by default), so there is no review queue. Say so and stop.
+
 ## 2. Read the review queue
 
 1. Call `find_items(label="<review_label>", limit=100)`. The default limit

@@ -14,6 +14,7 @@ import pytest
 from schema.intake import SIBLING, Intake
 from server import titlecase
 from server.config import ItemCase
+from server.model import Materialization
 from tests.test_docs import DOC_TOOLS
 from tests.test_mcp_app import TOOLS
 
@@ -98,6 +99,14 @@ def test_groom_reviews_on_reads_then_rereads_before_each_update():
     assert sep, "groom has no apply section"
     assert "yes" in review and set(CALL.findall(review)) <= READS  # the PO's yes comes before any write
     assert apply.index("get_item(") < apply.index("update_item(")  # labels replace the whole set
+
+
+def test_the_skills_read_a_board_without_a_bug_level_or_review():
+    # D39 / D40: describe_board reports capabilities.levels.bug as absent and review_label as null
+    absent = f"`{Materialization.ABSENT.value}`"
+    assert all(absent in read(name)[1] for name in ("intake", "create-bug", "create-epic"))
+    assert "If `review_label` is null" in read("groom")[1]
+    assert "`review_label`: null" in read("intake")[1]
 
 
 @pytest.mark.parametrize("name", FULL_READ)

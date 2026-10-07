@@ -32,7 +32,10 @@ the right sprint, on whatever tracker your team already runs.
 > ([the Hermes record](transcripts/2026-10-03-hermes-docs-run.md)).
 > Board types, so a content calendar or a hobby board works with only
 > config, have started: a read-only probe has checked both trackers' date
-> and custom-field APIs ([probes/](probes/README.md)).
+> and custom-field APIs ([probes/](probes/README.md)), and a board config
+> names its type. A `calendar` board needs no Bug level and has review off
+> unless it names a review label
+> ([the example](examples/boards/calendar.example.toml)).
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -79,7 +82,8 @@ Task is the guaranteed core; Initiative and Feature are optional levels
 that each backend either materializes natively or collapses into a
 label, component, or description line, so nothing the requester said
 is lost. Sprints are iterations; the cross-cutting grouping (component,
-module, area) is a separate axis, not a level.
+module, area) is a separate axis, not a level. On a calendar board, Bug
+is optional.
 
 ## Chat interfaces
 
@@ -99,7 +103,7 @@ agentic_administration/
 ├── .claude-plugin/    # plugin.json: loads skills/ + the MCP server into Claude Code  ✅
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, generic/  ✅ base.py (interface + errors), plane/, jira/
-├── boards/            # real board configs — gitignored; examples/boards/ has the template
+├── boards/            # real board configs — gitignored; examples/boards/ has the templates
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (passes live), the server
@@ -140,6 +144,14 @@ only: the env var named by `token_env`, or the Bitwarden item named by
 `<token_env>_BW_ITEM` (custom field via `<token_env>_BW_FIELD`). The item
 is an id or a name; a name that several items match resolves to the one
 named exactly that.
+
+**A calendar board** (a content calendar or a hobby project, planned a
+cycle at a time) starts from
+[examples/boards/calendar.example.toml](examples/boards/calendar.example.toml).
+With `board_type = "calendar"`, the config may leave `bug` out, and review
+is off unless `[labels]` names a `review` label. Every create still goes
+through propose → commit. A `software` board, the default, maps every
+level and names a review label.
 
 **Jira Cloud** works the same way from
 [examples/boards/jira.example.toml](examples/boards/jira.example.toml), for a

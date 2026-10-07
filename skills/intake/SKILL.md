@@ -23,6 +23,10 @@ the conversation. From it, note:
   the operator.
 - `confirm`, `naming.item_case`, the board's features (`containers`) and
   its iterations.
+- `review_label`: null means review is off on this board, so nothing
+  filed is marked for review.
+- `capabilities.levels.bug`: `absent` means the board has no bug level
+  (a calendar board), so a defect is filed as a story.
 
 ## 2. Problem and outcome first
 
@@ -92,7 +96,8 @@ Then:
 ## 4. Decide the shape
 
 - **Something that worked, or should work, but doesn't:** a bug. Use
-  **create-bug**.
+  **create-bug**. On a board with no bug level, it's a story: use
+  **create-story**.
 - **One new capability or change a team could finish in one iteration:**
   a story. Use **create-story**.
 - **Several pieces the requester would each notice, or more than one

@@ -8,6 +8,7 @@ import pytest
 from server.config import (
     Backend,
     BoardConfig,
+    BoardType,
     Confirm,
     InvalidBoardConfig,
     ItemCase,
@@ -24,7 +25,9 @@ from server.model import (
     to_jsonable,
 )
 
-EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "boards" / "plane.example.toml"
+BOARDS = Path(__file__).resolve().parents[1] / "examples" / "boards"
+EXAMPLE = BOARDS / "plane.example.toml"
+CALENDAR_EXAMPLE = BOARDS / "calendar.example.toml"
 
 PLANE = {
     "backend": "plane",
@@ -86,12 +89,30 @@ def test_example_feeds_capabilities_directly():
     assert not caps.materializes(Level.INITIATIVE) and caps.materializes(Level.TASK)
 
 
+@pytest.mark.parametrize("path", sorted(BOARDS.glob("*.example.toml")), ids=lambda p: p.name)
+def test_every_example_board_loads_and_checks(path):
+    assert load(path).validate() == []
+
+
+def test_the_calendar_example_has_no_bug_level_and_review_off():
+    cfg = load(CALENDAR_EXAMPLE)
+    assert cfg.board_type is BoardType.CALENDAR and cfg.backend is Backend.PLANE
+    assert Level.BUG not in cfg.levels and cfg.labels.review is None
+    caps = Capabilities(
+        "plane", cfg.materializations(), DescriptionFormat.HTML,
+        states_via_transitions=False, native_idempotency_key=True,
+        collapse=cfg.collapse_rules(),
+    )
+    assert caps.levels[Level.BUG] is Materialization.ABSENT and not caps.materializes(Level.BUG)
+    assert caps.materializes(Level.STORY) and caps.levels[Level.FEATURE] is Materialization.CONTAINER
+
+
 # --- defaults and shape ------------------------------------------------------
 
 
 def test_minimal_dict_gets_defaults():
     cfg = BoardConfig.from_dict(PLANE).check()
-    assert cfg.confirm is Confirm.ALWAYS
+    assert cfg.confirm is Confirm.ALWAYS and cfg.board_type is BoardType.SOFTWARE
     assert cfg.naming == Naming()
     assert cfg.connection.base_url is None
     assert cfg.connection.ids == {"workspace": "ws", "project": "p-uuid"}
@@ -106,9 +127,10 @@ def test_unknown_and_missing_sections_are_reported_together():
 
 
 def test_bad_enum_values():
-    p = problems_of(variant(backend="trello", confirm="sometimes"))
+    p = problems_of(variant(backend="trello", confirm="sometimes", board_type="kanban"))
     assert any("backend: 'trello' is not one of plane, jira, generic" in x for x in p)
     assert any("confirm: 'sometimes' is not one of always, never" in x for x in p)
+    assert "board_type: 'kanban' is not one of software, calendar" in p
 
 
 # --- secrets stay out of the file --------------------------------------------
@@ -243,6 +265,40 @@ def test_review_label_is_required():
     assert "labels.review is required (the review marker, e.g. needs-review)" in problems_of(variant(labels={}))
     assert "labels.review is empty (the review marker is required)" in problems_of(variant(labels={"review": " "}))
     assert "labels: unknown keys colour" in problems_of(variant(labels={"review": "r", "colour": "x"}))
+    assert "labels.review must be a string (the review marker, e.g. needs-review)" in problems_of(
+        variant(labels={"review": True}))
+    no_labels = variant()
+    del no_labels["labels"]
+    assert problems_of(no_labels) == ["labels.review is required (the review marker, e.g. needs-review)"]
+
+
+# --- board types (D38–D40) -------------------------------------------------------
+
+
+def without_bug() -> dict:
+    return {k: v for k, v in PLANE["levels"].items() if k != "bug"}
+
+
+def test_a_calendar_board_may_leave_out_bug_and_the_review_label():
+    data = variant(board_type="calendar", levels=without_bug())
+    del data["labels"]
+    cfg = BoardConfig.from_dict(data).check()
+    assert cfg.labels.review is None and cfg.labels.taxonomy == ()
+    assert cfg.materializations()[Level.BUG] is Materialization.ABSENT
+    # giving the label turns review on; Bug may still be mapped
+    cfg = BoardConfig.from_dict(variant(board_type="calendar")).check()
+    assert cfg.labels.review == "needs-review" and cfg.levels[Level.BUG].how is Materialization.TYPE
+
+
+def test_a_calendar_board_still_needs_the_other_levels_and_a_real_label():
+    levels = {k: v for k, v in without_bug().items() if k != "story"}
+    p = problems_of(variant(board_type="calendar", levels=levels, labels={"review": " "}))
+    assert p == ["levels missing: story", "labels.review is empty (leave it out to turn review off)"]
+
+
+def test_a_software_board_still_requires_bug_and_the_review_label():
+    p = problems_of(variant(levels=without_bug(), labels={"taxonomy": []}))
+    assert p == ["levels missing: bug", "labels.review is required (the review marker, e.g. needs-review)"]
 
 
 # --- naming --------------------------------------------------------------------

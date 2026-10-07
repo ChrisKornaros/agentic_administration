@@ -9,6 +9,7 @@
 # (unscoped) API token; it is sent to the site URL.
 
 backend = "jira"
+board_type = "software"  # "software" (default) | "calendar" (calendar.example.toml) — D38
 confirm = "always"       # "always" (default) | "never" — D5
 
 [connection]

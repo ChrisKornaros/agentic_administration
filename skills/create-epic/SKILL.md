@@ -24,7 +24,8 @@ attachments, and tasks are the team's to add later.
   technical step such as "set up the database": fold that step into the
   story that needs it.
 - **If a piece is really a defect,** make it a bug part in the same
-  split. It is placed like a story.
+  split. It is placed like a story. On a board whose
+  `capabilities.levels.bug` is `absent`, it stays a story.
 - **If only one story is left,** it isn't an epic. Use create-story.
 
 Give every part a short name made of letters, digits, `.`, `_` and `-`
@@ -42,7 +43,8 @@ story points at the epic with `placement.parent = "#epic"`.
 - **feature:** for each story, one of the board's features only when it
   clearly fits.
 - **iteration:** leave it out, because the PM and PO plan iterations.
-- **labels and assignees:** add none. The server adds the review label.
+- **labels and assignees:** add none. The server adds the review label
+  when the board has one.
 
 List the epic first. A story's `#epic` parent can only be found once the
 epic has been committed.
@@ -86,7 +88,8 @@ epic has been committed.
 
 Show the requester the whole split from the record: the epic's title, then
 each story's title, acceptance criteria and feature. Say that it lands as
-that many items in Backlog, each marked for the PO's review. If they ask
+that many items in Backlog, each marked for the PO's review when the board
+has a `review_label`. If they ask
 for changes, edit the record and show it again. One clear yes covers the
 whole split.
 
@@ -118,8 +121,8 @@ show the split, then file it.
    Propose that item again, and once they agree, continue with the rest.
    With `confirm = "never"`, commit through warnings and report them.
    A failure still has to be fixed before that item can land.
-5. **Report back.** List every key, epic first, and say that the PO
-   reviews them next. If something didn't land, say which parts did and
+5. **Report back.** List every key, epic first. When the board has a
+   `review_label`, say that the PO reviews them next. If something didn't land, say which parts did and
    which didn't. Running this step again proposes the rest, and the parts
    that already landed come back as `existing`.
 
