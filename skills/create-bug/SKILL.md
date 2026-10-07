@@ -11,6 +11,11 @@ context: `id`, `problem` and `outcome`, plus `constraints`, `urgency` and
 intake skill first. The tool names are the server's, and your host may add
 a prefix.
 
+If `describe_board()` reports `capabilities.levels.bug` as `absent`, the
+board has no bug level (a calendar board), and `propose_item` refuses a
+bug. File the defect with the create-story skill instead, keeping the
+record's problem and outcome.
+
 ## 1. What happens, and what should
 
 Make sure the record says three things. Ask only for what's missing.
@@ -52,7 +57,8 @@ Empty Reports". Write it in the board's `naming.item_case` from
   when it clearly fits.
 - **iteration:** leave it out, because the PM and PO schedule the fix.
   Set one only if the requester names an open iteration.
-- **labels and assignees:** add none. The server adds the review label.
+- **labels and assignees:** add none. The server adds the review label
+  when the board has one.
 
 The record has one part, and that part has no name:
 
@@ -86,7 +92,8 @@ The record has one part, and that part has no name:
    propose again with the same id.
 3. **Show the preview.** Include the level, title, parent, feature,
    iteration and description (problem, outcome and acceptance criteria).
-   Say that the bug lands in Backlog, marked for the PO's review. Show
+   Say that the bug lands in Backlog, and that it's marked for the PO's
+   review when the board has a `review_label`. Show
    every warning. For a suggested title, ask which title they want, and
    propose again if they pick the suggestion.
 4. **If `existing` is set,** check whether this is the request's first
@@ -100,8 +107,9 @@ The record has one part, and that part has no name:
 6. **Commit.** Call `commit_item(token)`. If `describe_board()` reported
    `confirm = "never"`, commit right after proposing without asking, and
    still show what landed.
-7. **Report back.** Give the key, say that it's in Backlog and marked for
-   review, and say that the PO triages it next.
+7. **Report back.** Give the key and say that it's in Backlog. When the
+   board has a `review_label`, say that it's marked for review and that
+   the PO triages it next.
 
 **If `commit_item` fails:**
 - **Rate limit, edge wall, or tracker unreachable:** wait as the message

@@ -44,6 +44,11 @@ CONFIG = {
 }
 
 
+# D38–D40: no Bug level and review off
+CALENDAR = {**CONFIG, "board_type": "calendar", "labels": {"taxonomy": ["feature"]},
+            "levels": {k: v for k, v in CONFIG["levels"].items() if k != "bug"}}
+
+
 def make(routes=None, *, with_bug=True, config=None, today=date(2026, 9, 22)):
     transport = fp.FakeTransport(routes if routes is not None else fp.base_routes(with_bug=with_bug))
     cfg = BoardConfig.from_dict(config or CONFIG).check()
@@ -86,6 +91,25 @@ def test_describe_board_reports_every_mismatch_and_writes_refuse():
     assert t.bodies("POST", "") == []  # nothing was written
     # reads still work on a mismatched board
     assert adapter.get_item("AA-1").title == "Requester Intake"
+
+
+def test_a_calendar_board_needs_no_bug_type_or_review_label():
+    routes = fp.base_routes(with_bug=False)
+    routes[f"GET {fp.PP}/labels/"] = [l for l in routes[f"GET {fp.PP}/labels/"] if l["id"] != fp.L_REVIEW]
+    adapter, t = make(routes, config=CALENDAR)
+    board = adapter.describe_board()
+    assert board.problems == () and Level.BUG not in board.resolved
+    assert adapter.capabilities.levels[Level.BUG] is Materialization.ABSENT
+    assert adapter.find_items(level=Level.BUG) == []
+    with pytest.raises(Unsupported, match="this board has no bug level"):
+        adapter.create_item(WorkItem(Level.BUG, "Crash On Save"))
+    story = adapter.create_item(WorkItem(Level.STORY, "Loaves Of The Week", labels=("feature",)))
+    assert story.labels == ("feature",) and t.bodies("POST", "/work-items/")[0]["labels"] == [fp.L_FEATURE]
+    # naming the label turns review on, and the board must carry it
+    adapter, _ = make(routes, config={**CALENDAR, "labels": {"review": "needs-review"}})
+    assert adapter.describe_board().problems == (
+        "labels.review: no label 'needs-review' on the board (labels: bug, feature, initiative:INIT-1)",
+    )
 
 
 def test_project_may_be_named_by_uuid_or_name():

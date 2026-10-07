@@ -8,7 +8,7 @@ from adapters.base import AuthError, ConfigMismatch, ItemPatch, NotFound, Unsupp
 from adapters.jira import JiraAdapter
 from adapters.jira.transport import JiraTransport
 from server.config import BoardConfig
-from server.model import Comment, ItemRef, Iteration, IterationState, Level, State, WorkItem
+from server.model import Comment, ItemRef, Iteration, IterationState, Level, Materialization, State, WorkItem
 from tests import fake_jira as fj
 
 CONFIG = {
@@ -27,6 +27,11 @@ CONFIG = {
     "labels": {"review": "needs-review", "taxonomy": ["bug", "feature"]},
     "naming": {"iteration": "YYYYMM"},
 }
+
+
+# D38–D40: no Bug level and review off
+CALENDAR = {**CONFIG, "board_type": "calendar", "labels": {"taxonomy": ["feature"]},
+            "levels": {k: v for k, v in CONFIG["levels"].items() if k != "bug"}}
 
 
 def make(fake=None, *, config=None, today=date(2026, 9, 27)):
@@ -74,6 +79,20 @@ def test_describe_board_reports_every_mismatch_and_writes_refuse():
     with pytest.raises(ConfigMismatch):
         adapter.create_item(WorkItem(Level.STORY, "x"))
     assert t.bodies("POST", "") == []
+
+
+def test_a_calendar_board_needs_no_bug_type_or_review_label():
+    adapter, t = make(config=CALENDAR)
+    board = adapter.describe_board()
+    assert board.problems == () and Level.BUG not in board.resolved
+    assert {l.name for l in board.labels} == {"bug", "docs", "feature"}  # no review label is declared
+    assert adapter.capabilities.levels[Level.BUG] is Materialization.ABSENT
+    searches = len(t.calls)
+    assert adapter.find_items(level=Level.BUG) == [] and len(t.calls) == searches  # not even a search
+    with pytest.raises(Unsupported, match="this board has no bug level"):
+        adapter.create_item(WorkItem(Level.BUG, "Crash On Save"))
+    story = adapter.create_item(WorkItem(Level.STORY, "Loaves Of The Week", external_id="cal-1"))
+    assert story.labels == () and t.bodies("POST", "/rest/api/3/issue")[0]["fields"]["labels"] == ["xid:cal-1"]
 
 
 def test_feature_and_initiative_cannot_be_jira_levels_below_premium():

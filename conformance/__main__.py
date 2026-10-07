@@ -19,7 +19,7 @@ from pathlib import Path
 
 from conformance import jira, plane, runner
 from conformance.cases import Context
-from server.config import InvalidBoardConfig, load
+from server.config import BoardType, InvalidBoardConfig, load
 
 REPORTS = Path(__file__).resolve().parent / "reports"
 HARNESSES = {"plane": plane.make_adapter, "jira": jira.make_adapter}
@@ -38,6 +38,9 @@ def main(argv: list[str] | None = None) -> int:
         cfg = load(args.config)
     except InvalidBoardConfig as exc:
         print("invalid board config:\n  - " + "\n  - ".join(exc.problems), file=sys.stderr)
+        return 2
+    if cfg.board_type is not BoardType.SOFTWARE:  # the cases file a bug and clear the review label
+        print(f"conformance needs a software board config, not a {cfg.board_type.value} one", file=sys.stderr)
         return 2
     today = date.today()
     run_id = args.run_id or f"{today:%Y%m%d}"

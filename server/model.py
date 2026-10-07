@@ -226,6 +226,7 @@ class Materialization(enum.Enum):
     CONTAINER = "container"  # membership in a grouping object (Plane module = Feature)
     LABEL = "label"  # a label alone marks the level
     NONE = "none"  # not materialized — see the collapse rule
+    ABSENT = "absent"  # the board has no such level (D39: Bug on a calendar board)
 
 
 class CollapseTarget(enum.Enum):
@@ -254,7 +255,8 @@ class Capabilities:
     """Declared by every adapter; skills read it before acting.
 
     `levels` covers all six levels. A level marked `Materialization.NONE`
-    must have a `collapse` rule, and only those levels may.
+    must have a `collapse` rule, and only those levels may. One marked
+    `ABSENT` is not on the board at all, so nothing can be filed at it.
     """
 
     backend: str
@@ -278,7 +280,7 @@ class Capabilities:
             raise ValueError(f"collapse rules for materialized levels: {', '.join(stray)}")
 
     def materializes(self, level: Level) -> bool:
-        return self.levels[level] is not Materialization.NONE
+        return self.levels[level] not in (Materialization.NONE, Materialization.ABSENT)
 
 
 # --- export ----------------------------------------------------------------

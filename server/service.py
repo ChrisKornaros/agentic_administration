@@ -7,10 +7,11 @@ The conventions live here as behavior, not prompt text. The adapter stays
 mechanical (adapters/base.py).
 
 - **Confirm = propose → commit (D12), creates only.** `propose_item`
-  checks the draft against the live board, adds `labels.review` and the
-  `external_id` (`intake_id`, or `intake_id/part` when one intake becomes
-  several items), stores it for `DRAFT_TTL`, and returns a token and the
-  preview. `commit_item(token)` writes exactly that draft. It looks the
+  checks the draft against the live board, adds `labels.review` where the
+  board has review on (D40) and the `external_id` (`intake_id`, or
+  `intake_id/part` when one intake becomes several items), stores it for
+  `DRAFT_TTL`, and returns a token and the preview. A level the board
+  doesn't have (Bug on a calendar board, D39) refuses before any read. `commit_item(token)` writes exactly that draft. It looks the
   `external_id` up first, so a retried commit returns the item instead of
   duplicating it, and it finishes an iteration or feature membership that
   a failed earlier attempt left off.
@@ -201,8 +202,9 @@ class BoardService:
         return {
             **to_jsonable(self._board),
             "capabilities": to_jsonable(self.adapter.capabilities),
+            "board_type": cfg.board_type.value,
             "confirm": cfg.confirm.value,
-            "review_label": cfg.labels.review,
+            "review_label": cfg.labels.review,  # None: review is off on this board (D40)
             "label_taxonomy": list(cfg.labels.taxonomy),
             "naming": {"iteration": cfg.naming.iteration, "item_case": cfg.naming.item_case.value},
         }
@@ -272,8 +274,13 @@ class BoardService:
         if not intake_id.strip():
             raise ToolFailure("intake_id is required: it is the idempotency key's root")
         lvl = _enum(Level, level, "level")
-        board = self._clean_board()
         cfg = self.config
+        if lvl not in cfg.levels:
+            raise ToolFailure(
+                f"This {cfg.board_type.value} board has no {lvl.value} level, so nothing can be filed as one. "
+                "File the work as a story instead, or as a task under one."
+            )
+        board = self._clean_board()
         problems: list[str] = []
 
         parent_ref = parent_item = None
@@ -309,8 +316,9 @@ class BoardService:
                 problems.append(f"iteration {cycle.name!r} is closed; pick an open one or leave it out")
 
         wanted = list(labels)
-        if cfg.labels.review.lower() not in {name.lower() for name in wanted}:
-            wanted.append(cfg.labels.review)
+        review = cfg.labels.review
+        if review and review.lower() not in {name.lower() for name in wanted}:
+            wanted.append(review)
         missing = [name for name in wanted if _match(board.labels, name) is None]
         if missing:
             have = ", ".join(l.name for l in board.labels) or "(none)"

@@ -41,8 +41,8 @@ the first word is capitalized. Leave acronyms and code names as they are.
   Otherwise leave it out and the PO sets it.
 - **iteration:** leave it out, because the PM and PO plan iterations after
   review. Set one only if the requester names an open iteration.
-- **labels and assignees:** add none. The server adds the review label,
-  and the PM assigns the work.
+- **labels and assignees:** add none. The server adds the review label
+  when the board has one, and the PM assigns the work.
 
 The record has one part, and that part has no name:
 
@@ -78,7 +78,8 @@ The record has one part, and that part has no name:
    again with the same id.
 3. **Show the preview.** Include the level, title, parent, feature,
    iteration and description (problem, outcome and acceptance criteria).
-   Say that the story lands in Backlog, marked for the PO's review. Show
+   Say that the story lands in Backlog, and that it's marked for the PO's
+   review when the board has a `review_label`. Show
    every warning. For a suggested title, ask which title they want, and
    propose again if they pick the suggestion.
 4. **If `existing` is set,** check whether this is the request's first
@@ -92,8 +93,9 @@ The record has one part, and that part has no name:
 6. **Commit.** Call `commit_item(token)`. If `describe_board()` reported
    `confirm = "never"`, commit right after proposing without asking, and
    still show what landed.
-7. **Report back.** Give the key, say that it's in Backlog and marked for
-   review, and say that the PO reviews it next.
+7. **Report back.** Give the key and say that it's in Backlog. When the
+   board has a `review_label`, say that it's marked for review and that
+   the PO reviews it next.
 
 **If `commit_item` fails:**
 - **Rate limit, edge wall, or tracker unreachable:** wait as the message

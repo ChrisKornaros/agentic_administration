@@ -1,0 +1,48 @@
+# Board config — a calendar board on Plane Cloud (design: roadmap/14 §6,
+# D38–D40). A calendar board plans dated work by cycle: `YYYYMM` cycles,
+# one epic per cycle named for its month (e.g. "October 2026 Content"),
+# stories as the dated pieces of work, and modules as the categories. A
+# content calendar or a hobby board fits it; a team's code board is
+# `software` (plane.example.toml).
+# Copy to boards/<board>.toml (gitignored), run
+#   uv run python -m adapters.plane describe boards/<board>.toml
+# and fix what it reports. Keep the token OUT of this file: `token_env`
+# names the env var the adapter reads (or `<token_env>_BW_ITEM` names the
+# Bitwarden item holding it — see server/secrets.py).
+
+backend = "plane"
+board_type = "calendar"  # "software" (default) | "calendar" — D38
+confirm = "always"       # "always" (default) | "never" — D5
+
+[connection]
+token_env = "PLANE_API_KEY"          # the env var name — never the value
+workspace = "my-workspace"           # the workspace slug in the URL
+project = "00000000-0000-0000-0000-000000000000"   # project id, identifier (e.g. "AA") or name
+
+# The level forms are plane.example.toml's. On a calendar board `bug` may
+# be left out (D39): a board without it refuses to file a bug, and work is
+# a story, or a task under one. Map it only if the board files defects.
+[levels]
+initiative = { collapse = "description_line", template = "**Initiative:** {name}" }
+epic       = { type = "Epic" }         # one per cycle, named for its month
+feature    = { container = "module" }  # the categories
+story      = { type = "Story" }        # one dated piece of work
+task       = { type = "Task" }
+
+# Canonical state -> the board's state name (Plane default workflow shown).
+[states]
+backlog     = "Backlog"
+todo        = "Todo"
+in_progress = "In Progress"
+done        = "Done"
+cancelled   = "Cancelled"
+
+# Review is off on a calendar board (D40): the requester is usually the
+# product owner, and propose → commit still asks before every create. To
+# turn it on, add `review = "needs-review"` (the label must exist).
+[labels]
+taxonomy = ["content", "admin"]        # e.g. stories and the cycle epics
+
+[naming]
+iteration = "YYYYMM"     # cycle names, e.g. 202610
+item_case = "title"      # "title" | "sentence" | "any"

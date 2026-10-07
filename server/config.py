@@ -2,9 +2,14 @@
 roadmap/14 §6, decision D7).
 
 One file per board. Pointing the tool at a supported tracker is *this* file
-and nothing else: which backend, how to reach the board, how the canonical
-levels map onto the tracker's types or containers, how the canonical states
-map onto the workflow, the review label, naming rules, and the confirm mode.
+and nothing else: which backend, the board type, how to reach the board, how
+the canonical levels map onto the tracker's types or containers, how the
+canonical states map onto the workflow, the review label, naming rules, and
+the confirm mode.
+
+The board type (D38) sets two defaults: a `software` board must map every
+level and name a review label; a `calendar` board may leave `bug` out
+(D39), and its review is off unless it names a review label (D40).
 
 **No secrets in the file.** The connection names the environment variable
 that holds the API token (`token_env`); the adapter reads it at the boundary
@@ -46,6 +51,15 @@ class Backend(enum.Enum):
     GENERIC = "generic"
 
 
+class BoardType(enum.Enum):
+    """D38: `software` is the default model. `calendar` plans dated work by
+    cycle: one epic per cycle, stories as the dated pieces, modules as
+    categories."""
+
+    SOFTWARE = "software"
+    CALENDAR = "calendar"
+
+
 class Confirm(enum.Enum):
     """D5: propose-then-confirm is the default write mode."""
 
@@ -68,6 +82,12 @@ CONNECTION_KEYS: Mapping[Backend, frozenset[str]] = {
     Backend.PLANE: frozenset({"workspace", "project"}),
     Backend.JIRA: frozenset({"site", "project_key", "board_id"}),
     Backend.GENERIC: frozenset(),
+}
+
+# Levels a board type may leave out of `[levels]` (D39): a calendar board needs no Bug.
+MAY_OMIT: Mapping[BoardType, frozenset[Level]] = {
+    BoardType.SOFTWARE: frozenset(),
+    BoardType.CALENDAR: frozenset({Level.BUG}),
 }
 
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -125,7 +145,7 @@ class LevelMapping:
 
 @dataclass(frozen=True)
 class Labels:
-    review: str  # D5: the marker a fresh item carries until the PO clears it
+    review: str | None = None  # D5: the marker a fresh item carries until the PO clears it; None = off (D40)
     taxonomy: tuple[str, ...] = ()  # the per-board label set (CONVENTIONS §4)
 
 
@@ -156,6 +176,7 @@ class BoardConfig:
     labels: Labels
     naming: Naming = field(default_factory=Naming)
     confirm: Confirm = Confirm.ALWAYS
+    board_type: BoardType = BoardType.SOFTWARE
 
     # -- validation ---------------------------------------------------------
 
@@ -165,8 +186,12 @@ class BoardConfig:
         problems += self._validate_connection()
         problems += self._validate_levels()
         problems += self._validate_states()
-        if not self.labels.review.strip():
-            problems.append("labels.review is empty (the review marker is required)")
+        review, software = self.labels.review, self.board_type is BoardType.SOFTWARE
+        if review is None and software:
+            problems.append("labels.review is required (the review marker, e.g. needs-review)")
+        elif review is not None and not review.strip():
+            problems.append("labels.review is empty (the review marker is required)" if software
+                            else "labels.review is empty (leave it out to turn review off)")
         return problems
 
     def _validate_connection(self) -> list[str]:
@@ -203,7 +228,8 @@ class BoardConfig:
 
     def _validate_levels(self) -> list[str]:
         problems: list[str] = []
-        missing = sorted(lv.value for lv in Level if lv not in self.levels)
+        may_omit = MAY_OMIT[self.board_type]
+        missing = sorted(lv.value for lv in Level if lv not in self.levels and lv not in may_omit)
         if missing:
             problems.append(f"levels missing: {', '.join(missing)}")
         for level, mapping in self.levels.items():
@@ -244,8 +270,9 @@ class BoardConfig:
     # -- derived views ------------------------------------------------------
 
     def materializations(self) -> dict[Level, Materialization]:
-        """The `Capabilities.levels` shape this config implies."""
-        return {lv: m.how for lv, m in self.levels.items()}
+        """The `Capabilities.levels` shape this config implies; a level the
+        board type let the config leave out is `ABSENT`."""
+        return {lv: self.levels[lv].how if lv in self.levels else Materialization.ABSENT for lv in Level}
 
     def collapse_rules(self) -> dict[Level, CollapseRule]:
         """The `Capabilities.collapse` shape this config implies."""
@@ -259,21 +286,22 @@ class BoardConfig:
         bad enum values) raise `InvalidBoardConfig` here; rule violations are
         left to `validate()` / `check()` so a caller can list both at once."""
         problems: list[str] = []
-        known = {"backend", "connection", "levels", "states", "labels", "naming", "confirm"}
+        known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm"}
         unknown = sorted(set(data) - known)
         if unknown:
             problems.append(f"unknown top-level keys: {', '.join(unknown)}")
-        for key in ("backend", "connection", "levels", "states", "labels"):
+        for key in ("backend", "connection", "levels", "states"):
             if key not in data:
                 problems.append(f"missing section: {key}")
         if problems:
             raise InvalidBoardConfig(problems)
 
         backend = _enum(Backend, data["backend"], "backend", problems)
+        board_type = _enum(BoardType, data.get("board_type", "software"), "board_type", problems)
         connection = _connection(data["connection"], problems)
         levels = _levels(data["levels"], problems)
         states = _states(data["states"], problems)
-        labels = _labels(data["labels"], problems)
+        labels = _labels(data.get("labels", {}), problems)  # a software board's review label is checked in validate()
         naming = _naming(data.get("naming", {}), problems)
         confirm = _enum(Confirm, data.get("confirm", "always"), "confirm", problems)
         if problems:
@@ -286,6 +314,7 @@ class BoardConfig:
             labels=labels,
             naming=naming,
             confirm=confirm,
+            board_type=board_type,
         )
 
 
@@ -396,9 +425,9 @@ def _states(raw: Any, problems: list[str]) -> dict[State, str]:
 def _labels(raw: Any, problems: list[str]) -> Labels:
     table = _table(raw, "labels", problems)
     review = table.get("review")
-    if not isinstance(review, str):
-        problems.append("labels.review is required (the review marker, e.g. needs-review)")
-        review = ""
+    if review is not None and not isinstance(review, str):
+        problems.append("labels.review must be a string (the review marker, e.g. needs-review)")
+        review = None
     taxonomy = table.get("taxonomy", [])
     if not isinstance(taxonomy, list) or not all(isinstance(t, str) for t in taxonomy):
         problems.append("labels.taxonomy must be a list of strings")

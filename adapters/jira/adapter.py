@@ -188,7 +188,7 @@ class JiraAdapter(Adapter):
         ]
 
         cfg = self.config
-        declared = [cfg.labels.review, *cfg.labels.taxonomy]
+        declared = [l for l in (cfg.labels.review, *cfg.labels.taxonomy) if l is not None]  # None: review is off
         labels = [NamedRef(l, l) for l in _dedupe([*site_labels, *declared])]
         self._index(members, components, iterations, states)
         resolved, problems = self._check_config(types, states, declared)
@@ -503,7 +503,9 @@ class JiraAdapter(Adapter):
     def create_item(self, item: WorkItem) -> WorkItem:
         item.check()
         board = self._ready()
-        level, mapping = item.level, self.config.levels[item.level]
+        level, mapping = item.level, self.config.levels.get(item.level)
+        if mapping is None:
+            raise Unsupported(f"this board has no {level.value} level (levels.{level.value} is not in the config)")
         if mapping.how is Materialization.NONE:
             raise Unsupported(f"levels.{level.value} collapses on this board; nothing to create")
 

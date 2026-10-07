@@ -292,7 +292,7 @@ class PlaneAdapter(Adapter):
                 self._state_of_id[hit.id] = state
 
         label_names = ", ".join(l.name for l in labels) or "(none)"
-        if cfg.labels.review.lower() not in self._labels:
+        if cfg.labels.review and cfg.labels.review.lower() not in self._labels:  # None: review is off
             problems.append(f"labels.review: no label {cfg.labels.review!r} on the board (labels: {label_names})")
         missing = [t for t in cfg.labels.taxonomy if t.lower() not in self._labels]
         if missing:
@@ -531,7 +531,9 @@ class PlaneAdapter(Adapter):
     def create_item(self, item: WorkItem) -> WorkItem:
         item.check()
         board = self._ready()
-        level, mapping = item.level, self.config.levels[item.level]
+        level, mapping = item.level, self.config.levels.get(item.level)
+        if mapping is None:
+            raise Unsupported(f"this board has no {level.value} level (levels.{level.value} is not in the config)")
 
         if level is Level.INITIATIVE:
             raise Unsupported("Plane initiatives are read-only in v1 (they sit above projects)")

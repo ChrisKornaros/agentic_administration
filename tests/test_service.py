@@ -10,7 +10,7 @@ from schema.intake import Intake, render
 from server.service import DRAFT_TTL, BoardService, ToolFailure
 from tests import fake_plane as fp
 from tests.test_intake import SPLIT
-from tests.test_plane_adapter import CONFIG, make
+from tests.test_plane_adapter import CALENDAR, CONFIG, make
 
 
 class Clock:
@@ -209,9 +209,28 @@ def test_an_expired_or_unknown_token_writes_nothing():
 def test_describe_board_reports_the_confirm_mode_and_naming():
     svc, _, _ = service(config={**CONFIG, "confirm": "never"})
     out = svc.describe_board()
-    assert out["confirm"] == "never" and out["review_label"] == "needs-review"
+    assert out["confirm"] == "never" and out["review_label"] == "needs-review" and out["board_type"] == "software"
     assert out["problems"] == [] and out["capabilities"]["levels"]["feature"] == "container"
     assert out["naming"] == {"iteration": "YYYYMM", "item_case": "any"}
+
+
+def test_a_calendar_board_refuses_a_bug_before_any_read_and_adds_no_review_label():
+    svc, t, _ = service(config=CALENDAR)
+    with pytest.raises(ToolFailure, match="This calendar board has no bug level.*as a story instead"):
+        propose(svc, level="bug", feature=None)
+    bug_record = {**SPLIT, "parts": [{"level": "bug", "title": "Export Fails", "acceptance": [
+        {"given": "a report", "when": "I export it", "then": "a file downloads"}]}]}
+    with pytest.raises(ToolFailure, match="no bug level"):
+        svc.propose_item(intake=bug_record)
+    assert t.calls == []
+    out = svc.describe_board()
+    assert (out["board_type"], out["review_label"], out["problems"]) == ("calendar", None, [])
+    assert out["capabilities"]["levels"]["bug"] == "absent"
+    assert propose(svc)["preview"]["labels"] == ["feature"]
+    # naming the label turns review on
+    svc, _, _ = service(config={**CALENDAR, "labels": {"review": "needs-review"}})
+    assert propose(svc)["preview"]["labels"] == ["feature", "needs-review"]
+    assert svc.describe_board()["review_label"] == "needs-review"
 
 
 def test_other_writes_pass_through_and_nothing_deletes():

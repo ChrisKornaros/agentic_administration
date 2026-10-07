@@ -20,6 +20,7 @@ from tests import fake_confluence as fc
 from tests import fake_jira as fj
 from tests import fake_plane as fp
 from tests import test_jira_adapter as tests_jira
+from tests.test_config import CALENDAR_EXAMPLE
 
 CONFIG = {
     "backend": "plane",
@@ -193,6 +194,12 @@ def test_bad_config_exits_2(tmp_path, capsys):
     board.write_text('backend = "plane"\n')
     assert cli.main([str(board), "--dry-run", "--reports", str(tmp_path)]) == 2
     assert "invalid board config" in capsys.readouterr().err
+
+
+def test_a_calendar_config_exits_2(tmp_path, capsys):
+    # the cases file a bug and clear the review label, which a calendar board may not have
+    assert cli.main([str(CALENDAR_EXAMPLE), "--dry-run", "--reports", str(tmp_path)]) == 2
+    assert "conformance needs a software board config, not a calendar one" in capsys.readouterr().err
 
 
 def test_a_backend_without_a_provisioner_skips_provisioning():
