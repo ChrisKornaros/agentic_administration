@@ -22,8 +22,10 @@ show up as write errors (roadmap/14 §3.1).
 
 from __future__ import annotations
 
+import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Mapping, Sequence
 
 from server.config import BoardConfig
@@ -115,6 +117,31 @@ class NamedRef:
     extra: Mapping[str, Any] = field(default_factory=dict)
 
 
+class FieldKind(enum.Enum):
+    """What a custom field holds, whatever the tracker calls it."""
+
+    BOOLEAN = "boolean"
+    OPTION = "option"  # one of `options`, or several when `multi`
+    TEXT = "text"
+    NUMBER = "number"
+    DATE = "date"  # an ISO date string
+    OTHER = "other"  # written as given, unchecked
+
+
+@dataclass(frozen=True)
+class FieldInfo:
+    """A config field (D41) as the live board carries it. `native` is the
+    tracker's own type; `levels` maps each level whose type carries the field
+    to the property or field id written there (Plane: one property per type)."""
+
+    name: str
+    kind: FieldKind
+    native: str
+    multi: bool = False
+    options: tuple[str, ...] = ()
+    levels: Mapping[Level, str] = field(default_factory=dict)
+
+
 @dataclass(frozen=True)
 class BoardDescription:
     """The live board as the adapter read it, plus the config-vs-board check.
@@ -138,11 +165,62 @@ class BoardDescription:
     iterations: tuple[NamedRef, ...] = ()  # Plane cycles
     resolved: Mapping[Level, str] = field(default_factory=dict)
     problems: tuple[str, ...] = ()
+    fields: tuple[FieldInfo, ...] = ()  # the config's [fields], as found
 
     def check(self) -> BoardDescription:
         if self.problems:
             raise ConfigMismatch(list(self.problems))
         return self
+
+
+def field_problems(board: BoardDescription, level: Level, values: Mapping[str, Any]) -> list[str]:
+    """Every reason these custom-field values can't go on an item of `level`;
+    empty means they can. An option field takes option names, a multi one a
+    list of them; names match ignoring case."""
+    known = {f.name: f for f in board.fields}
+    problems: list[str] = []
+    for name, value in values.items():
+        info = known.get(name)
+        if info is None:
+            problems.append(f"no field {name!r} on this board (fields: {', '.join(known) or '(none)'})")
+            continue
+        if level not in info.levels:
+            where = ", ".join(lv.value for lv in info.levels) or "no level"
+            problems.append(f"field {name!r} is not on the {level.value} type (it is on: {where})")
+            continue
+        if info.kind is FieldKind.OPTION:
+            names = value if isinstance(value, list) and info.multi else [value]
+            wanted = {o.lower() for o in info.options}
+            bad = [n for n in names if not isinstance(n, str) or (wanted and n.lower() not in wanted)]
+            if bad or not names:
+                shape = "a list of option names" if info.multi else "one option name"
+                problems.append(f"field {name!r} takes {shape} (options: {', '.join(info.options) or '(unknown)'}); "
+                                f"got {value!r}")
+        elif not _kind_ok(info.kind, value):
+            problems.append(f"field {name!r} takes a {info.kind.value} value; got {value!r}")
+    return problems
+
+
+def _kind_ok(kind: FieldKind, value: Any) -> bool:
+    if kind is FieldKind.BOOLEAN:
+        return isinstance(value, bool)
+    if kind is FieldKind.NUMBER:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if kind is FieldKind.TEXT:
+        return isinstance(value, str)
+    if kind is FieldKind.DATE:
+        try:
+            date.fromisoformat(value)
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
+def option_names(info: FieldInfo, value: Any) -> list[str]:
+    """An option value as the board's own option names, for the wire."""
+    by_lower = {o.lower(): o for o in info.options}
+    names = value if isinstance(value, list) else [value]
+    return [by_lower.get(n.lower(), n) for n in names]
 
 
 def existing_iteration(found: Iteration, wanted: Iteration) -> Iteration:
@@ -163,8 +241,10 @@ def existing_iteration(found: Iteration, wanted: Iteration) -> Iteration:
 class ItemPatch:
     """Fields `update_item` may change; `None` means "leave as is". Sequences
     replace (labels=() clears every label — how the PO drops the review
-    marker). Moving between iterations is `move_to_iteration`, not a patch;
-    there is no way to change an item's level."""
+    marker). `fields` sets the custom fields it names and leaves the others;
+    a value can't be cleared here. Moving between iterations is
+    `move_to_iteration`, not a patch; there is no way to change an item's
+    level."""
 
     title: str | None = None
     description: str | None = None  # Markdown
@@ -173,9 +253,12 @@ class ItemPatch:
     labels: Sequence[str] | None = None
     parent: ItemRef | None = None
     feature: ItemRef | None = None
+    start_date: date | None = None
+    target_date: date | None = None
+    fields: Mapping[str, Any] | None = None
 
     def is_empty(self) -> bool:
-        return all(getattr(self, f) is None for f in self.__dataclass_fields__)
+        return all(getattr(self, f) is None for f in self.__dataclass_fields__ if f != "fields") and not self.fields
 
 
 # --- the interface -----------------------------------------------------------

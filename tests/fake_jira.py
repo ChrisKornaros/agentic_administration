@@ -14,7 +14,12 @@ dates and while no other is active, closes only from active, and takes no
 issues once closed. From the Phase 6 rollover run (2026-09-27): an issue
 moved out of a closed sprint keeps it in its Sprint field, which JQL
 `sprint =` still matches, and a moved issue's sub-tasks come along, done
-ones too. Ids are made up.
+ones too. From the Phase 6c probe (2026-10-07): the system `duedate` and
+the site's "Start date" (a datepicker custom field) on every type's
+create screen, the `fields`-keyed createmeta page with an option field's
+`allowedValues`, and no other custom field on the screens until one is
+added (`screen`); a field off the screen, or an option it lacks, is
+Jira's 400. Ids are made up.
 """
 
 from __future__ import annotations
@@ -31,6 +36,8 @@ KEY, PID, BOARD = "AA", "10001", "2"
 T_EPIC, T_STORY, T_SUB, T_BUG, T_TASK = "10000", "10005", "10008", "10009", "10010"
 S_BACKLOG, S_TODO, S_PROGRESS, S_CANCELLED, S_DONE = "10004", "10005", "3", "10006", "10007"
 SPRINT_FIELD = "customfield_10020"
+START_FIELD = "customfield_10015"
+CHANNELS = "customfield_10050"  # a multi-select, on the screens only once a test puts it there
 U_CHRIS = "acc-chris"
 C_INTAKE = "10100"
 
@@ -71,8 +78,19 @@ class FakeJira:
                       {"accountId": "app-1", "accountType": "app", "displayName": "Automation", "active": True}]
         self.components = [{"id": C_INTAKE, "name": "Intake"}]
         self.fields = [{"id": "summary", "custom": False, "schema": {"type": "string"}},
+                       {"id": "duedate", "name": "Due date", "custom": False, "schema": {"type": "date", "system": "duedate"}},
                        {"id": SPRINT_FIELD, "name": "Sprint", "custom": True,
-                        "schema": {"type": "array", "custom": "com.pyxis.greenhopper.jira:gh-sprint"}}]
+                        "schema": {"type": "array", "custom": "com.pyxis.greenhopper.jira:gh-sprint"}},
+                       {"id": START_FIELD, "name": "Start date", "custom": True,
+                        "schema": {"type": "date", "custom": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"}},
+                       {"id": "customfield_10022", "name": "Target start", "custom": True,
+                        "schema": {"type": "date", "custom": "com.atlassian.jpo:jpo-custom-field-baseline-start"}},
+                       {"id": CHANNELS, "name": "Channels", "custom": True,
+                        "schema": {"type": "array", "items": "option",
+                                   "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"}}]
+        self.options = {CHANNELS: [{"id": "10301", "value": "Web"}, {"id": "10302", "value": "Email"},
+                                   {"id": "10303", "value": "Print"}]}
+        self.screen = {START_FIELD, SPRINT_FIELD}  # the custom fields every type's create and edit screens carry
         self.me = {"accountId": U_CHRIS, "timeZone": "America/New_York"}
         self.board = {"id": int(BOARD), "name": "AA board", "type": board_type, "location": {"projectKey": KEY}}
         self.sprints: dict[str, dict[str, Any]] = {}
@@ -126,6 +144,7 @@ class FakeJira:
         rec = {"id": iid, "key": key, "fields": {
             "summary": summary, "issuetype": copy.deepcopy(self._type(type_id)), "status": self._status(S_BACKLOG),
             "labels": [], "assignee": None, "components": [], "description": None, SPRINT_FIELD: None,
+            "duedate": None, START_FIELD: None,
             "created": "2026-09-27T10:00:00.000+0000", "_parent": None}}
         rec["fields"].update(fields)
         self.issues[iid] = rec
@@ -179,6 +198,26 @@ class FakeJira:
 
     # -- writes --------------------------------------------------------------------
 
+    def _custom(self, f: dict[str, Any], where: str) -> dict[str, Any]:
+        """The dates and custom values in a create or edit, checked as Jira does."""
+        out: dict[str, Any] = {}
+        for fid, value in f.items():
+            if fid != "duedate" and (not fid.startswith("customfield_") or fid == SPRINT_FIELD):
+                continue
+            if fid != "duedate" and fid not in self.screen:
+                raise ValidationError(f"HTTP 400 on {where}: {fid}: Field '{fid}' cannot be set. "
+                                      "It is not on the appropriate screen, or unknown.")
+            if fid in self.options and value is not None:
+                given = value if isinstance(value, list) else [value]
+                allowed = {o["value"] for o in self.options[fid]}
+                for o in given:
+                    if not isinstance(o, dict) or o.get("value") not in allowed:
+                        raise ValidationError(f"HTTP 400 on {where}: {fid}: Option value '{o}' is not valid")
+                stored = [next(dict(x) for x in self.options[fid] if x["value"] == o["value"]) for o in given]
+                value = stored if isinstance(value, list) else stored[0]
+            out[fid] = value
+        return out
+
     def _create(self, body: dict[str, Any]) -> dict[str, Any]:
         f = dict((body or {}).get("fields") or {})
         where = "POST /rest/api/3/issue"
@@ -202,12 +241,13 @@ class FakeJira:
             if sprint is None or sprint["state"] == "closed":
                 raise ValidationError(f"HTTP 400 on {where}: {SPRINT_FIELD}: Sprint is not valid")
         component_ids = [c["id"] for c in f.get("components") or []]
+        custom = self._custom(f, where)
         rec = self.add_issue(
             itype["id"], f["summary"], labels=list(f.get("labels") or []), description=f.get("description"),
             assignee=next(({"accountId": u["accountId"], "displayName": u["displayName"]} for u in self.users
                            if u["accountId"] == (f.get("assignee") or {}).get("accountId")), None),
             components=[c for c in self.components if c["id"] in component_ids],
-            _parent=parent_id,
+            _parent=parent_id, **custom,
         )
         if sprint is not None:
             rec["fields"][SPRINT_FIELD] = [copy.deepcopy(sprint)]
@@ -218,6 +258,7 @@ class FakeJira:
         for label in f.get("labels") or []:
             if re.search(r"\s", label):
                 raise ValidationError(f"HTTP 400 on PUT: labels: The label '{label}' contains spaces which is invalid.")
+        rec["fields"].update(self._custom(f, f"PUT /rest/api/3/issue/{rec['key']}"))
         for name in ("summary", "description", "labels"):
             if name in f:
                 rec["fields"][name] = f[name]
@@ -298,6 +339,14 @@ class FakeJira:
                 return {"startAt": 0, "maxResults": 50, "isLast": True, "values": copy.deepcopy(list(self.sprints.values()))}
             if path == "/rest/api/3/search/jql":
                 return self._search(p)
+            m = re.fullmatch(rf"/rest/api/3/issue/createmeta/{KEY}/issuetypes/(\d+)", path)
+            if m:
+                self._type(m.group(1))
+                rows = [{"fieldId": f["id"], "key": f["id"], "name": f.get("name") or f["id"], "required": False,
+                         "schema": copy.deepcopy(f["schema"]), "operations": ["set"],
+                         **({"allowedValues": copy.deepcopy(self.options[f["id"]])} if f["id"] in self.options else {})}
+                        for f in self.fields if not f["custom"] or f["id"] in self.screen]
+                return {"maxResults": 200, "startAt": 0, "total": len(rows), "fields": rows}
             m = re.fullmatch(r"/rest/agile/1.0/sprint/(\d+)", path)
             if m:
                 if m.group(1) not in self.sprints:

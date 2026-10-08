@@ -180,3 +180,23 @@ def test_capabilities_collapse_rules_match_unmaterialized_levels():
             "x", PLANE_LEVELS, DescriptionFormat.HTML, states_via_transitions=False, native_idempotency_key=True,
             collapse={**INITIATIVE_AS_LABEL, Level.EPIC: CollapseRule(CollapseTarget.LABEL)},
         )
+
+
+# --- dates and custom fields (D41) -------------------------------------------------
+
+
+def test_a_start_after_the_target_is_invalid():
+    item = WorkItem(Level.STORY, "t", start_date=date(2026, 10, 9), target_date=date(2026, 10, 5))
+    assert item.validate() == ["start_date 2026-10-09 is after target_date 2026-10-05"]
+    assert WorkItem(Level.STORY, "t", start_date=date(2026, 10, 5), target_date=date(2026, 10, 5)).validate() == []
+    assert WorkItem(Level.STORY, "t", target_date=date(2026, 10, 5)).validate() == []
+
+
+def test_dates_and_fields_round_trip_through_json():
+    item = WorkItem(Level.STORY, "Loaves Of The Week", start_date=date(2026, 10, 1), target_date=date(2026, 10, 5),
+                    fields={"published": True, "channels": ["Web", "Print"]})
+    wire = json.loads(json.dumps(to_jsonable(item)))
+    assert (wire["start_date"], wire["target_date"]) == ("2026-10-01", "2026-10-05")
+    assert wire["fields"] == {"published": True, "channels": ["Web", "Print"]}
+    assert WorkItem.from_dict(wire) == item
+    assert WorkItem(Level.STORY, "t").fields == {}

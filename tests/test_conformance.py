@@ -38,7 +38,9 @@ CONFIG = {
     "naming": {"iteration": "YYYYMM", "item_case": "title"},
 }
 TODAY = date(2026, 9, 22)
-ALL = ["provision", "describe", "epic", "placement", "hierarchy", "update", "iterations", "close", "rollover", "no-delete"]
+ALL = ["provision", "describe", "epic", "placement", "hierarchy", "update", "dates", "fields", "iterations", "close",
+       "rollover", "no-delete"]
+PASSED = {name: "skip" if name == "fields" else "pass" for name in ALL}  # a config without [fields] skips it
 
 
 def process(transport):
@@ -69,7 +71,7 @@ def test_a_fresh_board_is_provisioned_and_passes_every_case():
     t = fp.FakeTransport(fp.fresh_routes())
     state = new_state()
     assert go(process(t), state) == runner.PASS
-    assert statuses(state) == {name: "pass" for name in ALL}
+    assert statuses(state) == PASSED
 
     assert "PATCH …/features turned on work_item_types, epics" in notes(state, "provision")
     assert "work-item types created: Bug, Story, Task" in notes(state, "provision")
@@ -118,7 +120,7 @@ def test_the_edge_wall_mid_run_resumes_without_redoing_writes():
     state = new_state()
     lines: list[str] = []
     assert go(process(t), state, lines) == runner.STOP
-    assert statuses(state) == {**{n: "pass" for n in ALL[:6]}, "iterations": "stop"}
+    assert statuses(state) == {**{n: PASSED[n] for n in ALL[:8]}, "iterations": "stop"}
     assert any("re-run to resume" in line for line in lines)
 
     t2 = fp.FakeTransport(t.routes)
@@ -222,7 +224,7 @@ def test_jira_passes_every_case_with_feature_collapsed_to_a_label():
     fake = fj.FakeJira()
     state = new_state()
     assert runner.run(runner.cases_for("jira"), jira_process(fake), state, save=lambda s: None, echo=lambda l: None) == runner.PASS
-    assert statuses(state) == {name: "pass" for name in ALL}
+    assert statuses(state) == PASSED
     assert "nothing to create" in notes(state, "provision")
     assert "the feature collapsed: the story carries it as ['feature:Conformance-20260927']" in notes(state, "placement")
     assert "the tracker accepted" in notes(state, "hierarchy")  # as live Jira did (AGADM-5)
@@ -244,6 +246,40 @@ def test_jira_provision_stops_for_the_operator_when_the_project_does_not_fit():
     assert runner.run(runner.cases_for("jira"), jira_process(fake), state, save=lambda s: None) == runner.STOP
     assert "states.cancelled: no status named 'Cancelled'" in notes(state, "provision")
     assert {m for m, _ in fake.log} == {"GET"}
+
+
+def test_fields_stop_for_the_operator_then_pass_on_both_trackers():
+    """D41: the operator adds the properties in Plane's UI (Chris, 2026-10-07);
+    Jira's field must be on the screens. The values come from describe_board."""
+    cfg = BoardConfig.from_dict({**CONFIG, "fields": {"flag": "Yes/No Test", "choice": "Multi-Select Test"}}).check()
+    t = fp.FakeTransport(fp.fresh_routes())
+    state = new_state()
+
+    def plane(transport):
+        adapter = PlaneAdapter(cfg, transport, secret=lambda name: "unused", today=lambda: TODAY)
+        return Context(adapter, cfg, "20260922", TODAY, lambda: transport.log)
+
+    assert go(plane(t), state) == runner.STOP
+    assert "add the work-item properties [fields] names in Plane" in notes(state, "provision")
+    assert "fields.flag: no work-item property 'Yes/No Test'" in notes(state, "provision")
+    t.add_property(fp.T_STORY, "yes/no test", "BOOLEAN")  # the operator's part
+    t.add_property(fp.T_STORY, "multi-select test", "OPTION", multi=True, options=("Web", "Email", "Print"))
+    assert go(plane(t), state) == runner.PASS
+    assert statuses(state) == {name: "pass" for name in ALL}
+    assert "update_item(fields={'flag': False, 'choice': ['Print']}) took" in notes(state, "fields")
+    assert "fields on the story type: flag = BOOLEAN, choice = OPTION (multi)" in notes(state, "fields")
+    assert "update_item(target_date=2026-09-30) moved it; start_date stayed 2026-09-22" in notes(state, "dates")
+
+    fake = fj.FakeJira()
+    fake.screen.add(fj.CHANNELS)
+    jira_cfg = BoardConfig.from_dict({**JIRA, "fields": {"channels": "Channels"}}).check()
+    adapter = JiraAdapter(jira_cfg, fake, secret=lambda name: "unused", today=lambda: date(2026, 9, 27))
+    ctx = Context(adapter, jira_cfg, "20260927", date(2026, 9, 27), lambda: fake.log)
+    state = new_state()
+    assert runner.run(runner.cases_for("jira"), ctx, state, save=lambda s: None, echo=lambda l: None) == runner.PASS
+    assert statuses(state) == {name: "pass" for name in ALL}
+    assert "written with {'channels': ['Web', 'Email']}" in notes(state, "fields")
+    assert "DELETE" not in state["wire"]
 
 
 def test_a_bad_token_on_the_features_patch_is_a_failure_not_a_ui_instruction():

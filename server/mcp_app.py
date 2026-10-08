@@ -53,8 +53,9 @@ def build(service: BoardService) -> MCPServer:
     def describe_board() -> dict[str, Any]:
         """Read the live board and check the board config against it: work-item
         types, states, labels, members, features (modules), iterations, the
-        capabilities record, the board type, the confirm mode, the review label
-        (null when review is off) and the naming rules. `problems`
+        custom `fields` (each with its kind, options and the levels that carry
+        it), the capabilities record, the board type, the confirm mode, the
+        review label (null when review is off) and the naming rules. `problems`
         lists every mismatch, and every write refuses until it is empty. Call
         it first, and again after the board changes."""
         return call(service.describe_board)
@@ -82,7 +83,7 @@ def build(service: BoardService) -> MCPServer:
     @mcp.tool(annotations=READ)
     def get_item(ref: str) -> dict[str, Any]:
         """One work item by its key (e.g. AA-12) or id, with its current labels,
-        state, parent, feature and iteration."""
+        state, parent, feature, iteration, dates and custom-field values."""
         return call(service.get_item, ref)
 
     @mcp.tool(annotations=READ)
@@ -108,6 +109,9 @@ def build(service: BoardService) -> MCPServer:
         iteration: str | None = None,
         assignees: list[str] | None = None,
         labels: list[str] | None = None,
+        start_date: str | None = None,
+        target_date: str | None = None,
+        fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Draft a new work item and check it against the live board. Writes
         nothing. Returns a token (valid 30 minutes), the preview to show the
@@ -125,13 +129,19 @@ def build(service: BoardService) -> MCPServer:
         Without a record: pass `intake_id`, `level` and `title`. `description`
         is Markdown; `parent` is a key or id (a story's or bug's epic, a task's
         story or bug); `feature` names one of the board's features; `iteration`
-        is an open iteration's name or id. To change anything, propose again."""
+        is an open iteration's name or id.
+
+        Either way, `start_date` and `target_date` are ISO dates, and `fields`
+        sets the board's custom fields by the names describe_board lists: true
+        or false, a number, text, an option name, or a list of option names for
+        a multi-valued one. To change anything, propose again."""
         return call(
             service.propose_item, intake_id, level or "", title, description,
             intake=to_jsonable(intake) if intake is not None else None,
             part=part, parent=parent, feature=feature, initiative=initiative,
             component=component, iteration=iteration,
             assignees=assignees or (), labels=labels or (),
+            start_date=start_date, target_date=target_date, fields=fields,
         )
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True))
@@ -154,14 +164,19 @@ def build(service: BoardService) -> MCPServer:
         labels: list[str] | None = None,
         parent: str | None = None,
         feature: str | None = None,
+        start_date: str | None = None,
+        target_date: str | None = None,
+        fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Change fields of an existing item; omitted fields stay as they are.
         `labels` and `assignees` REPLACE the whole set, so call get_item first
         and send the full list. The product owner's review clears the review
-        label this way. Retire work with state "done" or "cancelled"; it cannot
-        be deleted."""
+        label this way. `start_date` / `target_date` are ISO dates; `fields`
+        sets only the custom fields it names. Retire work with state "done" or
+        "cancelled"; it cannot be deleted."""
         return call(service.update_item, ref, title=title, description=description, state=state,
-                    assignees=assignees, labels=labels, parent=parent, feature=feature)
+                    assignees=assignees, labels=labels, parent=parent, feature=feature,
+                    start_date=start_date, target_date=target_date, fields=fields)
 
     @mcp.tool(annotations=WRITE)
     def add_comment(ref: str, body: str) -> dict[str, Any]:

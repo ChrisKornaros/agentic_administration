@@ -3,7 +3,12 @@
 Shapes follow the Phase 1 probe (probes/plane_phase1_readonly.py): the
 project record, per-project `work-item-types` / `states/` / `labels/` /
 `modules/` / `cycles/`, workspace `members-lite`, the cursor envelope on
-`work-items`, the `issues`-keyed search envelope. Ids are made up.
+`work-items`, the `issues`-keyed search envelope. From the Phase 6c probe
+(2026-10-07): every item read carries `start_date` / `target_date`; a
+type's `work-item-properties/` with an option property's options on its
+record; a value read one property at a time, a record (or a list of them
+when multi-valued) or a 404 when unset; the value POST an upsert. Ids are
+made up.
 """
 
 from __future__ import annotations
@@ -139,7 +144,7 @@ def item_record(iid: str, seq: int, name: str, type_id: str, **extra: Any) -> di
         "id": iid, "sequence_id": seq, "name": name, "type_id": type_id, "project_id": PID,
         "state": S_BACKLOG, "parent": None, "labels": [], "assignees": [], "cycle_id": None,
         "min_module_name": None, "external_id": None, "external_source": None,
-        "description_html": "<p></p>", "description_stripped": "",
+        "description_html": "<p></p>", "description_stripped": "", "start_date": None, "target_date": None,
     }
     rec.update(extra)
     return rec
@@ -160,10 +165,52 @@ class FakeTransport:
         self.features_patchable = True  # False: PATCH …/features answers but changes nothing
         self.epic_type_on_flip = True  # turning `epics` on creates the Epic type, as the API does
         self.external_id_lookup = True  # False: the list ignores external_id and answers the envelope
+        self.properties: dict[str, list[dict[str, Any]]] = {}  # type id -> its work-item properties
+        self.values: dict[tuple[str, str], Any] = {}  # (item id, property id) -> the raw value(s)
 
     @property
     def log(self) -> list[tuple[str, str]]:
         return [(m, p) for m, p, _, _ in self.calls]
+
+    def add_property(self, type_id: str, name: str, kind: str, *, multi: bool = False,
+                     options: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Seed a work-item property on a type (no call logged), as the UI makes one."""
+        rec = {"id": self.new_id("f0f0f0f0"), "name": name.lower().replace(" ", "_"), "display_name": name,
+               "property_type": kind, "is_multi": multi, "is_active": True, "issue_type": type_id,
+               "options": [{"id": self.new_id("0f0f0f0f"), "name": o, "is_active": True, "is_default": False}
+                           for o in options]}
+        self.properties.setdefault(type_id, []).append(rec)
+        return rec
+
+    def _property(self, pid: str) -> dict[str, Any] | None:
+        return next((p for rows in self.properties.values() for p in rows if p["id"] == pid), None)
+
+    def _value_record(self, iid: str, pid: str, value: Any, kind: str) -> dict[str, Any]:
+        return {"id": self.new_id("1a1a1a1a"), "property_id": pid, "issue_id": iid, "value": value,
+                "value_type": kind, "external_id": None, "external_source": None}
+
+    def _values(self, method: str, iid: str, pid: str, body: Any) -> Any:
+        where = f"{method} …/work-items/{iid}/work-item-properties/{pid}/values/"
+        prop = self._property(pid)
+        item = next((r for r in self._items() if r["id"] == iid), None)
+        if prop is None or item is None:
+            raise NotFound(f"HTTP 404 on {where}")
+        if method == "POST":  # an upsert (the 2026-10-05 run); a multi-valued one's list replaces the set
+            if item.get("type_id") != prop["issue_type"]:
+                raise ValidationError(f"HTTP 400 on {where}: property does not belong to this work item's type")
+            value = (body or {}).get("value")
+            if prop["property_type"] == "OPTION":
+                ids = {o["id"] for o in prop["options"]}
+                given = value if prop["is_multi"] else [value]
+                if not isinstance(given, list) or any(v not in ids for v in given):
+                    raise ValidationError(f"HTTP 400 on {where}: invalid option {value!r}")
+            self.values[(iid, pid)] = value
+        if (iid, pid) not in self.values:
+            raise NotFound(f"HTTP 404 on {where}: Property value not set for this work item")
+        value = self.values[(iid, pid)]
+        if prop["is_multi"]:
+            return [self._value_record(iid, pid, v, prop["property_type"]) for v in value]
+        return self._value_record(iid, pid, value, prop["property_type"])
 
     def _items(self) -> list[dict[str, Any]]:
         return self.routes[f"GET {PP}/work-items/"]["results"]
@@ -204,7 +251,13 @@ class FakeTransport:
         if key in self.routes:
             value = self.routes[key]
             return value(params, body) if callable(value) else copy.deepcopy(value)
+        m = re.fullmatch(rf"{re.escape(PP)}/work-items/([0-9a-f-]+)/work-item-properties/([0-9a-f-]+)/values/", path)
+        if m and method in ("GET", "POST"):
+            return self._values(method, m.group(1), m.group(2), body)
         if method == "GET":
+            m = re.fullmatch(rf"{re.escape(PP)}/work-item-types/([0-9a-f-]+)/work-item-properties/", path)
+            if m:
+                return copy.deepcopy(self.properties.get(m.group(1), []))
             m = re.fullmatch(rf"{re.escape(PP)}/work-items/([0-9a-f-]+)/", path)
             if m:
                 for r in self.routes[f"GET {PP}/work-items/"]["results"]:

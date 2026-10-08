@@ -49,3 +49,8 @@ taxonomy = ["bug", "feature", "chore", "docs"] # the code-board label axis (CONV
 [naming]
 iteration = "YYYYMM"     # cycle names, e.g. 202609
 item_case = "title"      # "title" | "sentence" | "any"
+
+# Custom fields, optional (D41): a name you choose -> a work-item property
+# on one of the mapped types, by its name or id (calendar.example.toml).
+# [fields]
+# estimate = "Estimate"

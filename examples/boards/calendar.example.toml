@@ -46,3 +46,13 @@ taxonomy = ["content", "admin"]        # e.g. stories and the cycle epics
 [naming]
 iteration = "YYYYMM"     # cycle names, e.g. 202610
 item_case = "title"      # "title" | "sentence" | "any"
+
+# Custom fields (D41): a name you choose -> a work-item property, by its
+# name or id. A property belongs to a type, here the Story type that the
+# dated pieces use. describe_board lists each field with its kind, its
+# options and the levels that carry it; propose_item and update_item take
+# values by these names (true/false, a number, text, an option name, or a
+# list of them for a multi-select). Remove what your board doesn't have.
+[fields]
+published = "Published"  # e.g. a yes/no property
+channels  = "Channels"   # e.g. a multi-select property

@@ -4,8 +4,9 @@ roadmap/14 §6, decision D7).
 One file per board. Pointing the tool at a supported tracker is *this* file
 and nothing else: which backend, the board type, how to reach the board, how
 the canonical levels map onto the tracker's types or containers, how the
-canonical states map onto the workflow, the review label, naming rules, and
-the confirm mode.
+canonical states map onto the workflow, the review label, naming rules, the
+confirm mode, and the custom fields (D41): `[fields]` maps a field name to
+the tracker's own property or field, by its name or id.
 
 The board type (D38) sets two defaults: a `software` board must map every
 level and name a review label; a `calendar` board may leave `bug` out
@@ -177,6 +178,7 @@ class BoardConfig:
     naming: Naming = field(default_factory=Naming)
     confirm: Confirm = Confirm.ALWAYS
     board_type: BoardType = BoardType.SOFTWARE
+    fields: Mapping[str, str] = field(default_factory=dict)  # name -> Plane property / Jira field (D41)
 
     # -- validation ---------------------------------------------------------
 
@@ -286,7 +288,7 @@ class BoardConfig:
         bad enum values) raise `InvalidBoardConfig` here; rule violations are
         left to `validate()` / `check()` so a caller can list both at once."""
         problems: list[str] = []
-        known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm"}
+        known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm", "fields"}
         unknown = sorted(set(data) - known)
         if unknown:
             problems.append(f"unknown top-level keys: {', '.join(unknown)}")
@@ -304,6 +306,7 @@ class BoardConfig:
         labels = _labels(data.get("labels", {}), problems)  # a software board's review label is checked in validate()
         naming = _naming(data.get("naming", {}), problems)
         confirm = _enum(Confirm, data.get("confirm", "always"), "confirm", problems)
+        custom = _fields(data.get("fields", {}), problems)
         if problems:
             raise InvalidBoardConfig(problems)
         return cls(
@@ -315,6 +318,7 @@ class BoardConfig:
             naming=naming,
             confirm=confirm,
             board_type=board_type,
+            fields=custom,
         )
 
 
@@ -449,3 +453,14 @@ def _naming(raw: Any, problems: list[str]) -> Naming:
         iteration = Naming.iteration
     item_case = _enum(ItemCase, table.get("item_case", "any"), "naming.item_case", problems)
     return Naming(iteration=iteration, item_case=item_case)
+
+
+def _fields(raw: Any, problems: list[str]) -> dict[str, str]:
+    table = _table(raw, "fields", problems)
+    out: dict[str, str] = {}
+    for name, ref in table.items():
+        if not isinstance(ref, str) or not ref.strip():
+            problems.append(f"fields.{name} must name the tracker's property or field (its name or id)")
+            continue
+        out[name] = ref
+    return out

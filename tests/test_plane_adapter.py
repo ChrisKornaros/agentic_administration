@@ -456,3 +456,90 @@ def test_provision_cut_short_never_writes_the_same_thing_twice():
     adapter.provision(types=["Bug"], labels=["docs"])  # the retry re-reads the board first
     assert t.bodies("POST", "/work-item-types/") == [{"name": "Bug"}]
     assert adapter.describe_board().problems == ()
+
+
+# --- dates and custom fields (D41) -----------------------------------------------------
+
+FIELDS = {**CONFIG, "fields": {"published": "Published", "channels": "channels"}}
+
+
+def with_properties():
+    """The fake board with Food Content's shape: a yes/no and a multi-select on the Story type."""
+    adapter, t = make(config=FIELDS)
+    pub = t.add_property(fp.T_STORY, "Published", "BOOLEAN")
+    chan = t.add_property(fp.T_STORY, "Channels", "OPTION", multi=True, options=("Web", "Email", "Print"))
+    return adapter, t, pub, chan
+
+
+def test_describe_reads_each_types_properties_only_with_fields():
+    adapter, t = make()
+    adapter.describe_board()
+    assert not [p for _, p in t.log if "work-item-properties" in p]  # no [fields]: no extra read
+    adapter, t, pub, chan = with_properties()
+    board = adapter.describe_board()
+    assert board.problems == ()
+    reads = [p for _, p in t.log if "work-item-properties" in p]
+    assert len(reads) == 4 and {m for m, *_ in t.calls} == {"GET"}  # one per mapped type
+    published, channels = board.fields
+    assert (published.name, published.kind.value, published.native, published.multi) == ("published", "boolean", "BOOLEAN", False)
+    assert published.levels == {Level.STORY: pub["id"]}
+    assert (channels.kind.value, channels.multi, channels.options) == ("option", True, ("Web", "Email", "Print"))
+    # a property nobody made is a config problem, and writes refuse
+    adapter, _ = make(config={**CONFIG, "fields": {"cost": "Cost"}})
+    assert adapter.describe_board().problems == (
+        "fields.cost: no work-item property 'Cost' on the board's types (properties: (none))",)
+
+
+def test_create_writes_dates_in_the_post_and_each_value_after_it():
+    adapter, t, pub, chan = with_properties()
+    web, _, prn = (o["id"] for o in chan["options"])
+    made = adapter.create_item(WorkItem(
+        Level.STORY, "Loaves Of The Week", parent=ItemRef(fp.I_EPIC, Level.EPIC),
+        start_date=date(2026, 10, 1), target_date=date(2026, 10, 5),
+        fields={"published": True, "channels": ["web", "Print"]},  # option names ignore case
+    ))
+    body = t.bodies("POST", "/work-items/")[0]
+    assert (body["start_date"], body["target_date"]) == ("2026-10-01", "2026-10-05")
+    values = [(p.rsplit("/", 3)[-3], b) for m, p, _, b in t.calls if m == "POST" and p.endswith("/values/")]
+    assert values == [(pub["id"], {"value": True}), (chan["id"], {"value": [web, prn]})]
+    assert (made.start_date, made.target_date) == (date(2026, 10, 1), date(2026, 10, 5))
+    got = adapter.get_item(made.key)  # one GET per property, option ids read back as names
+    assert got.fields == {"published": True, "channels": ["Web", "Print"]}
+    assert got.target_date == date(2026, 10, 5)
+    assert adapter.find_items(external_id=None)[-1].fields == {}  # the list read carries dates, not values
+    assert adapter.find_items()[-1].start_date == date(2026, 10, 1)
+
+
+def test_an_unset_value_answers_404_and_is_left_out():
+    adapter, t, _, _ = with_properties()
+    made = adapter.create_item(WorkItem(Level.STORY, "Half Filled", fields={"channels": ["Email"]}))
+    assert adapter.get_item(made.id).fields == {"channels": ["Email"]}
+
+
+def test_update_patches_dates_and_upserts_values():
+    adapter, t, pub, chan = with_properties()
+    made = adapter.create_item(WorkItem(Level.STORY, "Loaves", fields={"published": True, "channels": ["Web"]}))
+    after = adapter.update_item(made.id, ItemPatch(target_date=date(2026, 10, 6), fields={"channels": ["Print"]}))
+    assert t.bodies("PATCH", "/work-items/")[0] == {"target_date": "2026-10-06"}
+    assert after.target_date == date(2026, 10, 6)
+    assert after.fields == {"published": True, "channels": ["Print"]}  # the others stay
+    adapter.update_item(made.id, ItemPatch(fields={"published": False}))
+    assert len(t.bodies("PATCH", "/work-items/")) == 1  # values alone: no PATCH, only the upsert
+    assert adapter.get_item(made.id).fields["published"] is False
+    assert not any(m == "DELETE" for m, *_ in t.calls)
+
+
+def test_bad_field_values_are_refused_before_any_write():
+    adapter, t, _, _ = with_properties()
+    for fields, fragment in (
+        ({"channels": ["Radio"]}, "takes a list of option names"),
+        ({"published": "yes"}, "takes a boolean value"),
+        ({"colour": "red"}, "no field 'colour' on this board"),
+    ):
+        with pytest.raises(ValidationError, match=fragment):
+            adapter.create_item(WorkItem(Level.STORY, "S", fields=fields))
+    with pytest.raises(ValidationError, match="not on the epic type"):
+        adapter.create_item(WorkItem(Level.EPIC, "E", fields={"published": True}))
+    assert t.bodies("POST", "/work-items/") == []
+    with pytest.raises(Unsupported, match="no dates or custom fields"):
+        adapter.create_item(WorkItem(Level.FEATURE, "F", target_date=date(2026, 10, 5)))

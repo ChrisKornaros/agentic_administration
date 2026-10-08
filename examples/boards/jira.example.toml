@@ -59,3 +59,10 @@ taxonomy = ["bug", "feature", "chore", "docs"]
 [naming]
 iteration = "YYYYMM"     # sprint names, e.g. 202609
 item_case = "title"      # "title" | "sentence" | "any"
+
+# Dates need no config: the target date is the due date, the start date the
+# field named "Start date". Custom fields, optional (D41): a name you choose
+# -> a customfield_* id or its name. Jira lists a field only once it is on
+# one of the project's screens, and an option field needs its options.
+# [fields]
+# points = "customfield_10016"

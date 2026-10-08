@@ -34,6 +34,13 @@ How the canonical model lands on a company-managed Jira project:
   the closed sprints in an issue's Sprint field; the adapter keeps the
   issues whose current sprint it is.
 - Descriptions and comments are Markdown in, ADF out (`adapters.jira.adf`).
+- Dates: the target date is the system `duedate`, and the start date is
+  the site's custom field named "Start date", found by name. A custom
+  field (D41) is a `customfield_*`, named in `[fields]` by its id or name;
+  with `[fields]`, `describe_board` reads each mapped type's create screen
+  for which types carry it and its options. Dates and values ride in the
+  create or edit call itself, so a write never lands half done; an option
+  goes as `{"value": <name>}` (probes/README.md, 2026-10-07).
 
 No delete: there is no DELETE request in this file.
 """
@@ -49,6 +56,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from adapters.base import (
     Adapter,
     BoardDescription,
+    FieldInfo,
+    FieldKind,
     ItemPatch,
     NamedRef,
     NotFound,
@@ -57,6 +66,8 @@ from adapters.base import (
     Unsupported,
     ValidationError,
     existing_iteration,
+    field_problems,
+    option_names,
 )
 from adapters.jira import adf
 from adapters.jira.transport import JiraTransport, Transport
@@ -79,6 +90,7 @@ from server.model import (
 
 XID = "xid:"
 SPRINT_FIELD = "com.pyxis.greenhopper.jira:gh-sprint"
+START_DATE = "start date"  # the site's start-date field, by name (Advanced Roadmaps' Target start is another)
 # The hierarchy level each core level's issue type must sit at.
 _WANT_LEVEL = {Level.EPIC: 1, Level.STORY: 0, Level.BUG: 0, Level.TASK: -1}
 # Status categories line up with the canonical states for a status the config did not name.
@@ -132,6 +144,9 @@ class JiraAdapter(Adapter):
         self._components: dict[str, str] = {}  # lower name / id -> id
         self._sprints: dict[str, str] = {}  # name / id -> id
         self._sprint_field: str | None = None
+        self._start_field: str | None = None
+        self._field_info: dict[str, FieldInfo] = {}  # config field name -> as found
+        self._field_id: dict[str, str] = {}  # config field name -> customfield_*
         self._zone: tzinfo = timezone.utc
         self._created: dict[str, str] = {}  # external_id -> issue id, created by this process
 
@@ -177,6 +192,8 @@ class JiraAdapter(Adapter):
                       for c in self._t.request("GET", f"/rest/api/3/project/{key}/components") or []]
         fields = self._t.request("GET", "/rest/api/3/field") or []
         self._sprint_field = next((f["id"] for f in fields if (f.get("schema") or {}).get("custom") == SPRINT_FIELD), None)
+        self._start_field = next((f["id"] for f in fields if f.get("custom") and (f.get("name") or "").lower() == START_DATE
+                                  and (f.get("schema") or {}).get("type") == "date"), None)
         me = self._t.request("GET", "/rest/api/3/myself") or {}
         self._zone = _zone(me.get("timeZone"))
         board = self._t.request("GET", f"/rest/agile/1.0/board/{self.board_id}") or {}
@@ -192,6 +209,8 @@ class JiraAdapter(Adapter):
         labels = [NamedRef(l, l) for l in _dedupe([*site_labels, *declared])]
         self._index(members, components, iterations, states)
         resolved, problems = self._check_config(types, states, declared)
+        custom, more = self._read_fields(fields, resolved)
+        problems += more
         if board.get("type") != "scrum":
             problems.append(f"board {self.board_id} is a {board.get('type')!r} board; sprints need a scrum board")
         board_project = (board.get("location") or {}).get("projectKey")
@@ -206,7 +225,7 @@ class JiraAdapter(Adapter):
             project_name=proj.get("name"),
             features={"style": proj.get("style"), "simplified": proj.get("simplified"),
                       "board_type": board.get("type"), "sprint_field": self._sprint_field,
-                      "time_zone": me.get("timeZone")},
+                      "start_date_field": self._start_field, "time_zone": me.get("timeZone")},
             types=tuple(types),
             states=tuple(states),
             labels=tuple(labels),
@@ -215,8 +234,61 @@ class JiraAdapter(Adapter):
             iterations=tuple(iterations),
             resolved=resolved,
             problems=tuple(problems),
+            fields=tuple(custom),
         )
         return self._board
+
+    def _read_fields(self, site_fields, resolved) -> tuple[list[FieldInfo], list[str]]:
+        """Find each config field on the site, then read each mapped type's
+        create screen once: which types carry it, and its options. Nothing is
+        read for a config without `[fields]`."""
+        self._field_info, self._field_id = {}, {}
+        if not self.config.fields:
+            return [], []
+        problems: list[str] = []
+        found: dict[str, dict[str, Any]] = {}
+        for name, ref in self.config.fields.items():
+            hits = [f for f in site_fields if ref == f.get("id") or ref.lower() == (f.get("name") or "").lower()]
+            if not hits:  # live, 2026-10-07: a field on no screen yet is missing from /field
+                problems.append(f"fields.{name}: no field {ref!r} on the site (a new custom field is listed "
+                                "only once it is on one of the project's screens)")
+            elif len(hits) > 1:
+                problems.append(f"fields.{name}: {len(hits)} fields are named {ref!r} "
+                                f"({', '.join(str(h.get('id')) for h in hits)}); name one by its id")
+            else:
+                found[name] = hits[0]
+        screens = {lv: self._create_screen(resolved[lv]) for lv, m in self.config.levels.items()
+                   if found and m.how is Materialization.TYPE and lv in resolved}
+        infos: list[FieldInfo] = []
+        for name, f in found.items():
+            fid = str(f["id"])
+            on = {lv: screen[fid] for lv, screen in screens.items() if fid in screen}
+            if not on:
+                problems.append(f"fields.{name}: {fid} ({f.get('name')}) is on no mapped type's create screen; "
+                                "add it to the project's screens")
+                continue
+            kind, multi = _field_kind(f.get("schema") or {})
+            allowed = next(iter(on.values())).get("allowedValues") or []
+            options = tuple(str(a.get("value") or a.get("name") or "") for a in allowed if isinstance(a, dict))
+            schema = f.get("schema") or {}
+            info = FieldInfo(name, kind, str(schema.get("custom") or schema.get("type") or ""), multi, options,
+                             {lv: fid for lv in on})
+            self._field_info[name], self._field_id[name] = info, fid
+            infos.append(info)
+        return infos, problems
+
+    def _create_screen(self, type_id: str) -> dict[str, dict[str, Any]]:
+        """A type's create-screen fields by id."""
+        out: dict[str, dict[str, Any]] = {}
+        start = 0
+        while True:
+            page = self._t.request("GET", f"/rest/api/3/issue/createmeta/{self.project_key}/issuetypes/{type_id}",
+                                   params={"startAt": start, "maxResults": 200}) or {}
+            rows = page.get("fields") or page.get("values") or []
+            out.update({str(r.get("fieldId") or r.get("key")): r for r in rows if isinstance(r, dict)})
+            start += len(rows)
+            if not rows or start >= int(page.get("total") or 0):
+                return out
 
     def _index(self, members, components, iterations, states) -> None:
         self._members, self._member_name = {}, {}
@@ -345,8 +417,9 @@ class JiraAdapter(Adapter):
     # -- conversions ---------------------------------------------------------------
 
     def _fields(self) -> list[str]:
-        base = ["summary", "description", "issuetype", "parent", "status", "labels", "assignee", "components", "created"]
-        return base + ([self._sprint_field] if self._sprint_field else [])
+        base = ["summary", "description", "issuetype", "parent", "status", "labels", "assignee", "components", "created",
+                "duedate"]
+        return base + [f for f in (self._sprint_field, self._start_field, *self._field_id.values()) if f]
 
     def _level_of(self, issuetype: dict[str, Any], labels: Sequence[str] = ()) -> Level:
         # a marker label (LABEL / PARENT materialization) outranks the type
@@ -387,7 +460,44 @@ class JiraAdapter(Adapter):
             iteration=_current_sprint(f.get(self._sprint_field) if self._sprint_field else None),
             component=components[0].get("name") if components else None,
             external_id=xid,
+            start_date=_day_of(f.get(self._start_field)) if self._start_field else None,
+            target_date=_day_of(f.get("duedate")),
+            fields=self._values(f),
         )
+
+    def _values(self, f: dict[str, Any]) -> dict[str, Any]:
+        """The issue's custom-field values by config name; an option reads as its name."""
+        out: dict[str, Any] = {}
+        for name, fid in self._field_id.items():
+            value = f.get(fid)
+            if value in (None, [], ""):
+                continue
+            if self._field_info[name].kind is FieldKind.OPTION:
+                names = [o.get("value") or o.get("name") for o in (value if isinstance(value, list) else [value])
+                         if isinstance(o, dict)]
+                value = names if self._field_info[name].multi else (names[0] if names else None)
+            out[name] = value
+        return out
+
+    def _field_wire(self, board: BoardDescription, level: Level, values) -> dict[str, Any]:
+        """Each value under its field id, checked before any write; an option
+        goes as `{"value": <name>}`, a list of them when multi-valued."""
+        problems = field_problems(board, level, values)
+        if problems:
+            raise ValidationError("; ".join(problems))
+        out: dict[str, Any] = {}
+        for name, value in values.items():
+            info = self._field_info[name]
+            if info.kind is FieldKind.OPTION:
+                names = option_names(info, value)
+                value = [{"value": n} for n in names] if info.multi else {"value": names[0]}
+            out[info.levels[level]] = value
+        return out
+
+    def _start(self) -> str:
+        if self._start_field is None:
+            raise ValidationError("this Jira site has no field named 'Start date', so no start date can be written")
+        return self._start_field
 
     def _day(self, value: Any) -> date | None:
         """Jira keeps sprint dates as instants; the account's zone recovers the day."""
@@ -545,6 +655,12 @@ class JiraAdapter(Adapter):
             fields["components"] = [{"id": self._component_id(c)} for c in _dedupe(components)]
         if item.iteration:
             fields[self._sprint_field or "sprint"] = int(self._sprint_id(item.iteration))
+        if item.start_date:
+            fields[self._start()] = item.start_date.isoformat()
+        if item.target_date:
+            fields["duedate"] = item.target_date.isoformat()
+        if item.fields:
+            fields.update(self._field_wire(board, level, item.fields))
 
         rec = self._t.request("POST", "/rest/api/3/issue", body={"fields": fields})
         issue_id = str(rec["id"])
@@ -570,7 +686,7 @@ class JiraAdapter(Adapter):
     def update_item(self, ref: ItemRef | str, patch: ItemPatch) -> WorkItem:
         if patch.is_empty():
             raise ValidationError("nothing to update: the patch is empty")
-        self._ready()
+        board = self._ready()
         ident = self._ident(ref)
         if patch.feature is not None:
             raise Unsupported("feature collapses on Jira; it is written at creation, by the collapse rule")
@@ -592,6 +708,12 @@ class JiraAdapter(Adapter):
             fields["labels"] = self._labels_for_write([*patch.labels, *keep])
         if patch.parent is not None:
             fields["parent"] = self._parent_field(patch.parent)
+        if patch.start_date is not None:
+            fields[self._start()] = patch.start_date.isoformat()
+        if patch.target_date is not None:
+            fields["duedate"] = patch.target_date.isoformat()
+        if patch.fields:  # a field sits on a type's screen: check against the item's level
+            fields.update(self._field_wire(board, self.get_item(ident).level, patch.fields))
         if fields:
             self._t.request("PUT", f"/rest/api/3/issue/{ident}", body={"fields": fields})
         if patch.state is not None:
@@ -688,6 +810,25 @@ def _current_sprint(value: Any) -> str | None:
         if hit is not None:
             return str(hit["id"])
     return str(sprints[-1]["id"]) if sprints else None
+
+
+def _field_kind(schema: dict[str, Any]) -> tuple[FieldKind, bool]:
+    """A field's schema as (kind, multi-valued)."""
+    kind, items = schema.get("type"), schema.get("items")
+    if kind == "option" or (kind == "array" and items == "option"):
+        return FieldKind.OPTION, kind == "array"
+    simple = {"number": FieldKind.NUMBER, "string": FieldKind.TEXT, "date": FieldKind.DATE}
+    return simple.get(kind or "", FieldKind.OTHER), False
+
+
+def _day_of(value: Any) -> date | None:
+    """A Jira date field (`YYYY-MM-DD`)."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def _zone(name: Any) -> tzinfo:

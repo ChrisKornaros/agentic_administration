@@ -20,6 +20,13 @@ How the canonical model lands on Plane:
   write is never re-sent.
 - Descriptions and comments are Markdown in, Plane HTML out
   (`adapters.plane.markdown`).
+- Dates are the item's `start_date` / `target_date`, on every read. A
+  custom field (D41) is a **work-item property**, which belongs to one
+  type: `describe_board` reads each mapped type's properties (only when the
+  config has `[fields]`) and resolves option names to ids, as it does
+  labels. A value is written with `POST …/values/` (an upsert, after the
+  item exists) and read one property at a time, by `get_item` only; an
+  unset value answers 404 (probes/README.md, 2026-10-07).
 
 Read-proven-before-write: every route here was read live in Phase 1
 (probes/plane_phase1_readonly.py) and written live by the conformance
@@ -44,6 +51,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from adapters.base import (
     Adapter,
     BoardDescription,
+    FieldInfo,
+    FieldKind,
     ItemPatch,
     NamedRef,
     NotFound,
@@ -53,6 +62,7 @@ from adapters.base import (
     Unsupported,
     ValidationError,
     existing_iteration,
+    field_problems,
 )
 from adapters.plane import markdown
 from adapters.plane.transport import PlaneTransport, Transport
@@ -85,6 +95,11 @@ _GROUP_TO_STATE = {
     "cancelled": State.CANCELLED,
 }
 _CYCLE_STATUS = {"completed": IterationState.CLOSED, "current": IterationState.ACTIVE}
+# A work-item property's `property_type`, as the canonical field kind.
+_PROPERTY_KIND = {
+    "BOOLEAN": FieldKind.BOOLEAN, "OPTION": FieldKind.OPTION, "TEXT": FieldKind.TEXT, "URL": FieldKind.TEXT,
+    "EMAIL": FieldKind.TEXT, "DECIMAL": FieldKind.NUMBER, "DATETIME": FieldKind.DATE,
+}
 
 
 class PlaneAdapter(Adapter):
@@ -131,6 +146,7 @@ class PlaneAdapter(Adapter):
         self._member_name: dict[str, str] = {}
         self._modules: dict[str, str] = {}  # lower name / id -> id
         self._cycles: dict[str, str] = {}  # name / id -> id
+        self._props: dict[tuple[str, Level], dict[str, Any]] = {}  # (field, level) -> its property there
 
     # -- plumbing ------------------------------------------------------------------
 
@@ -194,6 +210,8 @@ class PlaneAdapter(Adapter):
 
         self._index(types, states, labels, members, modules, cycles)
         resolved, problems = self._check_config(features, types, states, labels)
+        fields, more = self._read_fields(resolved)
+        problems += more
         self._board = BoardDescription(
             backend=self.backend,
             project_id=proj["id"],
@@ -208,8 +226,51 @@ class PlaneAdapter(Adapter):
             iterations=tuple(cycles),
             resolved=resolved,
             problems=tuple(problems),
+            fields=tuple(fields),
         )
         return self._board
+
+    def _read_fields(self, resolved: dict[Level, str]) -> tuple[list[FieldInfo], list[str]]:
+        """Find each config field's property on each mapped type: one GET per
+        type, and none for a config without `[fields]`."""
+        self._props = {}
+        if not self.config.fields:
+            return [], []
+        type_levels = {lv: resolved[lv] for lv, m in self.config.levels.items()
+                       if m.how is Materialization.TYPE and lv in resolved}
+        props = {tid: self._t.get_all(f"{self._pp}/work-item-types/{tid}/work-item-properties/")
+                 for tid in dict.fromkeys(type_levels.values())}
+        infos: list[FieldInfo] = []
+        problems: list[str] = []
+        for name, ref in self.config.fields.items():
+            first: dict[str, Any] | None = None
+            levels: dict[Level, str] = {}
+            for level, tid in type_levels.items():
+                hit = next((p for p in props[tid] if ref == p.get("id") or ref.lower() in
+                            ((p.get("display_name") or "").lower(), (p.get("name") or "").lower())), None)
+                if hit is None:
+                    continue
+                first = first or hit
+                options = [o for o in hit.get("options") or [] if o.get("is_active") is not False]
+                self._props[(name, level)] = {
+                    "id": hit["id"], "kind": _PROPERTY_KIND.get(hit.get("property_type") or "", FieldKind.OTHER),
+                    "multi": bool(hit.get("is_multi")),
+                    "ids": {(o.get("name") or "").lower(): o["id"] for o in options},
+                    "names": {o["id"]: o.get("name") or "" for o in options},
+                }
+                levels[level] = hit["id"]
+            if first is None:
+                have = ", ".join(dict.fromkeys(p.get("display_name") or p.get("name") or ""
+                                               for rows in props.values() for p in rows)) or "(none)"
+                problems.append(f"fields.{name}: no work-item property {ref!r} on the board's types (properties: {have})")
+                continue
+            infos.append(FieldInfo(
+                name, _PROPERTY_KIND.get(first.get("property_type") or "", FieldKind.OTHER),
+                first.get("property_type") or "", bool(first.get("is_multi")),
+                tuple(o.get("name") or "" for o in first.get("options") or [] if o.get("is_active") is not False),
+                levels,
+            ))
+        return infos, problems
 
     def _index(self, types, states, labels, members, modules, cycles) -> None:
         self._type_is_epic = {t.id: t.is_epic for t in types}
@@ -305,7 +366,7 @@ class PlaneAdapter(Adapter):
         ident = ref.id if isinstance(ref, ItemRef) else ref
         if _UUID.match(ident):
             return ident
-        return self.get_item(ident).id or ident
+        return self._record(ident)["id"]
 
     def _label_id(self, name: str) -> str:
         hit = self._labels.get(name) or self._labels.get(name.lower())
@@ -380,6 +441,8 @@ class PlaneAdapter(Adapter):
             labels=labels,
             iteration=_ref_id(rec.get("cycle_id") or rec.get("cycle")),
             external_id=rec.get("external_id"),
+            start_date=_date(rec.get("start_date")),
+            target_date=_date(rec.get("target_date")),
         )
 
     def _module_as_item(self, rec: dict[str, Any]) -> WorkItem:
@@ -444,6 +507,11 @@ class PlaneAdapter(Adapter):
     # -- read ----------------------------------------------------------------------------
 
     def get_item(self, ref: ItemRef | str) -> WorkItem:
+        item = self._to_item(self._record(ref))
+        return replace(item, fields=self._values(item.id or "", item.level)) if self._props else item
+
+    def _record(self, ref: ItemRef | str) -> dict[str, Any]:
+        """One item's record, without its custom-field values."""
         self._ready_maps()
         ident = ref.id if isinstance(ref, ItemRef) else ref
         if _UUID.match(ident):
@@ -452,7 +520,50 @@ class PlaneAdapter(Adapter):
             rec = self._t.request("GET", f"{self._ws}/work-items/{ident}/")
         if not isinstance(rec, dict) or not rec.get("id"):
             raise NotFound(f"work item {ident!r} not found")
-        return self._to_item(rec)
+        return rec
+
+    def _values(self, item_id: str, level: Level) -> dict[str, Any]:
+        """The item's custom-field values, read one property at a time; an
+        unset one answers 404 and is left out. Option ids read back as names."""
+        out: dict[str, Any] = {}
+        for (name, lv), prop in self._props.items():
+            if lv is not level:
+                continue
+            try:
+                got = self._t.request("GET", f"{self._pp}/work-items/{item_id}/work-item-properties/{prop['id']}/values/")
+            except NotFound:
+                continue
+            values = [r.get("value") for r in (got if isinstance(got, list) else [got]) if isinstance(r, dict)]
+            if prop["kind"] is FieldKind.OPTION:
+                values = [prop["names"].get(v, v) for v in values]
+            if values:
+                out[name] = values if prop["multi"] else values[0]
+        return out
+
+    def _field_writes(self, board: BoardDescription, level: Level, values) -> list[tuple[str, Any]]:
+        """Each value as (property id, value to send), resolved before any write:
+        an option property takes option ids, a list of them when multi-valued."""
+        problems = field_problems(board, level, values)
+        if problems:
+            raise ValidationError("; ".join(problems))
+        writes = []
+        for name, value in values.items():
+            prop = self._props[(name, level)]
+            if prop["kind"] is FieldKind.OPTION:
+                names = value if isinstance(value, list) else [value]
+                missing = [n for n in names if n.lower() not in prop["ids"]]
+                if missing:
+                    raise ValidationError(f"field {name!r} has no option {', '.join(map(repr, missing))} "
+                                          f"on the {level.value} type")
+                ids = [prop["ids"][n.lower()] for n in names]
+                value = ids if prop["multi"] else ids[0]
+            writes.append((prop["id"], value))
+        return writes
+
+    def _write_values(self, item_id: str, writes: list[tuple[str, Any]]) -> None:
+        for prop_id, value in writes:  # an upsert: a re-run sets the same value again
+            self._t.request("POST", f"{self._pp}/work-items/{item_id}/work-item-properties/{prop_id}/values/",
+                            body={"value": value})
 
     def get_iteration(self, iteration: str) -> Iteration:
         cycle_id = self._cycle_id(iteration)
@@ -504,7 +615,7 @@ class PlaneAdapter(Adapter):
                 if proj and proj != pid:
                     continue
                 try:
-                    items.append(self.get_item(r["id"]))
+                    items.append(self._to_item(self._record(r["id"])))
                 except NotFound:
                     continue
                 if len(items) >= limit * 2:  # keep the hydration bounded
@@ -540,6 +651,8 @@ class PlaneAdapter(Adapter):
         if level is Level.FEATURE and mapping.how is Materialization.CONTAINER:
             if item.parent is not None:
                 raise Unsupported("a Plane module has no parent; a feature's epic is carried by its stories")
+            if item.start_date or item.target_date or item.fields:
+                raise Unsupported("a Plane module takes no dates or custom fields here")
             body = {"name": item.title, "project_id": board.project_id}
             if item.description:
                 body["description"] = item.description
@@ -586,8 +699,13 @@ class PlaneAdapter(Adapter):
         if item.external_id:
             body["external_id"] = item.external_id
             body["external_source"] = self.EXTERNAL_SOURCE
+        if item.start_date:
+            body["start_date"] = item.start_date.isoformat()
+        if item.target_date:
+            body["target_date"] = item.target_date.isoformat()
         module_ids = _dedupe(self._module_id(m) for m in modules)  # resolve before the POST
         cycle_id = self._cycle_id(item.iteration) if item.iteration else None
+        writes = self._field_writes(board, level, item.fields) if item.fields else []
 
         rec = self._t.request("POST", f"{self._pp}/work-items/", body=body)
         created = self._to_item(rec)
@@ -595,19 +713,24 @@ class PlaneAdapter(Adapter):
             self._t.request("POST", f"{self._pp}/modules/{mid}/module-issues/", body={"issues": [created.id]})
         if cycle_id:
             self._t.request("POST", f"{self._pp}/cycles/{cycle_id}/cycle-issues/", body={"issues": [created.id]})
+        self._write_values(created.id or "", writes)
         return replace(
             created,
             feature=item.feature if module_ids and item.feature is not None else created.feature,
             component=item.component,
             iteration=cycle_id or created.iteration,
             initiative=item.initiative,
+            fields=dict(item.fields),
         )
 
     def update_item(self, ref: ItemRef | str, patch: ItemPatch) -> WorkItem:
         if patch.is_empty():
             raise ValidationError("nothing to update: the patch is empty")
-        self._ready()
+        board = self._ready()
         item_id = self._item_id(ref)
+        writes = []
+        if patch.fields:  # a property belongs to the item's type: resolve before any write
+            writes = self._field_writes(board, self._to_item(self._record(item_id)).level, patch.fields)
         body: dict[str, Any] = {}
         if patch.title is not None:
             body["name"] = patch.title
@@ -620,13 +743,17 @@ class PlaneAdapter(Adapter):
         if patch.labels is not None:
             wanted = [self._label_id(l) for l in patch.labels]
             if self._level_of_label:  # keep a marker label: labels never change an item's level
-                current = self.get_item(item_id)
+                current = self._to_item(self._record(item_id))
                 marker = self.config.levels[current.level].ref or ""
                 if self.config.levels[current.level].how in (Materialization.LABEL, Materialization.PARENT):
                     wanted.append(self._label_id(marker))
             body["labels"] = _dedupe(wanted)
         if patch.parent is not None:
             body["parent"] = self._item_id(patch.parent)
+        if patch.start_date is not None:
+            body["start_date"] = patch.start_date.isoformat()
+        if patch.target_date is not None:
+            body["target_date"] = patch.target_date.isoformat()
         module_id = None
         if patch.feature is not None:
             if self.config.levels[Level.FEATURE].how is not Materialization.CONTAINER:
@@ -638,8 +765,11 @@ class PlaneAdapter(Adapter):
             rec = self._t.request("GET", f"{self._pp}/work-items/{item_id}/")
         if module_id:  # membership is additive — no DELETE, ever
             self._t.request("POST", f"{self._pp}/modules/{module_id}/module-issues/", body={"issues": [item_id]})
+        self._write_values(item_id, writes)
         updated = self._to_item(rec)
-        return replace(updated, feature=patch.feature) if module_id else updated
+        if module_id:
+            updated = replace(updated, feature=patch.feature)
+        return replace(updated, fields=self._values(item_id, updated.level)) if self._props else updated
 
     def add_comment(self, comment: Comment) -> Comment:
         self._ready()
