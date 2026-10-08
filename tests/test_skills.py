@@ -1,33 +1,46 @@
 """The product skills in skills/: the frontmatter every host reads, the tools
 they call (only the board server's eleven and the knowledge server's two),
 intake's retrieval all in its context step, the intake records they show the
-model, which must pass the schema so the examples teach a valid shape,
-plan-sprint's order (reads and one yes, then close, create, move) and
-groom's (reads and one yes, then a fresh read before each update)."""
+model, which must pass the schema so the examples teach a valid shape, the
+arguments they pass, which must be the tools' own, plan-sprint's order (reads
+and one yes, then close, create, move), plan-cycle's (reads and checks and
+one yes, then the cycle, the epic, its slots and a read-back) and groom's
+(reads and one yes, then a fresh read before each update)."""
 
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 import pytest
+from mcp import Client
 
-from schema.intake import SIBLING, Intake
+from knowledge.mcp_app import build as build_docs
+from schema.intake import NAME, SIBLING, Intake
 from server import titlecase
-from server.config import ItemCase
+from server.config import DESCRIPTION_SLOTS, WEEKDAYS, DateRule, ItemCase, load
+from server.mcp_app import build
 from server.model import Materialization
-from tests.test_docs import DOC_TOOLS
+from tests.test_docs import DOC_TOOLS, published
 from tests.test_mcp_app import TOOLS
+from tests.test_service import service
 
-SKILLS = Path(__file__).resolve().parents[1] / "skills"
+ROOT = Path(__file__).resolve().parents[1]
+SKILLS = ROOT / "skills"
 CREATE = {"create-story": {"story"}, "create-bug": {"bug"}, "create-epic": {"epic", "story"}}
-NAMES = ["intake", *CREATE, "plan-sprint", "groom"]
+NAMES = ["intake", *CREATE, "plan-sprint", "plan-cycle", "groom"]
 READS = {"describe_board", "find_items", "get_item", "get_iteration"}
 ROLLOVER = ["close_iteration", "create_iteration", "move_to_iteration"]  # Jira: one active sprint
 CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")  # describe_board(), propose_item(intake=…)
+ARGS = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(([^()]*)\)")  # a call and its arguments
+KEYWORD = re.compile(r"(?:^|,)\s*([a-z_]+)=")
+ITERATION_READ = re.compile(r'find_items\(iteration="[^"]*"(?:, limit=(\d+))?\)')
 FULL_READ = {  # a read that must see everything: an iteration's items, the review queue
-    "plan-sprint": re.compile(r'find_items\(iteration="[^"]*"(?:, limit=(\d+))?\)'),
+    "plan-sprint": ITERATION_READ,
+    "plan-cycle": ITERATION_READ,
     "groom": re.compile(r'find_items\(label="[^"]*"(?:, limit=(\d+))?\)'),
 }
+CYCLE_ITEM = re.compile(r"`(\d{8}-cycle)/(([a-z]+)-(\d{4}-\d{2}-\d{2}))`")  # plan-cycle's example external id
 JSON_BLOCK = re.compile(r"```json\n(.*?)```", re.S)
 INTAKE_ID = re.compile(r"\d{8}-[a-z0-9-]+")  # the skills' convention: YYYYMMDD-<slug>
 
@@ -63,6 +76,25 @@ def test_a_skill_calls_only_the_servers_tools(name):
     assert calls and calls <= TOOLS | DOC_TOOLS, f"not server tools: {sorted(calls - TOOLS - DOC_TOOLS)}"
 
 
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_a_skill_passes_only_arguments_its_tool_takes(tmp_path):
+    svc, _, _ = service()
+    docs, _ = published(tmp_path)
+    params: dict[str, set[str]] = {}
+    for server in (build(svc), build_docs(docs)):  # the schemas a host sees
+        async with Client(server) as client:
+            params |= {t.name: set(t.input_schema.get("properties", {})) for t in (await client.list_tools()).tools}
+    for name in NAMES:
+        for tool, args in ARGS.findall(read(name)[1]):
+            unknown = set(KEYWORD.findall(args)) - params[tool]
+            assert not unknown, f"{name}: {tool} takes no {sorted(unknown)}"
+
+
 def test_intake_retrieves_only_in_its_context_step():
     _, body = read("intake")
     before, sep, rest = body.partition("## 3. Context provider")
@@ -72,9 +104,9 @@ def test_intake_retrieves_only_in_its_context_step():
     assert step.index("search_docs(") < step.index("get_doc(")  # an excerpt is read in full before use
 
 
-def test_intake_hands_off_to_every_create_skill():
+def test_intake_hands_off_to_every_skill_that_files():
     _, body = read("intake")
-    assert all(name in body for name in CREATE)
+    assert all(name in body for name in [*CREATE, "plan-cycle"])  # a dated piece goes to plan-cycle
 
 
 @pytest.mark.parametrize("name", CREATE)
@@ -91,6 +123,42 @@ def test_plan_sprint_plans_on_reads_then_writes_in_rollover_order():
     assert 'find_items(iteration="<next>"' in plan  # an existing next one is read, never assumed empty
     order = [rollover.index(f"{tool}(") for tool in ROLLOVER]
     assert order == sorted(order)
+
+
+def test_plan_cycle_checks_on_reads_then_files_the_epic_before_its_slots():
+    _, body = read("plan-cycle")
+    plan, sep, write = body.partition("## 5. Write")
+    assert sep, "plan-cycle has no write section"
+    # propose_item writes nothing, so the plan may check drafts against the board before the PM's yes
+    assert "yes" in plan and set(CALL.findall(plan)) <= READS | {"propose_item"}
+    assert 'find_items(iteration="<cycle>"' in plan  # an existing cycle is read, never assumed empty
+    epic, slot = write.index('part="epic"'), write.index('part="<part>"')
+    assert write.index("create_iteration(") < epic < write.index("commit_item(") < slot  # the epic is their parent
+    assert write.rindex("commit_item(") < write.index("get_item(")  # the read-back comes after the writes
+
+
+def test_plan_cycle_plans_by_the_cadence_the_config_carries():
+    _, body = read("plan-cycle")
+    assert all(f"`{rule.value}`" in body for rule in DateRule)
+    assert all(f"`{key}`" in body for key in ("level", "days", "dates"))
+    assert f"`{WEEKDAYS[0]}` to `{WEEKDAYS[-1]}`" in body
+    assert all(f"`{{{slot}}}`" in body for slot in DESCRIPTION_SLOTS)
+
+
+def test_plan_cycle_examples_fit_the_calendar_example():
+    _, body = read("plan-cycle")
+    cfg = load(ROOT / "examples" / "boards" / "calendar.example.toml")
+    found = CYCLE_ITEM.search(body)
+    assert found, "plan-cycle shows no example external id"
+    plan_id, part, template, day = found.groups()
+    assert INTAKE_ID.fullmatch(plan_id) and NAME.fullmatch(plan_id) and NAME.fullmatch(part)
+    first, slot = date.fromisoformat(f"{plan_id[:4]}-{plan_id[4:6]}-{plan_id[6:8]}"), date.fromisoformat(day)
+    assert first.day == 1 and (slot.year, slot.month) == (first.year, first.month)  # a YYYYMM cycle's first day
+    assert WEEKDAYS[slot.weekday()] in cfg.templates[template].days
+    epic = next(t for t in cfg.templates.values() if t.level.value == "epic")
+    assert f'("{epic.title_for(first)}")' in body
+    placeholder = f"{template.title()} For {slot:%A, %B} {slot.day}"
+    assert f'"{placeholder}"' in body and titlecase.suggest(placeholder, ItemCase.TITLE) is None
 
 
 def test_groom_reviews_on_reads_then_rereads_before_each_update():

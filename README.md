@@ -40,7 +40,9 @@ the right sprint, on whatever tracker your team already runs.
 > config, and both trackers pass the conformance cases that write them.
 > A board config can name item templates, so one call drafts a dated
 > piece of work with its category, labels, fields and description
-> skeleton (offline tests so far).
+> skeleton. A planning skill drafts a whole cycle from them, its epic and
+> one item per dated slot, and files it after one yes (offline tests so
+> far).
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -54,7 +56,8 @@ the right sprint, on whatever tracker your team already runs.
 - **Skills** that carry the judgment: an intake conversation that
   fills a requirements schema from a non-technical request, the
   decomposition of one request into epic + stories with acceptance
-  criteria, sprint planning and rollover, and a backlog-grooming pass.
+  criteria, sprint planning and rollover, planning a calendar's cycle
+  from templates, and a backlog-grooming pass.
 - **Backend adapters** that map the canonical model onto a real
   tracker's API: Plane and Jira Cloud (Premium/Enterprise). A
   parent-only generic mode covers trackers without typed hierarchies.
@@ -109,7 +112,7 @@ agentic_administration/
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
 ├── adapters/          # plane/, jira/, generic/  ✅ base.py (interface + errors), plane/, jira/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the templates
-├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, groom
+├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
 ├── knowledge/         # Markdown docs → Confluence, and the docs' MCP server  ✅ the publisher (passes live), the server
 ├── conformance/       # the adapter and publisher test suites  ✅ Plane, Jira and the publisher pass live
@@ -177,9 +180,9 @@ It also holds a title pattern filled from the item's date (`{month}
 `{description}` marks the request's own text. `propose_item(template=…)`
 fills the item from it, and the request adds the date and the specifics:
 its title, feature and dates win, and its labels and field values are
-added. A template's `days` and `dates` are the weekday cadence a cycle is
-planned by: a slot on each of those weekdays, and which date the slot's
-day sets. `describe_board` lists every template.
+added. A template's `days` and `dates` are the weekday cadence the
+`plan-cycle` skill plans a cycle by: a slot on each of those weekdays, and
+which date the slot's day sets. `describe_board` lists every template.
 
 **Jira Cloud** works the same way from
 [examples/boards/jira.example.toml](examples/boards/jira.example.toml), for a
@@ -237,6 +240,15 @@ skill-loading host reads it):
   old iteration, finds or creates the next one (which starts a Jira sprint
   on its first day), and moves the work. Tasks move with their story or
   bug.
+- **`plan-cycle`** plans a whole cycle on a board whose templates set a
+  cadence, such as a content calendar. It drafts the cycle's epic from its
+  epic template and one item for each dated slot. The PM edits the list
+  and then sees the exact write-up of every item, field and call. After
+  one yes it finds or creates the cycle, files the epic, then each item
+  under it, and reads them back. Its ids come from the cycle
+  (`20261101-cycle/post-2026-11-02`), so a rerun finds what landed. It
+  also files a single dated item into its cycle, which is where intake
+  sends one on such a board.
 - **`groom`** is the PO's review pass over what carries the review label
   (`find_items(label=…)`). It proposes fixes to each item's title, parent,
   feature or state and flags duplicates. After one yes it signs each item
@@ -245,7 +257,7 @@ skill-loading host reads it):
   stays in the queue.
 
 With the board's `confirm = "never"`, the create skills commit without
-pausing; `plan-sprint` and `groom` still wait for their yes.
+pausing; `plan-sprint`, `plan-cycle` and `groom` still wait for their yes.
 Looking up related items happens in one step of `intake` (the board's own
 search, plus the team's docs where the host has them), so another
 retrieval source replaces only that step.
@@ -266,7 +278,7 @@ K=mcp__plugin_agentic-administration_knowledge__
 ENABLE_CLAUDEAI_MCP_SERVERS=false claude --plugin-dir /path/to/agentic_administration \
   --tools Skill --permission-mode manual \
   --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}get_iteration ${T}propose_item ${K}search_docs ${K}get_doc" \
-  --append-system-prompt "You are a team's backlog assistant. Every request is about the team's board, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, and reviewing what's waiting with groom."
+  --append-system-prompt "You are a team's backlog assistant. Every request is about the team's board, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, planning a month or cycle of dated work from the board's templates with plan-cycle, and reviewing what's waiting with groom."
 ```
 
 The skills show up as `/agentic-administration:intake` and so on, but a
@@ -275,8 +287,8 @@ is what makes that work. Without it, Claude Code reads "I'd like this
 automated" as a request to build the automation
 ([the gate record](transcripts/2026-09-24-phase3-gate.md), session A).
 The line names a first skill for each role: a requester's ask goes to
-intake, a PM's "roll the sprint over" to plan-sprint, and a PO's "groom"
-to groom.
+intake, a PM's "roll the sprint over" to plan-sprint, a PM's "plan
+November" on a content calendar to plan-cycle, and a PO's "groom" to groom.
 `--tools Skill` leaves out Claude Code's other built-in tools (shell,
 files, web), and `ENABLE_CLAUDEAI_MCP_SERVERS=false` leaves out the
 requester's claude.ai connectors, so the session gets the Skill tool and

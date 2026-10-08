@@ -64,9 +64,9 @@ channels  = "Channels"   # e.g. a multi-select property
 # pattern filled from the item's start date, or its target date if it has
 # no start (`{month}`, `{year}`); the request's own title wins. `description`
 # is a Markdown skeleton, and the request's description goes where it says
-# `{description}`. `days` and `dates` are the cadence a cycle is planned
-# by: a slot on each of those weekdays, and the date its day sets
-# ("target", "start" or "both"). Write a literal brace as {{ or }}.
+# `{description}`. `days` and `dates` are the cadence the plan-cycle skill
+# plans a cycle by: a slot on each of those weekdays, and the date its day
+# sets ("target", "start" or "both"). Write a literal brace as {{ or }}.
 
 [templates.cycle]           # the cycle's epic, e.g. "October 2026 Content"
 level = "epic"
