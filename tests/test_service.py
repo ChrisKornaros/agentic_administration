@@ -279,3 +279,70 @@ def test_adapter_errors_become_actionable_failures(exc, hint):
     t.fail[f"GET {fp.WS}/work-items/AA-1/"] = exc
     with pytest.raises(ToolFailure, match=hint):
         svc.get_item("AA-1")
+
+
+# --- dates and custom fields (D41) -----------------------------------------------------
+
+
+def fields_service():
+    svc, t, clock = service(config={**CONFIG, "fields": {"published": "Published", "channels": "Channels"}})
+    t.add_property(fp.T_STORY, "Published", "BOOLEAN")
+    t.add_property(fp.T_STORY, "Channels", "OPTION", multi=True, options=("Web", "Email", "Print"))
+    return svc, t, clock
+
+
+def test_propose_checks_dates_and_fields_and_commit_writes_them():
+    svc, t, _ = fields_service()
+    out = propose(svc, start_date="2026-10-01", target_date="2026-10-05",
+                  fields={"published": True, "channels": ["Web"]})
+    p = out["preview"]
+    assert (p["start_date"], p["target_date"]) == ("2026-10-01", "2026-10-05")
+    assert p["fields"] == {"published": True, "channels": ["Web"]}
+    done = svc.commit_item(out["token"])["item"]
+    assert item_posts(t)[0]["target_date"] == "2026-10-05" and done["fields"] == p["fields"]
+    channels = next(f for f in svc.describe_board()["fields"] if f["name"] == "channels")
+    assert channels["options"] == ["Web", "Email", "Print"] and channels["levels"] == {"story": channels["levels"]["story"]}
+
+
+def test_propose_reports_bad_dates_and_field_values_before_storing():
+    svc, t, _ = fields_service()
+    with pytest.raises(ToolFailure, match="target_date must be an ISO date"):
+        propose(svc, target_date="next friday")
+    with pytest.raises(ToolFailure) as err:
+        propose(svc, start_date="2026-10-09", target_date="2026-10-05", fields={"channels": "Radio", "mood": "x"})
+    msg = str(err.value)
+    assert "field 'channels' takes a list of option names" in msg and "no field 'mood'" in msg
+    assert "start_date 2026-10-09 is after target_date 2026-10-05" in msg
+    with pytest.raises(ToolFailure, match="field 'published' is not on the epic type"):
+        propose(svc, level="epic", parent=None, feature=None, fields={"published": True})
+    assert svc._drafts == {} and {m for m, *_ in t.calls} == {"GET"}
+
+
+def test_a_retry_fills_in_values_a_failed_commit_left_unset():
+    svc, t, _ = fields_service()
+    token = propose(svc, fields={"published": True, "channels": ["Web", "Email"]})["token"]
+    channels = t.properties[fp.T_STORY][1]["id"]
+    values, walled = t._values, [True]
+
+    def wall_on_channels(method, iid, pid, body):  # the wall meets the second value, after the item exists
+        if method == "POST" and pid == channels and walled[0]:
+            raise Blocked("HTTP 403 answered by an edge wall (Cloudflare), not Plane")
+        return values(method, iid, pid, body)
+
+    t._values = wall_on_channels
+    with pytest.raises(ToolFailure, match="will not duplicate"):
+        svc.commit_item(token)
+    walled[0] = False
+    again = svc.commit_item(token)
+    assert len(item_posts(t)) == 1 and again["already_existed"] is True
+    assert again["item"]["fields"] == {"published": True, "channels": ["Web", "Email"]}
+    assert len([b for m, p, _, b in t.calls if m == "POST" and p.endswith(f"/{channels}/values/")]) == 2
+
+
+def test_update_item_moves_dates_and_sets_fields():
+    svc, t, _ = fields_service()
+    key = svc.commit_item(propose(svc, fields={"published": False})["token"])["item"]["key"]
+    out = svc.update_item(key, target_date="2026-10-07", fields={"channels": ["Print"]})
+    assert out["target_date"] == "2026-10-07" and out["fields"] == {"published": False, "channels": ["Print"]}
+    with pytest.raises(ToolFailure, match="start_date must be an ISO date"):
+        svc.update_item(key, start_date="soon")

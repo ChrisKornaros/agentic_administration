@@ -90,3 +90,19 @@ async def test_the_stdio_entry_point_serves_the_tools(mode):
     )
     async with Client(params, mode=mode) as client:
         check_surface((await client.list_tools()).tools)
+
+
+@pytest.mark.anyio
+async def test_dates_and_fields_over_mcp():
+    from tests.test_service import fields_service
+
+    svc, _, _ = fields_service()
+    async with Client(build(svc)) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+        out = await client.call_tool("propose_item", {
+            "intake_id": "req-0011", "level": "story", "title": "Loaves Of The Week", "target_date": "2026-10-05",
+            "fields": {"published": True, "channels": ["Web"]}})
+    for name in ("propose_item", "update_item"):
+        assert {"start_date", "target_date", "fields"} <= set(tools[name].input_schema["properties"])
+    assert not out.is_error
+    assert out.structured_content["preview"]["fields"] == {"published": True, "channels": ["Web"]}

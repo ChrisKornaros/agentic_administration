@@ -383,3 +383,73 @@ def test_no_delete_anywhere():
     it = adapter.create_iteration(Iteration("202610", start=date(2026, 10, 1), end=date(2026, 10, 31)))
     adapter.move_to_iteration([story["key"]], it.id or "")
     assert "DELETE" not in {m for m, *_ in t.calls}
+
+
+# --- dates and custom fields (D41) -----------------------------------------------------
+
+FIELDS = {**CONFIG, "fields": {"channels": "Channels"}}
+
+
+def test_describe_finds_the_start_date_by_name_and_reads_screens_only_with_fields():
+    adapter, t = make()
+    board = adapter.describe_board()
+    assert board.features["start_date_field"] == fj.START_FIELD  # not Advanced Roadmaps' Target start
+    assert board.fields == () and not [p for _, p in t.log if "createmeta" in p]
+    fake = fj.FakeJira()
+    fake.screen.add(fj.CHANNELS)
+    adapter, t = make(fake, config=FIELDS)
+    board = adapter.describe_board()
+    assert board.problems == () and {m for m, *_ in t.calls} == {"GET"}
+    assert len([p for _, p in t.log if "createmeta" in p]) == 4  # one per mapped type
+    [channels] = board.fields
+    assert (channels.kind.value, channels.multi, channels.options) == ("option", True, ("Web", "Email", "Print"))
+    assert channels.levels == {lv: fj.CHANNELS for lv in (Level.EPIC, Level.STORY, Level.BUG, Level.TASK)}
+    assert make(fake, config={**CONFIG, "fields": {"channels": fj.CHANNELS}})[0].describe_board().fields[0].name == "channels"
+
+
+def test_a_field_off_the_screens_or_unknown_is_a_config_problem():
+    adapter, _ = make(config={**CONFIG, "fields": {"channels": "Channels", "cost": "Cost"}})
+    assert adapter.describe_board().problems == (
+        "fields.cost: no field 'Cost' on the site (a new custom field is listed only once it is on one of "
+        "the project's screens)",
+        f"fields.channels: {fj.CHANNELS} (Channels) is on no mapped type's create screen; add it to the project's screens",
+    )
+    fake = fj.FakeJira()
+    fake.fields.append({"id": "customfield_10099", "name": "Channels", "custom": True, "schema": {"type": "string"}})
+    adapter, _ = make(fake, config=FIELDS)
+    assert adapter.describe_board().problems == (
+        f"fields.channels: 2 fields are named 'Channels' ({fj.CHANNELS}, customfield_10099); name one by its id",)
+
+
+def test_dates_and_values_ride_in_the_create_and_read_back():
+    fake, epic, _, _ = seeded()
+    fake.screen.add(fj.CHANNELS)
+    adapter, t = make(fake, config=FIELDS)
+    made = adapter.create_item(WorkItem(
+        Level.STORY, "Loaves Of The Week", parent=ItemRef(epic["key"], Level.EPIC),
+        start_date=date(2026, 10, 1), target_date=date(2026, 10, 5), fields={"channels": ["web", "Print"]},
+    ))
+    body = t.bodies("POST", "/rest/api/3/issue")[0]["fields"]
+    assert (body[fj.START_FIELD], body["duedate"]) == ("2026-10-01", "2026-10-05")
+    assert body[fj.CHANNELS] == [{"value": "Web"}, {"value": "Print"}]  # the board's own option names
+    assert (made.start_date, made.target_date) == (date(2026, 10, 1), date(2026, 10, 5))
+    assert made.fields == {"channels": ["Web", "Print"]}
+    [listed] = adapter.find_items(external_id=None, query="Loaves")
+    assert listed.fields == made.fields and listed.target_date == date(2026, 10, 5)  # the search carries both
+    after = adapter.update_item(made.key, ItemPatch(start_date=date(2026, 10, 2), fields={"channels": ["Email"]}))
+    put = t.bodies("PUT", f"/rest/api/3/issue/{made.key}")[0]["fields"]
+    assert put == {fj.START_FIELD: "2026-10-02", fj.CHANNELS: [{"value": "Email"}]}
+    assert after.start_date == date(2026, 10, 2) and after.fields == {"channels": ["Email"]}
+
+
+def test_bad_values_and_a_missing_start_date_field_refuse_before_writing():
+    fake = fj.FakeJira()
+    fake.screen.add(fj.CHANNELS)
+    adapter, t = make(fake, config=FIELDS)
+    with pytest.raises(ValidationError, match="takes a list of option names"):
+        adapter.create_item(WorkItem(Level.STORY, "S", fields={"channels": ["Radio"]}))
+    fake.fields = [f for f in fake.fields if f["id"] != fj.START_FIELD]
+    adapter, _ = make(fake, config=FIELDS)
+    with pytest.raises(ValidationError, match="no field named 'Start date'"):
+        adapter.create_item(WorkItem(Level.STORY, "S", start_date=date(2026, 10, 1)))
+    assert t.bodies("POST", "/rest/api/3/issue") == []

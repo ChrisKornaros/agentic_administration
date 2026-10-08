@@ -22,6 +22,11 @@ mechanical (adapters/base.py).
   external_id once it is committed.
 - **Title case (D14):** a warning and a suggested title, never a reject
   (`server.titlecase`).
+- **Dates and custom fields (D41):** `start_date` / `target_date` are ISO
+  dates; `fields` is keyed by the config's field names, and `propose_item`
+  checks each value against the board as `describe_board` read it (the
+  type that carries it, its kind, its options). A retried commit fills in
+  any field the failed attempt left unset.
 - **Errors:** every `AdapterError` becomes a `ToolFailure` whose message
   says what the agent can do about it.
 - **One tracker call at a time:** the SDK runs sync tools in worker
@@ -55,6 +60,7 @@ from adapters.base import (
     TransportError,
     Unsupported,
     ValidationError,
+    field_problems,
 )
 from schema.intake import SIBLING, Intake, Part, render
 from server import titlecase
@@ -259,7 +265,11 @@ class BoardService:
         iteration: str | None = None,
         assignees: Sequence[str] = (),
         labels: Sequence[str] = (),
+        start_date: str | None = None,
+        target_date: str | None = None,
+        fields: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        start, target = _date(start_date, "start_date"), _date(target_date, "target_date")
         if intake is not None:
             given = {"intake_id": intake_id, "level": level, "title": title, "description": description,
                      "parent": parent, "feature": feature, "iteration": iteration}
@@ -327,6 +337,7 @@ class BoardService:
         if unknown:
             have = ", ".join(m.name for m in board.members) or "(none)"
             problems.append(f"assignees not in the workspace: {', '.join(unknown)} (members: {have})")
+        problems += field_problems(board, lvl, fields or {})
 
         external_id = _external_id(intake_id, part)
         item = WorkItem(
@@ -341,6 +352,9 @@ class BoardService:
             assignees=tuple(assignees),
             labels=tuple(wanted),
             external_id=external_id,
+            start_date=start,
+            target_date=target,
+            fields=dict(fields or {}),
         )
         problems += item.validate()
         if problems:
@@ -405,7 +419,11 @@ class BoardService:
             self.adapter.update_item(ref, ItemPatch(feature=item.feature))
         if item.iteration and current.iteration is None:
             self.adapter.move_to_iteration([ref], item.iteration)
-        return {"item": to_jsonable(self.adapter.get_item(ref)), "already_existed": True}
+        now = self.adapter.get_item(ref)
+        unset = {name: value for name, value in item.fields.items() if name not in now.fields}
+        if unset:  # Plane writes values after the item: a failed attempt may have left some off
+            now = self.adapter.update_item(ref, ItemPatch(fields=unset))
+        return {"item": to_jsonable(now), "already_existed": True}
 
     # -- other writes -----------------------------------------------------------
 
@@ -421,6 +439,9 @@ class BoardService:
         labels: Sequence[str] | None = None,
         parent: str | None = None,
         feature: str | None = None,
+        start_date: str | None = None,
+        target_date: str | None = None,
+        fields: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         patch = ItemPatch(
             title=title,
@@ -430,6 +451,9 @@ class BoardService:
             labels=tuple(labels) if labels is not None else None,
             parent=ItemRef(parent) if parent else None,
             feature=ItemRef(feature, Level.FEATURE) if feature else None,
+            start_date=_date(start_date, "start_date"),
+            target_date=_date(target_date, "target_date"),
+            fields=dict(fields) if fields else None,
         )
         return to_jsonable(self.adapter.update_item(ref, patch))
 

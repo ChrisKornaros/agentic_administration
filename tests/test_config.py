@@ -105,6 +105,7 @@ def test_the_calendar_example_has_no_bug_level_and_review_off():
     )
     assert caps.levels[Level.BUG] is Materialization.ABSENT and not caps.materializes(Level.BUG)
     assert caps.materializes(Level.STORY) and caps.levels[Level.FEATURE] is Materialization.CONTAINER
+    assert cfg.fields == {"published": "Published", "channels": "Channels"}  # D41
 
 
 # --- defaults and shape ------------------------------------------------------
@@ -323,3 +324,16 @@ def test_check_raises_with_every_problem():
         "states missing: backlog, cancelled, done, in_progress, todo",
         "labels.review is empty (the review marker is required)",
     ]
+
+
+# --- custom fields (D41) ---------------------------------------------------------
+
+
+def test_fields_map_a_name_to_the_trackers_property_or_field():
+    cfg = BoardConfig.from_dict(variant(fields={"published": "Published", "points": "customfield_10037"})).check()
+    assert cfg.fields == {"published": "Published", "points": "customfield_10037"}
+    assert BoardConfig.from_dict(PLANE).fields == {}
+    p = problems_of(variant(fields={"published": "", "points": 3}))
+    assert p == ["fields.published must name the tracker's property or field (its name or id)",
+                 "fields.points must name the tracker's property or field (its name or id)"]
+    assert problems_of(variant(fields=["Published"])) == ["fields must be a table"]

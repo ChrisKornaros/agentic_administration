@@ -96,4 +96,10 @@ def provision(ctx: Context) -> None:
     made_labels = sorted({l for l in labels if l.lower() not in had_labels})
     ctx.note(f"work-item types created: {', '.join(made_types) or 'none'}; board types now {', '.join(t.name for t in board.types)}")
     ctx.note(f"labels created via POST …/labels/: {', '.join(made_labels) or 'none'}")
+    missing = [p for p in board.problems if p.startswith("fields.")]
+    if missing and len(missing) == len(board.problems):
+        raise NeedsOperator(  # a property needs its kind and options, which the config doesn't give
+            f"add the work-item properties [fields] names in Plane → {board.project_name} → Settings → "
+            "Work item types, then re-run: " + "; ".join(missing)
+        )
     expect(not board.problems, "the board still does not fit after provisioning: " + "; ".join(board.problems))

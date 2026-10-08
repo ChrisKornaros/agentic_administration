@@ -16,6 +16,10 @@ into the tracker's format (Plane HTML, Jira ADF).
 `assignees` are opaque identifiers the adapter resolves against the board's
 member directory; the model does not know whether they are names or ids.
 
+An item may carry a start and a target date, and custom-field values (D41):
+`fields` is keyed by the board config's field name, and each adapter writes
+a value as given to the tracker property or field the config maps it to.
+
 Nothing here talks to a tracker, and there is no delete anywhere in the
 model: an item's terminal states are `done` and `cancelled`.
 
@@ -122,12 +126,17 @@ class WorkItem:
     external_id: str | None = None  # the idempotency key, when the caller has one
     related: tuple[ItemRef, ...] = ()
     links: tuple[str, ...] = ()
+    start_date: date | None = None
+    target_date: date | None = None  # when it is due; on a calendar board, the piece's day
+    fields: Mapping[str, Any] = field(default_factory=dict)  # custom fields by the config's name (D41)
 
     def validate(self) -> list[str]:
         """Return every placement/shape violation; empty means valid."""
         problems: list[str] = []
         if not self.title.strip():
             problems.append("title is empty")
+        if self.start_date and self.target_date and self.start_date > self.target_date:
+            problems.append(f"start_date {self.start_date} is after target_date {self.target_date}")
 
         allowed = PARENT_LEVELS[self.level]
         if self.parent is None:
@@ -183,6 +192,11 @@ class WorkItem:
                 kw[seq] = tuple(kw[seq])
         if "related" in kw:
             kw["related"] = tuple(_ref_from_dict(r) for r in kw["related"])
+        for day in ("start_date", "target_date"):
+            if isinstance(kw.get(day), str):
+                kw[day] = date.fromisoformat(kw[day])
+        if "fields" in kw:
+            kw["fields"] = dict(kw["fields"])
         return cls(**kw)
 
 

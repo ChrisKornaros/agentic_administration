@@ -33,6 +33,12 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
   not a duplicate.
 - **Exit codes:** 0 pass · 1 a case failed · 2 bad config or backend ·
   3 stopped (act on the last note, or wait out the wall, then re-run).
+- **Custom fields are the operator's.** The `fields` case needs the
+  config's `[fields]` to exist on the board, and the suite never creates
+  one, since the config gives no kind or options. On Plane, `provision`
+  stops and names the work-item properties to add. On Jira, the field must
+  be on the project's screens (Jira lists it only then), and an option
+  field needs its options.
 - **Budget:** one Plane run is about 20 POSTs and 5 PATCHes. Cloudflare's
   managed challenge showed up after about 24 creates in a burst. Keep
   the throttle. One Jira run is about 50 GETs, 14 POSTs and 1 PUT, far
@@ -48,6 +54,8 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
 | `placement` | A feature; a story under the epic, in the feature, with the review label; a bug under the epic; a task under the story. All are confirmed from the board's list read. Where the board collapses Feature, the story names it and must carry it where the collapse rule says. A task under a *known* epic is refused by the model before any call. |
 | `hierarchy` | A task straight under the epic, with the epic's level left unstated so only the tracker can object. Either answer passes: accepted, or refused as a mapped `ValidationError`. The note says which. |
 | `update` | Clearing the review label leaves the item's level alone. A task moves to done. A comment is added. |
+| `dates` | *Phase 6c (D41).* A story with a start and a target date: both read back as written, from `get_item` and from the list read alike. `update_item` then moves the target date a day, and the start date stays. |
+| `fields` | *Phase 6c (D41).* Each `[fields]` entry the story type carries: written at create, read back by `get_item`, then changed by `update_item` while the others stay. The values come from `describe_board` (a boolean flips, an option field takes its first options then its last, and so on). It skips when the config has no `[fields]`. |
 | `iterations` | This month's iteration, ending **today**: whether the tracker still takes items into it shows whether the end day is open. Next month's iteration reads planned. The dates read back exactly as written. Items move into both, confirmed by the list read. |
 | `close` | `close_iteration` closes this month's iteration, a fresh read agrees, and the closed iteration refuses new items as a `ValidationError`. |
 | `rollover` | *Phase 6.* `create_iteration` with next month's name returns that iteration rather than a duplicate. `find_items(iteration=…)` on the closed iteration returns only items still in it. Everything there that is neither done nor cancelled moves to next month's iteration (board-wide, as a real rollover does), and fresh reads of both iterations agree. The note records what stayed, and what left along with a moved parent. Skips when nothing is unfinished. |
@@ -61,6 +69,33 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
 | 2026-09-27 | Jira Cloud (Premium trial), company-managed Scrum project `AGADM`, board 2 | **PASS 9/9** on the first run. It sent GET 48, POST 14, PUT 1 and no DELETE, with no 429. No adapter fix was needed; one fake-transport rule was wrong and is corrected (below). |
 | 2026-09-27 | Jira `AGADM`: run `20260927` resumed with the new `rollover` case | **PASS 10/10.** `rollover` sent GET 16 and POST 1; the run's total is GET 64, POST 15, PUT 1 and no DELETE. The fake had one more rule wrong, now corrected (below). |
 | 2026-09-27 | Plane `AGADMIN`: a new run, `20260927` | **PASS: 9 pass, 1 skip.** `iterations` skipped because `202609` was already closed; `close` and `rollover` ran on the ids it recorded first. GET 36, PATCH 2, POST 10 and no DELETE. |
+| 2026-10-07 | Plane `AGADMIN`: a new run, `20261007`, with `[fields]` (a yes/no and a multi-select property on Story) | **PASS: 10 pass, 2 skip.** The new `dates` and `fields` cases pass. `iterations` skipped because `202610` was already closed, and `rollover` because it held nothing unfinished. GET 80, PATCH 3, POST 15 and no DELETE. The first process stopped on a network timeout at the start of `fields`, before any write; the re-run resumed there. |
+| 2026-10-07 | Jira `AGADM`: a new run, `20261007`, with `[fields]` (a multi-checkbox custom field) | **PASS: 10 pass, 2 skip** on the first run, skipping as Plane did. GET 78, POST 10, PUT 3 and no DELETE. The read-only check before it found one adapter message to fix (below). |
+
+### What the 2026-10-07 runs settled (Phase 6c, D41)
+
+- **Plane dates** go in the create POST and the PATCH, as `YYYY-MM-DD`,
+  and read back the same from `get_item` and the list read.
+- **Plane values:** the upsert `POST …/values/` took a boolean and a
+  list of option ids. On a multi-select it **replaces the set**: `option
+  a, option b`, then `option c`, read back as `option c` alone. A value
+  reads back one property at a time, so each `get_item` costs a GET per
+  property on the item's type. A multi-select's values may come back in
+  another order; the case compares them as a set.
+- **Jira dates:** the target date is `duedate`, and the start date is
+  `customfield_10015`, the field named "Start date". Both are written in
+  the create and the PUT, and the search returns them too.
+- **Jira values:** a multi-checkbox field takes `[{"value": <name>}]` in
+  the create and the PUT, and the PUT replaces the set.
+- **A new Jira field is missing from `GET /rest/api/3/field`** until it
+  is on one of the project's screens, although it has a global context
+  (the admin `field/search` finds it). Until it has options, its create
+  screen lists no `allowedValues`. `describe_board` now says so when a
+  configured field isn't found.
+
+Left on the boards by these runs: `AGADMIN-17` to `AGADMIN-23` and module
+`Conformance 20261007` on Plane; `AGADM-7` to `AGADM-13` and one comment
+on `AGADM-8` on Jira.
 
 ### What the 2026-09-27 rollover runs settled (Phase 6)
 

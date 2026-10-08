@@ -35,7 +35,9 @@ the right sprint, on whatever tracker your team already runs.
 > and custom-field APIs ([probes/](probes/README.md)), and a board config
 > names its type. A `calendar` board needs no Bug level and has review off
 > unless it names a review label
-> ([the example](examples/boards/calendar.example.toml)).
+> ([the example](examples/boards/calendar.example.toml)). Items carry
+> start and target dates and the board's own custom fields, named in the
+> config, and both trackers pass the conformance cases that write them.
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -152,6 +154,17 @@ With `board_type = "calendar"`, the config may leave `bug` out, and review
 is off unless `[labels]` names a `review` label. Every create still goes
 through propose → commit. A `software` board, the default, maps every
 level and names a review label.
+
+**Dates and custom fields** work on either type. An item has a
+`start_date` and a `target_date`. `[fields]` maps a name you choose to
+the tracker's own custom field, by its name or id: a Plane work-item
+property, which belongs to one type, or a Jira `customfield_*`.
+`describe_board` lists each field with its kind, its options and the
+levels that carry it. `propose_item` and `update_item` take values by
+those names: true or false, a number, text, an option name, or a list of
+option names for a multi-select. On Jira, the target date is the due date
+and the start date is the field named "Start date". A Jira custom field
+shows up only once it is on one of the project's screens.
 
 **Jira Cloud** works the same way from
 [examples/boards/jira.example.toml](examples/boards/jira.example.toml), for a

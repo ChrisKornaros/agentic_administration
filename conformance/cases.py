@@ -22,9 +22,9 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Callable
+from typing import Any, Callable
 
-from adapters.base import Adapter, ItemPatch, NotFound, ValidationError
+from adapters.base import Adapter, FieldInfo, FieldKind, ItemPatch, NotFound, ValidationError
 from server.config import BoardConfig, Naming
 from server.model import (
     CollapseRule,
@@ -275,6 +275,92 @@ def update_and_comment(ctx: Context) -> None:
     ctx.note(f"review label cleared on {story.key}; task {task.key} is done; comment {comment.id} by {comment.author}")
 
 
+def dates(ctx: Context) -> None:
+    """A story with a start and a target date (D41): both read back as
+    written, the list read carries them too, and an update moves one."""
+    a = ctx.adapter
+    start, target = ctx.today, ctx.today + timedelta(days=7)
+    later = target + timedelta(days=1)
+    made = find_or_create(ctx, WorkItem(
+        Level.STORY, "Dated Story", parent=ItemRef(ctx.ids["epic"], Level.EPIC),
+        start_date=start, target_date=target, external_id=ctx.xid("dated"),
+    ))
+    got = a.get_item(made.id or "")
+    # `later` too: a resumed run may meet the item after its move
+    expect(got.start_date == start and got.target_date in (target, later),
+           f"{got.key} was written {start}–{target} but reads back {got.start_date}–{got.target_date}")
+    listed = a.find_items(external_id=ctx.xid("dated"))
+    expect([(i.start_date, i.target_date) for i in listed] == [(got.start_date, got.target_date)],
+           f"the list read has {[(i.start_date, i.target_date) for i in listed]}, "
+           f"get_item {got.start_date}–{got.target_date}")
+    ctx.note(f"{got.key} reads back {got.start_date}–{got.target_date}, from get_item and the list read alike")
+    a.update_item(made.id or "", ItemPatch(target_date=later))
+    again = a.get_item(made.id or "")
+    expect((again.start_date, again.target_date) == (start, later),
+           f"after target_date={later} it reads {again.start_date}–{again.target_date}")
+    ctx.note(f"update_item(target_date={later}) moved it; start_date stayed {again.start_date}")
+
+
+def _samples(f: FieldInfo, ctx: Context) -> tuple[Any, Any] | None:
+    """A value to create with and one to change to, from what the board says
+    the field takes; None for a kind the suite can't make up a value for."""
+    if f.kind is FieldKind.BOOLEAN:
+        return True, False
+    if f.kind is FieldKind.OPTION and f.options:
+        if f.multi:
+            return list(f.options[:2]), list(f.options[-1:])
+        return f.options[0], f.options[-1]
+    if f.kind is FieldKind.TEXT:
+        return f"conformance {ctx.run_id}", f"conformance {ctx.run_id} edited"
+    if f.kind is FieldKind.NUMBER:
+        return 3, 5
+    if f.kind is FieldKind.DATE:
+        return ctx.today.isoformat(), (ctx.today + timedelta(days=1)).isoformat()
+    return None
+
+
+def _same(read: dict[str, Any], wrote: dict[str, Any]) -> bool:
+    """Option names compare ignoring case, a multi-valued one as a set."""
+    def norm(v: Any) -> Any:
+        if isinstance(v, list):
+            return frozenset(norm(x) for x in v)
+        return v.lower() if isinstance(v, str) else v
+    return all(norm(read.get(name)) == norm(value) for name, value in wrote.items())
+
+
+def custom_fields(ctx: Context) -> None:
+    """Every configured field the story type carries (D41): written at
+    create, read back by get_item, then changed by update_item."""
+    a = ctx.adapter
+    carried = [f for f in a.describe_board().fields if Level.STORY in f.levels]
+    if not carried:
+        raise Skipped("the board config maps no field the story type carries ([fields])")
+    first: dict[str, Any] = {}
+    second: dict[str, Any] = {}
+    for f in carried:
+        pair = _samples(f, ctx)
+        if pair is None:
+            ctx.note(f"{f.name} ({f.native}) is not exercised: the suite has no {f.kind.value} value for it")
+            continue
+        first[f.name], second[f.name] = pair
+    if not first:
+        raise Skipped("no configured field is of a kind the suite can fill")
+    made = find_or_create(ctx, WorkItem(
+        Level.STORY, "Story With Fields", parent=ItemRef(ctx.ids["epic"], Level.EPIC),
+        fields=first, external_id=ctx.xid("fields"),
+    ))
+    got = a.get_item(made.id or "")
+    expect(_same(got.fields, first) or _same(got.fields, second),  # a resumed run may meet the changed values
+           f"{got.key} was written {first} but reads back {got.fields}")
+    ctx.note(f"{got.key} written with {first}; get_item reads {got.fields}")
+    a.update_item(made.id or "", ItemPatch(fields=second))
+    again = a.get_item(made.id or "")
+    expect(_same(again.fields, second), f"after update_item(fields={second}) it reads {again.fields}")
+    ctx.note(f"update_item(fields={second}) took: it reads {again.fields}")
+    kinds = ", ".join(f"{f.name} = {f.native}{' (multi)' if f.multi else ''}" for f in carried)
+    ctx.note(f"fields on the story type: {kinds}")
+
+
 def iterations(ctx: Context) -> None:
     a = ctx.adapter
     today = ctx.today
@@ -373,6 +459,8 @@ GENERIC_CASES: tuple[Case, ...] = (
     Case("placement", "feature, story (in the feature, review-labelled) and bug under the epic, task under the story", placement),
     Case("hierarchy", "a task straight under the epic: record whether the tracker accepts or refuses", hierarchy_probe),
     Case("update", "clear the review label, move the task to done, add a comment", update_and_comment),
+    Case("dates", "a story's start and target dates read back as written, and an update moves one", dates),
+    Case("fields", "each configured field on the story type: written at create, read back, changed", custom_fields),
     Case("iterations", "this month's iteration (ending today) and next month's; move items into both", iterations),
     Case("close", "close this month's iteration; a fresh read agrees; it refuses new items", close_iteration),
     Case("rollover", "what the closed iteration holds unfinished moves to the next; create_iteration finds, not duplicates", rollover),
