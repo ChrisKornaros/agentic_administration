@@ -56,3 +56,36 @@ item_case = "title"      # "title" | "sentence" | "any"
 [fields]
 published = "Published"  # e.g. a yes/no property
 channels  = "Channels"   # e.g. a multi-select property
+
+# Templates (D41, D42): propose_item(template="<name>", …) fills an item
+# from one, and the request adds the date and the specifics. A template
+# sets the level (story unless it says), the feature (a module), labels,
+# field values (by the [fields] names above) and the state. `title` is a
+# pattern filled from the item's start date, or its target date if it has
+# no start (`{month}`, `{year}`); the request's own title wins. `description`
+# is a Markdown skeleton, and the request's description goes where it says
+# `{description}`. `days` and `dates` are the cadence a cycle is planned
+# by: a slot on each of those weekdays, and the date its day sets
+# ("target", "start" or "both"). Write a literal brace as {{ or }}.
+
+[templates.cycle]           # the cycle's epic, e.g. "October 2026 Content"
+level = "epic"
+title = "{month} {year} Content"
+labels = ["admin"]
+state = "in_progress"
+
+[templates.post]            # one dated piece of work
+feature = "Recipes"
+labels = ["content"]
+state = "todo"
+days = ["mon", "wed", "fri"]
+dates = "target"
+description = """
+{description}
+
+#recipes #homecooking
+"""
+
+[templates.post.fields]
+published = false
+channels = ["Web", "Email"]

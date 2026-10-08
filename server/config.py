@@ -12,6 +12,11 @@ The board type (D38) sets two defaults: a `software` board must map every
 level and name a review label; a `calendar` board may leave `bug` out
 (D39), and its review is off unless it names a review label (D40).
 
+`[templates.<name>]` (D41) are named item templates, used through
+`propose_item(template=…)` (D42): each sets an item's level, feature,
+labels, field values and state, a title pattern, a description skeleton,
+and the weekday cadence a cycle planner fills.
+
 **No secrets in the file.** The connection names the environment variable
 that holds the API token (`token_env`); the adapter reads it at the boundary
 (design: modules/secrets-no-plaintext). A value that does not look like an
@@ -29,15 +34,19 @@ Static checks only — nothing here talks to a tracker. The *live* check
 
 from __future__ import annotations
 
+import calendar
 import enum
 import re
+import string
 import tomllib
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
 
 from server.model import (
     CORE_LEVELS,
+    FEATURE_ATTACHES_TO,
     CollapseRule,
     CollapseTarget,
     Level,
@@ -76,6 +85,14 @@ class ItemCase(enum.Enum):
     ANY = "any"
 
 
+class DateRule(enum.Enum):
+    """Which of an item's dates a cadence slot's day fills (D41)."""
+
+    TARGET = "target"
+    START = "start"
+    BOTH = "both"
+
+
 # Identifiers each backend needs beyond `token_env` / `base_url`. Jira needs
 # both a project key and an Agile board id because sprints belong to a board,
 # plus `user_env` (below): its Basic auth pairs the token with the account email.
@@ -90,6 +107,12 @@ MAY_OMIT: Mapping[BoardType, frozenset[Level]] = {
     BoardType.SOFTWARE: frozenset(),
     BoardType.CALENDAR: frozenset({Level.BUG}),
 }
+
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")  # in `date.weekday()` order
+# The placeholders a template may use: its title is filled from the item's date,
+# and its description skeleton takes the request's own description.
+TITLE_SLOTS = frozenset({"month", "year"})
+DESCRIPTION_SLOTS = frozenset({"description"})
 
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Connection keys that would only ever hold a credential.
@@ -165,6 +188,40 @@ class Naming:
         return self.iteration_regex().match(name) is not None
 
 
+@dataclass(frozen=True)
+class Template:
+    """A named item template (D41), used through `propose_item(template=…)` (D42).
+
+    It sets the item's level, feature (a Plane module), labels, custom-field
+    values (by `[fields]` name) and state. `title` is a pattern filled from
+    the item's date (`{month}`, `{year}`). `description` is a Markdown
+    skeleton, and `{description}` in it is where the request's own text
+    goes. `days` and `dates` are the weekday cadence a cycle planner fills:
+    the weekdays with a slot, and which of the item's dates the slot's day sets.
+    """
+
+    level: Level = Level.STORY
+    title: str | None = None
+    description: str | None = None
+    feature: str | None = None
+    labels: tuple[str, ...] = ()
+    state: State = State.BACKLOG
+    fields: Mapping[str, Any] = field(default_factory=dict)
+    days: tuple[str, ...] = ()
+    dates: DateRule = DateRule.TARGET
+
+    def title_for(self, day: date | None) -> str:
+        """The title pattern filled from `day`; `KeyError` when it needs a date and `day` is None."""
+        slots = {"month": calendar.month_name[day.month], "year": day.year} if day else {}
+        return (self.title or "").format(**slots)
+
+    def description_with(self, text: str) -> str:
+        return (self.description or "").format(description=text.strip()).strip()
+
+    def has_slot(self) -> bool:
+        """Whether the skeleton takes the request's description."""
+        return "description" in _slots(self.description or "")
+
 # --- the config ------------------------------------------------------------
 
 
@@ -179,6 +236,7 @@ class BoardConfig:
     confirm: Confirm = Confirm.ALWAYS
     board_type: BoardType = BoardType.SOFTWARE
     fields: Mapping[str, str] = field(default_factory=dict)  # name -> Plane property / Jira field (D41)
+    templates: Mapping[str, Template] = field(default_factory=dict)  # D41, D42
 
     # -- validation ---------------------------------------------------------
 
@@ -194,6 +252,7 @@ class BoardConfig:
         elif review is not None and not review.strip():
             problems.append("labels.review is empty (the review marker is required)" if software
                             else "labels.review is empty (leave it out to turn review off)")
+        problems += self._validate_templates()
         return problems
 
     def _validate_connection(self) -> list[str]:
@@ -263,6 +322,29 @@ class BoardConfig:
             problems.append(f"states mapped to an empty name: {', '.join(empty)}")
         return problems
 
+    def _validate_templates(self) -> list[str]:
+        problems: list[str] = []
+        for name, tmpl in self.templates.items():
+            where = f"templates.{name}"
+            if tmpl.level not in self.levels:
+                problems.append(f"{where}: this board has no {tmpl.level.value} level")
+            if tmpl.feature is not None and tmpl.level not in FEATURE_ATTACHES_TO:
+                problems.append(f"{where}: only a story or a bug carries a feature (this is {tmpl.level.value})")
+            unknown = sorted(set(tmpl.fields) - set(self.fields))
+            if unknown:
+                problems.append(f"{where}.fields: not in [fields]: {', '.join(unknown)}")
+            for key, text, allowed in (("title", tmpl.title, TITLE_SLOTS),
+                                       ("description", tmpl.description, DESCRIPTION_SLOTS)):
+                try:
+                    stray = sorted(_slots(text or "") - allowed)
+                except ValueError as exc:
+                    problems.append(f"{where}.{key}: {exc} (write a literal brace as {{{{ or }}}})")
+                    continue
+                if stray:
+                    have, takes = (", ".join(f"{{{s}}}" for s in names) for names in (stray, sorted(allowed)))
+                    problems.append(f"{where}.{key}: unknown placeholders {have} (it takes {takes})")
+        return problems
+
     def check(self) -> BoardConfig:
         problems = self.validate()
         if problems:
@@ -288,7 +370,8 @@ class BoardConfig:
         bad enum values) raise `InvalidBoardConfig` here; rule violations are
         left to `validate()` / `check()` so a caller can list both at once."""
         problems: list[str] = []
-        known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm", "fields"}
+        known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm", "fields",
+                 "templates"}
         unknown = sorted(set(data) - known)
         if unknown:
             problems.append(f"unknown top-level keys: {', '.join(unknown)}")
@@ -307,6 +390,7 @@ class BoardConfig:
         naming = _naming(data.get("naming", {}), problems)
         confirm = _enum(Confirm, data.get("confirm", "always"), "confirm", problems)
         custom = _fields(data.get("fields", {}), problems)
+        templates = _templates(data.get("templates", {}), problems)
         if problems:
             raise InvalidBoardConfig(problems)
         return cls(
@@ -319,6 +403,7 @@ class BoardConfig:
             confirm=confirm,
             board_type=board_type,
             fields=custom,
+            templates=templates,
         )
 
 
@@ -464,3 +549,56 @@ def _fields(raw: Any, problems: list[str]) -> dict[str, str]:
             continue
         out[name] = ref
     return out
+
+
+_TEMPLATE_KEYS = ("level", "title", "description", "feature", "labels", "state", "fields", "days", "dates")
+
+
+def _templates(raw: Any, problems: list[str]) -> dict[str, Template]:
+    out: dict[str, Template] = {}
+    for name, spec in _table(raw, "templates", problems).items():
+        where = f"templates.{name}"
+        spec = _table(spec, where, problems)
+        unknown = sorted(set(spec) - set(_TEMPLATE_KEYS))
+        if unknown:
+            problems.append(f"{where}: unknown keys {', '.join(unknown)}")
+        text: dict[str, str | None] = {}
+        for key in ("title", "description", "feature"):
+            value = spec.get(key)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                problems.append(f"{where}.{key} must be a non-empty string")
+                value = None
+            text[key] = value
+        labels = spec.get("labels", [])
+        if not isinstance(labels, list) or not all(isinstance(x, str) for x in labels):
+            problems.append(f"{where}.labels must be a list of strings")
+            labels = []
+        values = _table(spec.get("fields", {}), f"{where}.fields", problems)
+        for key, value in values.items():
+            if not (isinstance(value, (bool, int, float, str))
+                    or isinstance(value, list) and value and all(isinstance(v, str) for v in value)):
+                problems.append(f"{where}.fields.{key} must be true or false, a number, text, or a list of text")
+        days = spec.get("days", [])
+        if not isinstance(days, list) or not all(isinstance(d, str) and d.lower() in WEEKDAYS for d in days):
+            problems.append(f"{where}.days must be a list of weekdays: {', '.join(WEEKDAYS)}")
+            days = []
+        days = [d.lower() for d in days]
+        if len(set(days)) != len(days):
+            problems.append(f"{where}.days names a weekday twice")
+        out[name] = Template(
+            level=_enum(Level, spec.get("level", "story"), f"{where}.level", problems),
+            title=text["title"],
+            description=text["description"],
+            feature=text["feature"],
+            labels=tuple(labels),
+            state=_enum(State, spec.get("state", "backlog"), f"{where}.state", problems),
+            fields=values,
+            days=tuple(days),
+            dates=_enum(DateRule, spec.get("dates", "target"), f"{where}.dates", problems),
+        )
+    return out
+
+
+def _slots(text: str) -> set[str]:
+    """The placeholder names in a `str.format` pattern; `ValueError` when its braces are malformed."""
+    return {name for _, name, _, _ in string.Formatter().parse(text) if name is not None}
