@@ -55,9 +55,12 @@ def build(service: BoardService) -> MCPServer:
         types, states, labels, members, features (modules), iterations, the
         custom `fields` (each with its kind, options and the levels that carry
         it), the capabilities record, the board type, the confirm mode, the
-        review label (null when review is off) and the naming rules. `problems`
-        lists every mismatch, and every write refuses until it is empty. Call
-        it first, and again after the board changes."""
+        review label (null when review is off), the naming rules and the item
+        `templates` (each with its level, title pattern, description skeleton,
+        feature, labels, field values, state, and the weekdays `days` it fills
+        with the date `dates` says). `problems` lists every mismatch, and every
+        write refuses until it is empty. Call it first, and again after the
+        board changes."""
         return call(service.describe_board)
 
     @mcp.tool(annotations=READ)
@@ -98,6 +101,7 @@ def build(service: BoardService) -> MCPServer:
     def propose_item(
         intake: Intake | None = None,
         part: str = "",
+        template: str = "",
         intake_id: str = "",
         level: LevelName | None = None,
         title: str = "",
@@ -131,14 +135,22 @@ def build(service: BoardService) -> MCPServer:
         story or bug); `feature` names one of the board's features; `iteration`
         is an open iteration's name or id.
 
-        Either way, `start_date` and `target_date` are ISO dates, and `fields`
+        From a template (one describe_board lists): pass `template` and
+        `intake_id`, but not `level`. The template supplies the level, feature,
+        labels, field values and state. Your title, feature and dates win, and
+        your labels and field values are added. Leave `title` out to fill the
+        template's title pattern from the item's date. Your `description` goes
+        where the skeleton says `{description}`; a skeleton without that slot
+        takes none.
+
+        In every case, `start_date` and `target_date` are ISO dates, and `fields`
         sets the board's custom fields by the names describe_board lists: true
         or false, a number, text, an option name, or a list of option names for
         a multi-valued one. To change anything, propose again."""
         return call(
             service.propose_item, intake_id, level or "", title, description,
             intake=to_jsonable(intake) if intake is not None else None,
-            part=part, parent=parent, feature=feature, initiative=initiative,
+            part=part, template=template, parent=parent, feature=feature, initiative=initiative,
             component=component, iteration=iteration,
             assignees=assignees or (), labels=labels or (),
             start_date=start_date, target_date=target_date, fields=fields,

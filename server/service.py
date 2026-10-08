@@ -20,13 +20,20 @@ mechanical (adapters/base.py).
   renders the description from it, so the acceptance criteria always land
   in the item body. A parent `#<part>` is that sibling part, found by its
   external_id once it is committed.
+- **From a template (D41, D42):** `propose_item(template=…)` takes the
+  level, feature, labels, field values and state from the board config's
+  template. The request's own title, feature and dates win, and its labels
+  and field values are added. With no title, the template's pattern is
+  filled from the item's date. The request's description goes into the
+  skeleton's `{description}` slot, and a skeleton without one refuses it.
 - **Title case (D14):** a warning and a suggested title, never a reject
   (`server.titlecase`).
 - **Dates and custom fields (D41):** `start_date` / `target_date` are ISO
   dates; `fields` is keyed by the config's field names, and `propose_item`
   checks each value against the board as `describe_board` read it (the
   type that carries it, its kind, its options). A retried commit fills in
-  any field the failed attempt left unset.
+  any field the failed attempt left unset, and the state when the item is
+  still in `backlog` (Jira transitions after the create).
 - **Errors:** every `AdapterError` becomes a `ToolFailure` whose message
   says what the agent can do about it.
 - **One tracker call at a time:** the SDK runs sync tools in worker
@@ -64,6 +71,7 @@ from adapters.base import (
 )
 from schema.intake import SIBLING, Intake, Part, render
 from server import titlecase
+from server.config import Template
 from server.model import (
     Comment,
     InvalidWorkItem,
@@ -165,6 +173,21 @@ def _from_intake(data: Mapping[str, Any], part: str) -> tuple[Intake, Part]:
         raise ToolFailure(f"The intake record does not work: {reason}. Fix it and propose again.") from None
 
 
+def _fill(name: str, tmpl: Template, title: str, description: str, day: date | None) -> tuple[str, str]:
+    """The title and description a template gives the request's own."""
+    if not title.strip() and tmpl.title:
+        try:
+            title = tmpl.title_for(day)
+        except KeyError:
+            raise ToolFailure(f"Template {name!r} fills its title from the item's date: "
+                              "give start_date or target_date, or a title.") from None
+    if tmpl.description is not None:
+        if description.strip() and not tmpl.has_slot():
+            raise ToolFailure(f"Template {name!r} fixes the description, so leave description out.")
+        description = tmpl.description_with(description)
+    return title, description
+
+
 def _match(refs, value: str, *, email: bool = False):
     """The board entry whose id, name (or email) is `value`, ignoring case."""
     want = value.lower()
@@ -213,6 +236,7 @@ class BoardService:
             "review_label": cfg.labels.review,  # None: review is off on this board (D40)
             "label_taxonomy": list(cfg.labels.taxonomy),
             "naming": {"iteration": cfg.naming.iteration, "item_case": cfg.naming.item_case.value},
+            "templates": to_jsonable(cfg.templates),
         }
 
     @_operation
@@ -258,6 +282,7 @@ class BoardService:
         *,
         intake: Mapping[str, Any] | None = None,
         part: str = "",
+        template: str = "",
         parent: str | None = None,
         feature: str | None = None,
         initiative: str | None = None,
@@ -270,6 +295,23 @@ class BoardService:
         fields: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         start, target = _date(start_date, "start_date"), _date(target_date, "target_date")
+        cfg = self.config
+        tmpl = None
+        if template:
+            tmpl = cfg.templates.get(template)
+            if intake is not None:
+                raise ToolFailure("Pass an intake record or a template, not both.")
+            if tmpl is None:
+                have = ", ".join(cfg.templates) or "(none)"
+                raise ToolFailure(f"No template {template!r} in the board config (templates: {have}).")
+            if level:
+                raise ToolFailure(f"Template {template!r} supplies the level ({tmpl.level.value}); leave level out.")
+            level = tmpl.level.value
+            title, description = _fill(template, tmpl, title, description, start or target)
+            feature = feature or tmpl.feature
+            given = {name.lower() for name in labels}
+            labels = [*(name for name in tmpl.labels if name.lower() not in given), *labels]
+            fields = {**tmpl.fields, **(fields or {})}
         if intake is not None:
             given = {"intake_id": intake_id, "level": level, "title": title, "description": description,
                      "parent": parent, "feature": feature, "iteration": iteration}
@@ -284,7 +326,6 @@ class BoardService:
         if not intake_id.strip():
             raise ToolFailure("intake_id is required: it is the idempotency key's root")
         lvl = _enum(Level, level, "level")
-        cfg = self.config
         if lvl not in cfg.levels:
             raise ToolFailure(
                 f"This {cfg.board_type.value} board has no {lvl.value} level, so nothing can be filed as one. "
@@ -349,6 +390,7 @@ class BoardService:
             initiative=ItemRef(initiative, Level.INITIATIVE) if initiative else None,
             component=component or None,
             iteration=cycle.id if cycle else None,
+            state=tmpl.state if tmpl else State.BACKLOG,
             assignees=tuple(assignees),
             labels=tuple(wanted),
             external_id=external_id,
@@ -420,9 +462,12 @@ class BoardService:
         if item.iteration and current.iteration is None:
             self.adapter.move_to_iteration([ref], item.iteration)
         now = self.adapter.get_item(ref)
+        # Plane writes values after the item, and Jira moves it out of its first status
+        # after the create: a failed attempt may have left either off.
         unset = {name: value for name, value in item.fields.items() if name not in now.fields}
-        if unset:  # Plane writes values after the item: a failed attempt may have left some off
-            now = self.adapter.update_item(ref, ItemPatch(fields=unset))
+        state = item.state if now.state is State.BACKLOG and item.state is not State.BACKLOG else None
+        if unset or state:
+            now = self.adapter.update_item(ref, ItemPatch(fields=unset or None, state=state))
         return {"item": to_jsonable(now), "already_existed": True}
 
     # -- other writes -----------------------------------------------------------

@@ -38,6 +38,9 @@ the right sprint, on whatever tracker your team already runs.
 > ([the example](examples/boards/calendar.example.toml)). Items carry
 > start and target dates and the board's own custom fields, named in the
 > config, and both trackers pass the conformance cases that write them.
+> A board config can name item templates, so one call drafts a dated
+> piece of work with its category, labels, fields and description
+> skeleton (offline tests so far).
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -165,6 +168,18 @@ those names: true or false, a number, text, an option name, or a list of
 option names for a multi-select. On Jira, the target date is the due date
 and the start date is the field named "Start date". A Jira custom field
 shows up only once it is on one of the project's screens.
+
+**Templates** (`[templates.<name>]`, also on either type) save restating
+the same item every time. A template sets the level (a story unless it
+says otherwise), the feature, labels, custom-field values and the state.
+It also holds a title pattern filled from the item's date (`{month}
+{year} Content`) and a Markdown description skeleton, where
+`{description}` marks the request's own text. `propose_item(template=…)`
+fills the item from it, and the request adds the date and the specifics:
+its title, feature and dates win, and its labels and field values are
+added. A template's `days` and `dates` are the weekday cadence a cycle is
+planned by: a slot on each of those weekdays, and which date the slot's
+day sets. `describe_board` lists every template.
 
 **Jira Cloud** works the same way from
 [examples/boards/jira.example.toml](examples/boards/jira.example.toml), for a

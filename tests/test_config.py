@@ -1,6 +1,7 @@
 """Offline tests for the board config. Nothing here touches a tracker."""
 
 import copy
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -10,9 +11,11 @@ from server.config import (
     BoardConfig,
     BoardType,
     Confirm,
+    DateRule,
     InvalidBoardConfig,
     ItemCase,
     Naming,
+    Template,
     load,
 )
 from server.model import (
@@ -106,6 +109,17 @@ def test_the_calendar_example_has_no_bug_level_and_review_off():
     assert caps.levels[Level.BUG] is Materialization.ABSENT and not caps.materializes(Level.BUG)
     assert caps.materializes(Level.STORY) and caps.levels[Level.FEATURE] is Materialization.CONTAINER
     assert cfg.fields == {"published": "Published", "channels": "Channels"}  # D41
+
+
+def test_the_calendar_example_carries_a_cycle_and_a_post_template():
+    cfg = load(CALENDAR_EXAMPLE)
+    cycle, post = cfg.templates["cycle"], cfg.templates["post"]
+    assert (cycle.level, cycle.state, cycle.labels) == (Level.EPIC, State.IN_PROGRESS, ("admin",))
+    assert cycle.title_for(date(2026, 11, 1)) == "November 2026 Content"
+    assert (post.level, post.feature, post.state) == (Level.STORY, "Recipes", State.TODO)
+    assert (post.days, post.dates) == (("mon", "wed", "fri"), DateRule.TARGET)
+    assert set(post.fields) <= set(cfg.fields) and post.has_slot()
+    assert post.description_with("Hook.\n") == "Hook.\n\n#recipes #homecooking"
 
 
 # --- defaults and shape ------------------------------------------------------
@@ -337,3 +351,54 @@ def test_fields_map_a_name_to_the_trackers_property_or_field():
     assert p == ["fields.published must name the tracker's property or field (its name or id)",
                  "fields.points must name the tracker's property or field (its name or id)"]
     assert problems_of(variant(fields=["Published"])) == ["fields must be a table"]
+
+
+# --- templates (D41, D42) ----------------------------------------------------------
+
+
+def test_a_template_defaults_to_a_backlog_story_with_no_cadence():
+    cfg = BoardConfig.from_dict(variant(templates={"plain": {}})).check()
+    assert cfg.templates == {"plain": Template()}
+    assert (Template().level, Template().state, Template().dates) == (Level.STORY, State.BACKLOG, DateRule.TARGET)
+    assert BoardConfig.from_dict(PLANE).templates == {}
+    assert Template(description="Fixed {{text}}").description_with("") == "Fixed {text}"
+
+
+def test_template_shape_problems_are_reported_together():
+    bad = {
+        "level": "saga", "state": "blocked", "dates": "whenever", "colour": "red",
+        "title": "", "feature": 3, "labels": "content", "days": ["mon", "someday"],
+        "fields": {"published": None, "channels": [], "mood": {"x": 1}},
+    }
+    with pytest.raises(InvalidBoardConfig) as exc:
+        BoardConfig.from_dict(variant(templates={"post": bad, "twice": {"days": ["Mon", "mon"]}, "flat": "x"}))
+    p = exc.value.problems
+    assert "templates.post: unknown keys colour" in p
+    assert "templates.post.title must be a non-empty string" in p and "templates.post.feature must be a non-empty string" in p
+    assert "templates.post.labels must be a list of strings" in p
+    assert "templates.post.days must be a list of weekdays: mon, tue, wed, thu, fri, sat, sun" in p
+    for key in ("published", "channels", "mood"):
+        assert f"templates.post.fields.{key} must be true or false, a number, text, or a list of text" in p
+    assert any(x.startswith("templates.post.level: 'saga' is not one of") for x in p)
+    assert any(x.startswith("templates.post.state: 'blocked' is not one of") for x in p)
+    assert "templates.post.dates: 'whenever' is not one of target, start, both" in p
+    assert "templates.twice.days names a weekday twice" in p and "templates.flat must be a table" in p
+
+
+def test_template_rules_are_checked_against_the_rest_of_the_config():
+    templates = {
+        "bug": {"level": "bug"},
+        "epic": {"level": "epic", "feature": "Intake", "fields": {"mood": "x", "published": True}},
+        "names": {"title": "{Month} {year} {}", "description": "{description} {hook}"},
+        "braces": {"title": "{month", "description": "#tags {description}"},
+    }
+    data = variant(board_type="calendar", levels=without_bug(), fields={"published": "Published"},
+                   templates=templates)
+    assert problems_of(data) == [
+        "templates.bug: this board has no bug level",
+        "templates.epic: only a story or a bug carries a feature (this is epic)",
+        "templates.epic.fields: not in [fields]: mood",
+        "templates.names.title: unknown placeholders {}, {Month} (it takes {month}, {year})",
+        "templates.names.description: unknown placeholders {hook} (it takes {description})",
+        "templates.braces.title: expected '}' before end of string (write a literal brace as {{ or }})",
+    ]

@@ -284,8 +284,8 @@ def test_adapter_errors_become_actionable_failures(exc, hint):
 # --- dates and custom fields (D41) -----------------------------------------------------
 
 
-def fields_service():
-    svc, t, clock = service(config={**CONFIG, "fields": {"published": "Published", "channels": "Channels"}})
+def fields_service(**config):
+    svc, t, clock = service(config={**CONFIG, "fields": {"published": "Published", "channels": "Channels"}, **config})
     t.add_property(fp.T_STORY, "Published", "BOOLEAN")
     t.add_property(fp.T_STORY, "Channels", "OPTION", multi=True, options=("Web", "Email", "Print"))
     return svc, t, clock
@@ -346,3 +346,90 @@ def test_update_item_moves_dates_and_sets_fields():
     assert out["target_date"] == "2026-10-07" and out["fields"] == {"published": False, "channels": ["Print"]}
     with pytest.raises(ToolFailure, match="start_date must be an ISO date"):
         svc.update_item(key, start_date="soon")
+
+
+# --- templates (D41, D42) ------------------------------------------------------------------
+
+TEMPLATES = {
+    "cycle": {"level": "epic", "title": "{month} {year} Content", "state": "in_progress"},
+    "post": {"feature": "Intake", "labels": ["feature"], "state": "todo", "days": ["mon", "thu"],
+             "description": "{description}\n\n#tags", "fields": {"published": False, "channels": ["Web"]}},
+    "fixed": {"title": "Weekly Chores", "description": "A fixed body."},
+}
+
+
+def test_a_template_fills_the_item_and_the_request_adds_the_date_and_specifics():
+    svc, t, _ = fields_service(templates=TEMPLATES)
+    out = svc.propose_item("202611-content", title="Loaves Of The Week", template="post", part="2026-11-02",
+                           parent="AA-1", target_date="2026-11-02", description="Hook.\n\nBody.\n",
+                           labels=["bug", "Feature"], fields={"channels": ["Email"]})
+    p = out["preview"]
+    assert (p["level"], p["state"], p["title"], p["target_date"]) == ("story", "todo", "Loaves Of The Week", "2026-11-02")
+    assert p["feature"]["name"] == "Intake" and p["parent"]["key"] == "AA-1"
+    assert p["labels"] == ["bug", "Feature", "needs-review"]  # the request's spelling of a shared label wins
+    assert p["fields"] == {"published": False, "channels": ["Email"]}
+    assert p["description"] == "Hook.\n\nBody.\n\n#tags" and p["external_id"] == "202611-content/2026-11-02"
+    done = svc.commit_item(out["token"])["item"]
+    [body] = item_posts(t)
+    assert body["state"] == fp.S_TODO and body["type_id"] == fp.T_STORY
+    assert done["state"] == "todo" and done["fields"] == p["fields"]
+    # the request's feature wins; a skeleton without a slot is the whole description
+    assert svc.propose_item("x", template="post", title="X", feature="Adapter")["preview"]["feature"]["name"] == "Adapter"
+    fixed = svc.propose_item("x", template="fixed")["preview"]  # a title with no placeholder needs no date
+    assert (fixed["title"], fixed["description"], fixed["state"]) == ("Weekly Chores", "A fixed body.", "backlog")
+    assert fixed["labels"] == ["needs-review"]
+
+
+def test_a_template_title_is_filled_from_the_date_unless_the_request_names_one():
+    svc, _, _ = fields_service(templates=TEMPLATES)
+    out = svc.propose_item("202611-content", template="cycle", part="epic",
+                           start_date="2026-11-01", target_date="2026-11-30")
+    p = out["preview"]
+    assert (p["title"], p["level"], p["state"]) == ("November 2026 Content", "epic", "in_progress")
+    assert out["warnings"] == []
+    assert svc.propose_item("x", template="cycle", target_date="2026-12-31")["preview"]["title"] == "December 2026 Content"
+    assert svc.propose_item("x", template="cycle", title="Holiday Specials")["preview"]["title"] == "Holiday Specials"
+    with pytest.raises(ToolFailure, match="fills its title from the item's date: give start_date or target_date"):
+        svc.propose_item("x", template="cycle")
+    listed = svc.describe_board()["templates"]
+    assert listed["post"]["days"] == ["mon", "thu"] and listed["post"]["dates"] == "target"
+    assert listed["cycle"]["title"] == "{month} {year} Content" and listed["fixed"]["level"] == "story"
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(template="nope"), r"No template 'nope' in the board config \(templates: cycle, post, fixed\)"),
+        (dict(template="post", intake=SPLIT), "an intake record or a template, not both"),
+        (dict(template="post", level="bug"), r"supplies the level \(story\); leave level out"),
+        (dict(template="fixed", description="Mine"), "fixes the description, so leave description out"),
+    ],
+)
+def test_a_bad_template_request_is_explained_before_the_board_is_read(kwargs, match):
+    svc, t, _ = fields_service(templates=TEMPLATES)
+    with pytest.raises(ToolFailure, match=match):
+        svc.propose_item("x", **kwargs)
+    assert t.calls == []
+
+
+def test_a_retry_finishes_a_jira_transition_that_failed_after_the_create():
+    from tests.test_jira_adapter import CALENDAR as JIRA_CALENDAR, make as make_jira
+
+    adapter, t = make_jira(config={**JIRA_CALENDAR, "templates": {"post": {"state": "todo"}}})
+    svc = BoardService(adapter, clock=Clock())
+    token = svc.propose_item("202611-content", template="post", title="Loaves Of The Week")["token"]
+    request, walled = t.request, [True]
+
+    def wall_on_transitions(method, path, **kw):  # the wall meets the transition, after the issue exists
+        if method == "POST" and path.endswith("/transitions") and walled[0]:
+            raise Blocked("HTTP 403 answered by an edge wall (Cloudflare), not Jira")
+        return request(method, path, **kw)
+
+    t.request = wall_on_transitions
+    with pytest.raises(ToolFailure, match="will not duplicate"):
+        svc.commit_item(token)
+    walled[0] = False
+    again = svc.commit_item(token)
+    assert again["already_existed"] is True and again["item"]["state"] == "todo"
+    posts = [p for m, p in t.log if m == "POST"]
+    assert posts.count("/rest/api/3/issue") == 1 and len(t.bodies("POST", "/transitions")) == 1

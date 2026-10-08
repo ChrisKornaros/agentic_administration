@@ -106,3 +106,18 @@ async def test_dates_and_fields_over_mcp():
         assert {"start_date", "target_date", "fields"} <= set(tools[name].input_schema["properties"])
     assert not out.is_error
     assert out.structured_content["preview"]["fields"] == {"published": True, "channels": ["Web"]}
+
+
+@pytest.mark.anyio
+async def test_a_template_over_mcp():
+    from tests.test_service import TEMPLATES, fields_service
+
+    svc, _, _ = fields_service(templates=TEMPLATES)
+    async with Client(build(svc)) as client:
+        [tool] = [t for t in (await client.list_tools()).tools if t.name == "propose_item"]
+        out = await client.call_tool("propose_item", {"intake_id": "202611-content", "template": "cycle",
+                                                      "start_date": "2026-11-01"})
+        board = await client.call_tool("describe_board", {})
+    assert "template" in tool.input_schema["properties"] and not out.is_error
+    assert out.structured_content["preview"]["title"] == "November 2026 Content"
+    assert set(board.structured_content["templates"]) == {"cycle", "post", "fixed"}
