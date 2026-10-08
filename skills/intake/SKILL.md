@@ -27,6 +27,10 @@ the conversation. From it, note:
   filed is marked for review.
 - `capabilities.levels.bug`: `absent` means the board has no bug level
   (a calendar board), so a defect is filed as a story.
+- `templates`: one with `days` means the board plans dated work by cycle.
+  A request for one dated piece of that kind, such as a post on a given
+  day, goes to plan-cycle instead, which files it from its template into
+  its cycle. Any other request carries on below.
 
 ## 2. Problem and outcome first
 

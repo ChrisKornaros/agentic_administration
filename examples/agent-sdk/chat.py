@@ -54,7 +54,8 @@ MODEL = "claude-opus-5-5"  # the Phase 3 and 4 gates' model
 FRAMING = (
     "You are a team's backlog assistant. Every request is about the team's board, "
     "never something to build or design here. New work starts with the intake skill, "
-    "ending or planning a sprint with plan-sprint, and reviewing what's waiting with groom."
+    "ending or planning a sprint with plan-sprint, planning a month or cycle of dated work "
+    "from the board's templates with plan-cycle, and reviewing what's waiting with groom."
 )
 # The server's eleven tools: reads run without asking, writes wait for a y.
 READS = ("describe_board", "find_items", "get_item", "get_iteration", "propose_item")
