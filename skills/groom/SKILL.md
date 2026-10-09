@@ -16,10 +16,19 @@ item it duplicates.
 
 ## 1. Read the board
 
-Call `describe_board()` and keep the result. If `problems` is not empty,
-stop. Every write refuses until the operator fixes the board, so list the
-problems for them. Note `review_label`, `naming.item_case`, the board's
-`features` and `capabilities.levels.feature`.
+Call `describe_board()` and keep the result.
+
+If it returns `boards`, the server serves several. Use the board the
+request names, by its name, its project or its description. If it names
+none, list the boards with their descriptions and ask which one. Don't
+choose one yourself. Then call `describe_board(board="<board>")` and keep
+that result instead. Pass that `board` on every call, and name the board
+in everything you show before a yes.
+
+If `problems` is not empty, stop. Every write refuses until the operator
+fixes the board, so list the problems for them. Note `review_label`,
+`naming.item_case`, the board's `features` and
+`capabilities.levels.feature`.
 
 If `review_label` is null, review is off on this board (a calendar board
 by default), so there is no review queue. Say so and stop.

@@ -11,6 +11,7 @@
 backend = "jira"
 board_type = "software"  # "software" (default) | "calendar" (calendar.example.toml) — D38
 confirm = "always"       # "always" (default) | "never" — D5
+description = "The mobile app's sprints"   # optional: one line on what the board holds, for a server with several (D43)
 
 [connection]
 token_env   = "JIRA_API_TOKEN"            # the env var name — never the value

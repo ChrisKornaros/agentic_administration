@@ -8,6 +8,7 @@
 backend = "plane"
 board_type = "software"  # "software" (default) | "calendar" (calendar.example.toml) — D38
 confirm = "always"       # "always" (default) | "never" — D5
+description = "The web app's backlog"   # optional: one line on what the board holds, for a server with several (D43)
 
 [connection]
 token_env = "PLANE_API_KEY"          # the env var name — never the value

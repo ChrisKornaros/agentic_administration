@@ -1,9 +1,10 @@
-"""The MCP server: eleven domain tools over `BoardService` (design:
-agentic_optimization_research roadmap/14 §5 layer 3, D11–D13), on the
-official `mcp` SDK's `MCPServer`.
+"""The MCP server: eleven domain tools over `Boards`, one `BoardService` per
+board (design: agentic_optimization_research roadmap/14 §5 layer 3,
+D11–D13, D43), on the official `mcp` SDK's `MCPServer`.
 
-Each tool is a thin wrapper. The conventions, the drafts and the error
-wording live in `server.service`. A `ToolFailure` becomes a `ToolError`,
+Each tool is a thin wrapper, and each takes the `board` it acts on, which
+may be left out when the server serves one. The conventions, the drafts and
+the error wording live in `server.service`. A `ToolFailure` becomes a `ToolError`,
 which the client sees as an `is_error` result carrying that message; the
 SDK keeps any other exception's text on the server. No tool deletes: the
 annotations mark every write non-destructive, and work ends as `done` or
@@ -20,7 +21,7 @@ from mcp.types import ToolAnnotations
 
 from schema.intake import Intake
 from server.model import to_jsonable
-from server.service import BoardService, ToolFailure
+from server.service import Boards, BoardService, ToolFailure
 
 LevelName = Literal["initiative", "epic", "feature", "story", "bug", "task"]
 StateName = Literal["backlog", "todo", "in_progress", "done", "cancelled"]
@@ -29,16 +30,18 @@ READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 
 INSTRUCTIONS = """\
-Backlog administration for one board, over a canonical work-item model
-(initiative > epic > feature > story / bug > task). Start with describe_board.
-Creating an item takes two calls: propose_item checks the draft and returns a
-preview and a token; show the preview to the requester and, once they say yes,
-call commit_item with that token. When describe_board reports confirm =
+Backlog administration for one board or several, over a canonical work-item
+model (initiative > epic > feature > story / bug > task). Start with
+describe_board. When it lists several boards, use the one the request names,
+or ask the requester which one, then pass that board to every tool and name
+it in what you show them. Creating an item takes two calls: propose_item
+checks the draft and returns a preview and a token; show the preview to the
+requester and, once they say yes, call commit_item with that token. When describe_board reports confirm =
 "never", commit without pausing. Nothing can be deleted: finish work by
 setting its state to done or cancelled."""
 
 
-def build(service: BoardService) -> MCPServer:
+def build(boards: Boards) -> MCPServer:
     mcp = MCPServer("agentic-administration", instructions=INSTRUCTIONS)
 
     def call(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
@@ -47,10 +50,13 @@ def build(service: BoardService) -> MCPServer:
         except ToolFailure as exc:
             raise ToolError(str(exc)) from None
 
+    def on(board: str | None) -> BoardService:
+        return call(boards.get, board)
+
     # -- reads --------------------------------------------------------------
 
     @mcp.tool(annotations=READ)
-    def describe_board() -> dict[str, Any]:
+    def describe_board(board: str | None = None) -> dict[str, Any]:
         """Read the live board and check the board config against it: work-item
         types, states, labels, members, features (modules), iterations, the
         custom `fields` (each with its kind, options and the levels that carry
@@ -60,8 +66,13 @@ def build(service: BoardService) -> MCPServer:
         feature, labels, field values, state, and the weekdays `days` it fills
         with the date `dates` says). `problems` lists every mismatch, and every
         write refuses until it is empty. Call it first, and again after the
-        board changes."""
-        return call(service.describe_board)
+        board changes.
+
+        When the server serves several boards and no `board` is given, it
+        lists them instead (`boards`: each one's name, description, backend,
+        board type and project), reading no tracker. Every tool takes the
+        `board` it acts on by that name; with one board it may be left out."""
+        return call(boards.describe_board, board)
 
     @mcp.tool(annotations=READ)
     def find_items(
@@ -72,6 +83,7 @@ def build(service: BoardService) -> MCPServer:
         iteration: str | None = None,
         label: str | None = None,
         limit: int = 20,
+        board: str | None = None,
     ) -> dict[str, Any]:
         """Search the board's work items. `query` is free text on titles;
         `external_id` is an exact idempotency-key lookup; `level` and `state`
@@ -80,20 +92,20 @@ def build(service: BoardService) -> MCPServer:
         reads; `label` keeps the items carrying that label, so the board's
         review label gives the review queue. With no arguments, lists the
         board. Use get_item for a known key such as AA-12."""
-        return {"items": call(service.find_items, query, external_id=external_id, level=level,
+        return {"items": call(on(board).find_items, query, external_id=external_id, level=level,
                               state=state, iteration=iteration, label=label, limit=limit)}
 
     @mcp.tool(annotations=READ)
-    def get_item(ref: str) -> dict[str, Any]:
+    def get_item(ref: str, board: str | None = None) -> dict[str, Any]:
         """One work item by its key (e.g. AA-12) or id, with its current labels,
         state, parent, feature, iteration, dates and custom-field values."""
-        return call(service.get_item, ref)
+        return call(on(board).get_item, ref)
 
     @mcp.tool(annotations=READ)
-    def get_iteration(iteration: str) -> dict[str, Any]:
+    def get_iteration(iteration: str, board: str | None = None) -> dict[str, Any]:
         """One iteration (sprint / cycle) by name or id, with its dates and its
         state (planned, active or closed) as the tracker reports it now."""
-        return call(service.get_iteration, iteration)
+        return call(on(board).get_iteration, iteration)
 
     # -- create: propose, then commit -----------------------------------------
 
@@ -116,13 +128,14 @@ def build(service: BoardService) -> MCPServer:
         start_date: str | None = None,
         target_date: str | None = None,
         fields: dict[str, Any] | None = None,
+        board: str | None = None,
     ) -> dict[str, Any]:
         """Draft a new work item and check it against the live board. Writes
-        nothing. Returns a token (valid 30 minutes), the preview to show the
-        requester, and any warnings, such as a suggested title when the board's
-        title case isn't met. The server adds the review label when the board
-        has one and sets external_id to `intake_id`, or `intake_id/part` when
-        one intake becomes several items.
+        nothing. Returns the board's name, a token (valid 30 minutes), the
+        preview to show the requester, and any warnings, such as a suggested
+        title when the board's title case isn't met. The server adds the review
+        label when the board has one and sets external_id to `intake_id`, or
+        `intake_id/part` when one intake becomes several items.
 
         From an intake record (the usual path): pass `intake` and, when it has
         several parts, the `part` to propose. The record supplies the id, level,
@@ -148,7 +161,7 @@ def build(service: BoardService) -> MCPServer:
         or false, a number, text, an option name, or a list of option names for
         a multi-valued one. To change anything, propose again."""
         return call(
-            service.propose_item, intake_id, level or "", title, description,
+            on(board).propose_item, intake_id, level or "", title, description,
             intake=to_jsonable(intake) if intake is not None else None,
             part=part, template=template, parent=parent, feature=feature, initiative=initiative,
             component=component, iteration=iteration,
@@ -157,12 +170,13 @@ def build(service: BoardService) -> MCPServer:
         )
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True))
-    def commit_item(token: str) -> dict[str, Any]:
+    def commit_item(token: str, board: str | None = None) -> dict[str, Any]:
         """Create exactly the item propose_item previewed under this token.
         Call it only after the requester has confirmed, unless the board's
         confirm mode is "never". Safe to retry with the same token: if the item
-        already exists, it is returned (`already_existed`), not duplicated."""
-        return call(service.commit_item, token)
+        already exists, it is returned (`already_existed`), not duplicated. A
+        token proposed on another board is refused."""
+        return call(boards.commit_item, token, board)
 
     # -- other writes ---------------------------------------------------------
 
@@ -179,6 +193,7 @@ def build(service: BoardService) -> MCPServer:
         start_date: str | None = None,
         target_date: str | None = None,
         fields: dict[str, Any] | None = None,
+        board: str | None = None,
     ) -> dict[str, Any]:
         """Change fields of an existing item; omitted fields stay as they are.
         `labels` and `assignees` REPLACE the whole set, so call get_item first
@@ -186,17 +201,19 @@ def build(service: BoardService) -> MCPServer:
         label this way. `start_date` / `target_date` are ISO dates; `fields`
         sets only the custom fields it names. Retire work with state "done" or
         "cancelled"; it cannot be deleted."""
-        return call(service.update_item, ref, title=title, description=description, state=state,
+        return call(on(board).update_item, ref, title=title, description=description, state=state,
                     assignees=assignees, labels=labels, parent=parent, feature=feature,
                     start_date=start_date, target_date=target_date, fields=fields)
 
     @mcp.tool(annotations=WRITE)
-    def add_comment(ref: str, body: str) -> dict[str, Any]:
+    def add_comment(ref: str, body: str, board: str | None = None) -> dict[str, Any]:
         """Add a Markdown comment to an item (by key or id)."""
-        return call(service.add_comment, ref, body)
+        return call(on(board).add_comment, ref, body)
 
     @mcp.tool(annotations=WRITE)
-    def create_iteration(name: str, start: str | None = None, end: str | None = None) -> dict[str, Any]:
+    def create_iteration(
+        name: str, start: str | None = None, end: str | None = None, board: str | None = None,
+    ) -> dict[str, Any]:
         """Create an iteration (sprint / cycle), or return the one that already
         has this name; it never makes a duplicate, and refuses when the existing
         one's dates differ from those given. The name must follow the board's
@@ -204,19 +221,19 @@ def build(service: BoardService) -> MCPServer:
         An iteration whose dates cover today is active afterwards, so calling
         this on its first day also starts a sprint that was created ahead of
         time."""
-        return call(service.create_iteration, name, start, end)
+        return call(on(board).create_iteration, name, start, end)
 
     @mcp.tool(annotations=WRITE)
-    def move_to_iteration(items: list[str], iteration: str) -> dict[str, Any]:
+    def move_to_iteration(items: list[str], iteration: str, board: str | None = None) -> dict[str, Any]:
         """Put items (keys or ids) into an open iteration (name or id)."""
-        return call(service.move_to_iteration, items, iteration)
+        return call(on(board).move_to_iteration, items, iteration)
 
     @mcp.tool(annotations=WRITE)
-    def close_iteration(iteration: str) -> dict[str, Any]:
+    def close_iteration(iteration: str, board: str | None = None) -> dict[str, Any]:
         """Close an iteration (name or id). Items still open stay where they
         are. Rollover is: close it, make sure the next one exists with
         create_iteration, then move what find_items(iteration=…) shows neither
         done nor cancelled with move_to_iteration."""
-        return call(service.close_iteration, iteration)
+        return call(on(board).close_iteration, iteration)
 
     return mcp

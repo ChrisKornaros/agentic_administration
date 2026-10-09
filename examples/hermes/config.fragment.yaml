@@ -2,11 +2,17 @@
 # profile's config.yaml, e.g. ~/.hermes/profiles/po/config.yaml, and put
 # SOUL.md (next to this file) in the same profile directory.
 #
-# The profile's .env holds the secrets: the board's token_env (here
-# PLANE_API_KEY), plus that profile's own DISCORD_BOT_TOKEN and
-# DISCORD_ALLOWED_USERS. Each profile runs its own gateway, so it needs its
-# own bot. With the knowledge server, it also holds the docs config's
-# token_env and user_env (here JIRA_API_TOKEN and JIRA_USER).
+# One profile serves every board: the board server loads each board config
+# in boards/ (a TOML there with no backend, such as a docs config, is
+# skipped), and the skills ask which board when a request doesn't name one.
+# Adding a board is adding its file, its token below, and a restart.
+#
+# The profile's .env holds the secrets: each board's token_env (here
+# PLANE_API_KEY, plus JIRA_API_TOKEN and JIRA_USER for a Jira board), plus
+# that profile's own DISCORD_BOT_TOKEN and DISCORD_ALLOWED_USERS. Each
+# profile runs its own gateway, so it needs its own bot. With the knowledge
+# server, it also holds the docs config's token_env and user_env (here
+# JIRA_API_TOKEN and JIRA_USER).
 #
 # Replace /path/to/agentic_administration with the repo's path as Hermes
 # sees it: inside the container, if Hermes runs in Docker.
@@ -15,9 +21,12 @@ mcp_servers:
   board:
     command: uv
     args: [run, --frozen, --no-dev, --directory, /path/to/agentic_administration,
-           python, -m, server, boards/<board>.toml]
+           python, -m, server, boards/]
     env:
       PLANE_API_KEY: ${PLANE_API_KEY}
+      # Only with a Jira board in boards/:
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+      JIRA_USER: ${JIRA_USER}
       # Only when the repo is mounted read-only (Docker): uv's venv and cache
       # go to a writable path instead of the repo.
       UV_PROJECT_ENVIRONMENT: /opt/data/profiles/po/mcp/venv

@@ -17,6 +17,11 @@ level and name a review label; a `calendar` board may leave `bug` out
 labels, field values and state, a title pattern, a description skeleton,
 and the weekday cadence a cycle planner fills.
 
+One server may serve several boards (D43): `load_boards` reads files and
+directories of configs, and names each board by its file's stem. An
+optional top-level `description` says in a line what the board holds, so
+the server's board list tells the boards apart.
+
 **No secrets in the file.** The connection names the environment variable
 that holds the API token (`token_env`); the adapter reads it at the boundary
 (design: modules/secrets-no-plaintext). A value that does not look like an
@@ -42,7 +47,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from server.model import (
     CORE_LEVELS,
@@ -237,6 +242,7 @@ class BoardConfig:
     board_type: BoardType = BoardType.SOFTWARE
     fields: Mapping[str, str] = field(default_factory=dict)  # name -> Plane property / Jira field (D41)
     templates: Mapping[str, Template] = field(default_factory=dict)  # D41, D42
+    description: str = ""  # what the board holds, for the server's board list (D43)
 
     # -- validation ---------------------------------------------------------
 
@@ -371,7 +377,7 @@ class BoardConfig:
         left to `validate()` / `check()` so a caller can list both at once."""
         problems: list[str] = []
         known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm", "fields",
-                 "templates"}
+                 "templates", "description"}
         unknown = sorted(set(data) - known)
         if unknown:
             problems.append(f"unknown top-level keys: {', '.join(unknown)}")
@@ -391,6 +397,9 @@ class BoardConfig:
         confirm = _enum(Confirm, data.get("confirm", "always"), "confirm", problems)
         custom = _fields(data.get("fields", {}), problems)
         templates = _templates(data.get("templates", {}), problems)
+        description = data.get("description", "")
+        if not isinstance(description, str):
+            problems.append("description must be a string")
         if problems:
             raise InvalidBoardConfig(problems)
         return cls(
@@ -404,6 +413,7 @@ class BoardConfig:
             board_type=board_type,
             fields=custom,
             templates=templates,
+            description=description.strip(),
         )
 
 
@@ -412,6 +422,42 @@ def load(path: str | Path) -> BoardConfig:
     with open(path, "rb") as fh:
         data = tomllib.load(fh)
     return BoardConfig.from_dict(data).check()
+
+
+def load_boards(paths: Sequence[str | Path]) -> tuple[dict[str, BoardConfig], list[Path]]:
+    """Every board the paths name, by file stem (D43), and the files skipped.
+
+    A file is one board. A directory is each `*.toml` in it that has a
+    `backend`; any other, such as a docs config kept beside the boards, is
+    skipped and returned. Every board's problems are raised at once, each
+    prefixed with its file, as `InvalidBoardConfig`."""
+    boards: dict[str, BoardConfig] = {}
+    skipped: list[Path] = []
+    problems: list[str] = []
+    for given in map(Path, paths):
+        folder = given.is_dir()
+        for path in sorted(given.glob("*.toml")) if folder else [given]:
+            try:
+                with open(path, "rb") as fh:
+                    data = tomllib.load(fh)
+            except tomllib.TOMLDecodeError as exc:  # board or not, it can't be told: report it
+                problems.append(f"{path.name}: not valid TOML ({exc})")
+                continue
+            if folder and "backend" not in data:
+                skipped.append(path)
+                continue
+            if path.stem.lower() in {name.lower() for name in boards}:
+                problems.append(f"{path}: a second board named {path.stem!r}")
+                continue
+            try:
+                boards[path.stem] = BoardConfig.from_dict(data).check()
+            except InvalidBoardConfig as exc:
+                problems += [f"{path.name}: {problem}" for problem in exc.problems]
+    if not boards and not problems:
+        problems.append(f"no board configs in {', '.join(map(str, paths))}")
+    if problems:
+        raise InvalidBoardConfig(problems)
+    return boards, skipped
 
 
 # --- section parsers (each appends to `problems`, never raises) --------------

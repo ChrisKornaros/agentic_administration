@@ -1,40 +1,44 @@
-# Next session: Phase 6c step 6, the gate (written 2026-10-08, after step 5's plan-cycle)
+# Next session: Phase 6c step 7, the gate (written 2026-10-09, after step 6's multi-board server)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 row **6c** (gate: a full Food Content cycle planned through the product with only config, nothing written outside it), **D38–D42**, §3.7 (the Food Content run). Phase 7 follows 6c.
-- **Deadline: 2026-10-27.** The Jira and Confluence Premium trials end that day. The open items below that need Jira still have to land before then.
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 row **6c**, **D38–D42**, §3.7. The multi-board server (D43) isn't in the roadmap yet; it goes into the AOR catch-up after the gate. Phase 7 follows 6c.
+- **Deadline: 2026-10-27**, when the Jira and Confluence trials end.
 
-## The 6c plan (kickoff 2026-10-05, Chris confirmed)
-Six PRs: `probe` ✅ → `board-types` ✅ → `dates-fields` ✅ → `templates` ✅ → `plan-cycle` ✅ → **`gate`**. The kickoff's answers and inferred items are in project memory (`phase6c-decisions`).
+## The 6c plan (re-planned 2026-10-09, Chris confirmed)
+`probe` ✅ → `board-types` ✅ → `dates-fields` ✅ → `templates` ✅ → `plan-cycle` ✅ → `multi-board` ✅ (#39) → **`gate`**. Chris's call: one `po` above every board, and the gate tests that too. The decisions and inferred items are in project memory (`phase6c-multi-board`).
 
-## Done: step 5, `feat/phase6c-plan-cycle` (D42's skill)
-`skills/plan-cycle/SKILL.md` reads the board and the cycle (`get_iteration`, `find_items(iteration=…, limit=200)`, and the epic by title). It drafts the epic from the epic template, with the cycle's dates and the title from its pattern, and one slot per weekday in each template's `days`, with `dates` saying which date the day sets. The PM edits the list. Next it checks one slot per template, plus each changed slot, with a `propose_item` that has no parent or iteration, and shows the exact write-up of every item, field and call before taking one yes. Then come `create_iteration`, the epic's propose → commit, each slot's propose → commit under the epic in the cycle, and a read-back (`find_items` for membership, `get_item` for the rest). Intake sends a single dated piece on a cadence board to plan-cycle. The framing line names plan-cycle on all three hosts. A new test checks that every skill passes only arguments its tool's MCP schema takes. 380 tests. Offline only, since there's no new wire call.
+## Done: step 6 (D43, offline, 398 tests)
+- `python -m server boards/` serves each board config in the directory (a TOML with no `backend` is skipped). All 11 tools take `board`, optional with one board.
+- With several boards, `describe_board()` lists them from the configs, and a call that names no board is refused. Previews name the board, and a token never commits on another board.
+- The four skills that start a request ask which board unless the request names it. Docs stay one tree per host.
 
-Inferred, not asked (flag for the AOR catch-up as D42 amendments):
-- The ids: `<cycle's first day YYYYMMDD>-cycle`, part `epic` or `<template>-<YYYY-MM-DD>` (`-2`, `-3` for a second slot that day), so a rerun finds what landed.
-- A slot with no title gets the template's pattern, else "<Template> For <Weekday>, <Month> <Day>". With no text, it gets the skeleton alone.
-- Past days of an active cycle get no slot. An item filed some other way on a slot's day, with the same level and feature, leaves that slot out unless the PM keeps it.
-- On Jira, the epic stays out of the sprint (unverified live). On Plane it goes in the cycle, as on Food Content.
-- A rerun commits an `existing` item anyway, so commit_item fills in what an interrupted run left unset.
-- One-offs go through plan-cycle, not create-story, which is unchanged.
+## Next: step 7, the gate, `feat/phase6c-gate` (show an exact write-up before each step)
+1. **Mac:**
+   - Chris adds a Bug type to FCONTENT in Plane's UI.
+   - The gitignored `boards/food-content.toml` gets: `bug = { type = "Bug" }`, no review label, `board_type = "calendar"`, `[fields]` for the two Story properties, an epic template plus post templates with `days`, and a `description`.
+   - `boards/agentic_administration.toml` gets a `description` that names AGADMIN, since its file name doesn't.
+   - Run `describe_board(board="food-content")`, read-only, until it's clean.
+2. **ms01** (memory `ms01-hermes-layout`):
+   - Pull the vault checkout.
+   - Copy only those two board files.
+   - Re-copy `SOUL.md`, whose framing changed.
+   - Point po's board server at `boards/`.
+   - Restart the gateway, which restarts every profile. `describe_board()` should list the two boards.
+3. **Run:** in Discord, Chris asks po to plan November on Food Content, plus one request that names no board, to see po ask.
+- **Done when** po names FCONTENT in the plan-cycle write-up and gets one yes, 202611's epic and its slots are on FCONTENT, the read-back matches the write-up, and nothing lands on AGADMIN. Then a `transcripts/` summary (keys and checks only), the README status, and 6c done.
 
-## Next: step 6, the gate, `feat/phase6c-gate`
-Hermes `po` on Discord plans Food Content `202611` with only config. Before it, in this order, each with an exact write-up first:
-- FCONTENT gets a Bug type (Chris, in Plane's UI). Its config (gitignored `boards/food-content.toml`) switches `bug` back to `type = "Bug"`, drops the review label, sets `board_type = "calendar"`, and gains `[fields]` for its two Story properties plus its templates (an epic template and the post templates with their `days`). Run `describe_board` until it's clean.
-- ms01: pull the repo (po loads `skills/` in place) and re-copy `examples/hermes/SOUL.md`, whose framing line changed in this step. Give po the Food Content board, either as a second profile or by switching po's board.
-- Then the run, a summary in `transcripts/` (keys and checks, no board content), and the README status.
-- Done when 202611's epic and its slots are on FCONTENT through po alone, and the read-back matches the approved write-up.
-
-## After 2026-10-27
-- Re-run the read-only Confluence probe on Free (§11).
+## After the gate
+- **AOR catch-up:** D43, step 5's D42 amendments, §6's `description` and directory form, and §5 layer 3.
+- After Oct 27: re-run the read-only Confluence probe on Free (§11).
 
 ## Open follow-ups (not blockers)
-- **Plane `get_item` by key reports no iteration** (gate finding 6): the by-key read returns `cycle_id: null`. Fix the adapter and the fake. plan-cycle's read-back works around it with `find_items(iteration=…)`.
-- **Today comes from the machine's date** (gate finding 7) in both adapters.
-- **No Jira sprint is active** until `202611` is started. Chris's call before Oct 27.
-- `groom` hasn't run under a host. `AGADM-6` is its first real item, before Oct 27.
-- **Food Content for the rest of October** is still unplanned. plan-cycle on `202610` could now cover it, since past days get no slot. It's Chris's call whether that happens before the gate or instead of part of it.
-- Plane's `get_item` costs a GET per property on the item's type. That's fine at two properties and worth watching on a board with many. plan-cycle's read-back calls it once per item.
-- `publish-docs.yml` has never run in GitHub Actions (private until Phase 7). Plane's renderer has no tables. The Phase 5 items carry over.
+- **Shared key, separate throttles:** each board has its own throttle, so Plane boards on one key can hit its rate limit faster in parallel. Share the throttle per token before concurrent use. One broken board config stops every board (fail-fast, by design).
+- Plane `get_item` by key reports no iteration (gate finding 6).
+- Today comes from the machine's date (gate finding 7).
+- No Jira sprint is active until `202611` starts. Chris's call before Oct 27.
+- `groom` hasn't run under a host. AGADM-6 is first, before Oct 27.
+- Food Content for the rest of October: plan-cycle on `202610` could cover it. Chris's call.
+- More boards on po need configs, and AGADM needs the Jira env.
+- `publish-docs.yml` has never run in Actions. The Phase 5 items carry over.
 
 ---
-*Written by the session-handoff module after `feat/phase6c-plan-cycle`. If the roadmap has moved on, trust the roadmap over this file.*
+*Written by the session-handoff module after `feat/phase6c-multi-board`. If the roadmap has moved on, trust the roadmap over this file.*
