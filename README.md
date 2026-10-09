@@ -42,7 +42,9 @@ the right sprint, on whatever tracker your team already runs.
 > piece of work with its category, labels, fields and description
 > skeleton. A planning skill drafts a whole cycle from them, its epic and
 > one item per dated slot, and files it after one yes (offline tests so
-> far).
+> far). One server can serve every board config in a directory, so one
+> agent covers all of a team's boards, and it asks which board when a
+> request doesn't name one (offline tests so far).
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -50,7 +52,8 @@ the right sprint, on whatever tracker your team already runs.
 - **A small MCP server** exposing eleven *domain* tools —
   describe board, find / get item, get iteration, propose + commit
   item, update item, comment, create / close iteration, move to
-  iteration — over a canonical work-item model. Your agent runtime
+  iteration — over a canonical work-item model, for one board or all of
+  a team's boards at once. Your agent runtime
   (Claude Code, the Claude Agent SDK, Hermes, or any MCP-capable host)
   plugs it in.
 - **Skills** that carry the judgment: an intake conversation that
@@ -207,7 +210,19 @@ first tool call, so a token problem shows up as a tool error):
 
 ```sh
 uv run python -m server boards/<board>.toml
+uv run python -m server boards/            # every board config in the directory
 ```
+
+One server can serve all of a team's boards. Each is named by its file
+(`boards/web-app.toml` is `web-app`), and an optional top-level
+`description` says in a line what it holds. A TOML file in the directory
+with no `backend`, such as a docs config, is skipped. Every tool takes the
+`board` it acts on, and with one board it may be left out. With several,
+`describe_board()` lists them from their configs, and every other call
+must name one. The skills use the board the request names, and otherwise
+ask which one. A preview names its board, and a token proposed on one board
+never commits on another. Adding a board means adding its file and
+restarting the server.
 
 Creating an item is two calls: `propose_item` checks the draft against the
 board and returns a preview and a 30-minute token; `commit_item(token)`
@@ -264,21 +279,22 @@ retrieval source replaces only that step.
 
 To try it in **Claude Code**, load the repo as a plugin.
 [.claude-plugin/plugin.json](.claude-plugin/plugin.json) registers the
-skills and starts the server for the board in `AGENTIC_ADMIN_BOARD`, which
-is a path relative to the repo or an absolute one. Start from an empty
+skills and starts the server for the board config, or the directory of
+them, in `AGENTIC_ADMIN_BOARD`, which is a path relative to the repo or an
+absolute one. Every board's token goes in the environment. Start from an empty
 directory, not the repo, so the repo's developer `CLAUDE.md` stays out of
 the requester's context:
 
 ```sh
 export PLANE_API_KEY=...                       # or the Bitwarden variables above
-export AGENTIC_ADMIN_BOARD=boards/<board>.toml
+export AGENTIC_ADMIN_BOARD=boards/<board>.toml      # or boards/, for every board
 export AGENTIC_ADMIN_KNOWLEDGE=boards/<docs>.toml   # optional: the team's published docs (below)
 T=mcp__plugin_agentic-administration_board__
 K=mcp__plugin_agentic-administration_knowledge__
 ENABLE_CLAUDEAI_MCP_SERVERS=false claude --plugin-dir /path/to/agentic_administration \
   --tools Skill --permission-mode manual \
   --allowedTools "${T}describe_board ${T}find_items ${T}get_item ${T}get_iteration ${T}propose_item ${K}search_docs ${K}get_doc" \
-  --append-system-prompt "You are a team's backlog assistant. Every request is about the team's board, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, planning a month or cycle of dated work from the board's templates with plan-cycle, and reviewing what's waiting with groom."
+  --append-system-prompt "You are a team's backlog assistant. Every request is about one of the team's boards, never something to build or design here. New work starts with the intake skill, ending or planning a sprint with plan-sprint, planning a month or cycle of dated work from the board's templates with plan-cycle, and reviewing what's waiting with groom."
 ```
 
 The skills show up as `/agentic-administration:intake` and so on, but a
@@ -314,9 +330,10 @@ the chat platforms nothing else: no shell, files, web or memory. Where the
 team publishes docs, its `knowledge` block adds the two docs tools; leave
 it out otherwise ([the Hermes docs record](transcripts/2026-10-03-hermes-docs-run.md)). It also
 holds every skill write for the operator's approval, so the agent can't
-replace a skill with its own local copy. The profile's `.env` holds the
-board token and its own Discord bot token, since each profile runs its own
-gateway. If Hermes runs in Docker, mount the repo read-only and keep the
+replace a skill with its own local copy. One profile serves every board:
+the fragment points the server at `boards/`, and the server's `env` passes
+each board's token. The profile's `.env` holds those tokens and its own
+Discord bot token, since each profile runs its own gateway. If Hermes runs in Docker, mount the repo read-only and keep the
 fragment's two `UV_*` lines, which put the venv on a writable path. Hermes
 has no permission prompt for MCP tools, so the skill's own "wait for yes" is
 the only guard before `commit_item`
@@ -334,7 +351,7 @@ a claude.ai login for products built on it:
 
 ```sh
 export PLANE_API_KEY=...                       # or the Bitwarden variables above
-export AGENTIC_ADMIN_BOARD=boards/<board>.toml
+export AGENTIC_ADMIN_BOARD=boards/<board>.toml      # or boards/, for every board
 export AGENTIC_ADMIN_KNOWLEDGE=boards/<docs>.toml   # optional: the team's published docs
 export ANTHROPIC_API_KEY=...                   # or ANTHROPIC_API_KEY_BW_ITEM
 uv run --group agent-sdk python examples/agent-sdk/chat.py

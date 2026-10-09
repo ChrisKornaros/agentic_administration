@@ -8,7 +8,7 @@ each write waits for a y here, a second guard beside the skill's own yes.
 With AGENTIC_ADMIN_KNOWLEDGE set, the plugin's knowledge server adds the
 team's docs: search_docs and get_doc, both reads.
 
-    export AGENTIC_ADMIN_BOARD=boards/<board>.toml   # plus the board's token env
+    export AGENTIC_ADMIN_BOARD=boards/<board>.toml   # or boards/; plus each board's token env
     export AGENTIC_ADMIN_KNOWLEDGE=boards/<docs>.toml   # optional, plus its token env
     export ANTHROPIC_API_KEY=...                     # or ANTHROPIC_API_KEY_BW_ITEM
     uv run --group agent-sdk python examples/agent-sdk/chat.py
@@ -52,7 +52,7 @@ MODEL = "claude-opus-5-5"  # the Phase 3 and 4 gates' model
 
 # The README's framing line; examples/hermes/SOUL.md holds the same one.
 FRAMING = (
-    "You are a team's backlog assistant. Every request is about the team's board, "
+    "You are a team's backlog assistant. Every request is about one of the team's boards, "
     "never something to build or design here. New work starts with the intake skill, "
     "ending or planning a sprint with plan-sprint, planning a month or cycle of dated work "
     "from the board's templates with plan-cycle, and reviewing what's waiting with groom."

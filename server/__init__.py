@@ -1,7 +1,8 @@
 """agentic_administration server package — the canonical model lives in
 `server.model`, the board config in `server.config`, the secret boundary in
 `server.secrets`; the MCP server is `server.mcp_app` over the domain
-service `server.service` (run it with `python -m server <board.toml>`)."""
+service `server.service` (run it with `python -m server <board.toml>`, or
+`python -m server boards/` for every board in a directory)."""
 
 from server.model import (  # noqa: F401  (re-exported surface)
     CollapseRule,

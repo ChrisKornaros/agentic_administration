@@ -39,6 +39,12 @@ mechanical (adapters/base.py).
 - **One tracker call at a time:** the SDK runs sync tools in worker
   threads, and neither the adapter's lookup tables nor its throttle are
   thread-safe, so every operation holds one lock.
+- **Several boards (D43):** `Boards` holds one `BoardService` per board,
+  by name, and every tool names its board. With one board the name may be
+  left out. With several, a call without one is refused, and
+  `describe_board` lists them from their configs alone. `describe_board`,
+  the propose result and the commit result name the board, and a token
+  proposed on one board never commits on another.
 
 Drafts live in memory. After a restart, the agent proposes again.
 Nothing here deletes: work is finished by setting state `done` or `cancelled`.
@@ -205,11 +211,13 @@ class BoardService:
         self,
         adapter: Adapter,
         *,
+        name: str = "board",
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         ttl: timedelta = DRAFT_TTL,
     ) -> None:
         self.adapter = adapter
         self.config = adapter.config
+        self.name = name
         self._clock = clock
         self._ttl = ttl
         self._lock = threading.Lock()
@@ -222,6 +230,21 @@ class BoardService:
             self._board = self.adapter.describe_board()
         return self._board.check()
 
+    def holds(self, token: str) -> bool:
+        """Whether this board has a live draft under `token`."""
+        return token in self._drafts
+
+    def summary(self) -> dict[str, Any]:
+        """The board as its config describes it, without reading the tracker."""
+        cfg = self.config
+        return {
+            "board": self.name,
+            "description": cfg.description,
+            "backend": cfg.backend.value,
+            "board_type": cfg.board_type.value,
+            "project": cfg.connection.ids.get("project_key") or cfg.connection.ids.get("project"),
+        }
+
     # -- reads ------------------------------------------------------------------
 
     @_operation
@@ -229,6 +252,8 @@ class BoardService:
         self._board = self.adapter.describe_board()
         cfg = self.config
         return {
+            "board": self.name,
+            "description": cfg.description,
             **to_jsonable(self._board),
             "capabilities": to_jsonable(self.adapter.capabilities),
             "board_type": cfg.board_type.value,
@@ -429,6 +454,7 @@ class BoardService:
         preview["feature"] = {"id": feature_ref.id, "name": feature_name} if feature_ref else None
         preview["iteration"] = {"id": cycle.id, "name": cycle.name} if cycle else None
         return {
+            "board": self.name,
             "token": token,
             "expires_at": expires.isoformat(),
             "confirm": cfg.confirm.value,
@@ -452,7 +478,7 @@ class BoardService:
         item = draft.item
         found = self.adapter.find_items(external_id=item.external_id)
         if not found:
-            return {"item": to_jsonable(self.adapter.create_item(item)), "already_existed": False}
+            return {"board": self.name, "item": to_jsonable(self.adapter.create_item(item)), "already_existed": False}
         # A retry: the item exists. Finish what a failed attempt may have left off.
         current = found[0]
         ref = current.id or ""
@@ -468,7 +494,7 @@ class BoardService:
         state = item.state if now.state is State.BACKLOG and item.state is not State.BACKLOG else None
         if unset or state:
             now = self.adapter.update_item(ref, ItemPatch(fields=unset or None, state=state))
-        return {"item": to_jsonable(now), "already_existed": True}
+        return {"board": self.name, "item": to_jsonable(now), "already_existed": True}
 
     # -- other writes -----------------------------------------------------------
 
@@ -521,3 +547,45 @@ class BoardService:
     @_operation
     def close_iteration(self, iteration: str) -> dict[str, Any]:
         return to_jsonable(self.adapter.close_iteration(iteration))
+
+
+class Boards:
+    """Every board one server serves, by name (D43). Read-only after start,
+    so it needs no lock of its own; each board's service keeps its own."""
+
+    def __init__(self, services: Sequence[BoardService]) -> None:
+        self._services = {svc.name: svc for svc in services}
+
+    def _names(self) -> str:
+        return ", ".join(self._services)
+
+    def get(self, board: str | None) -> BoardService:
+        """The named board, or the only one when no name is given."""
+        if board and board.strip():
+            want = board.strip().lower()
+            for name, svc in self._services.items():
+                if name.lower() == want:
+                    return svc
+            raise ToolFailure(f"No board {board!r} on this server (boards: {self._names()}).")
+        if len(self._services) == 1:
+            return next(iter(self._services.values()))
+        raise ToolFailure(
+            f"This server serves several boards ({self._names()}), so every call names one: pass board. "
+            "describe_board with no board lists them."
+        )
+
+    def describe_board(self, board: str | None) -> dict[str, Any]:
+        if not (board and board.strip()) and len(self._services) > 1:
+            return {"boards": [svc.summary() for svc in self._services.values()]}
+        return self.get(board).describe_board()
+
+    def commit_item(self, token: str, board: str | None) -> dict[str, Any]:
+        svc = self.get(board)
+        if not svc.holds(token):
+            other = next((s.name for s in self._services.values() if s is not svc and s.holds(token)), None)
+            if other is not None:
+                raise ToolFailure(
+                    f"That draft was proposed on board {other!r}, not {svc.name!r}, so nothing was written. "
+                    "Confirm the board with the requester, then propose on that board."
+                )
+        return svc.commit_item(token)

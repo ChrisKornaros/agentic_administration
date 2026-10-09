@@ -18,7 +18,9 @@ from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
 from knowledge.config import load
+from server.config import load as load_board
 from server.mcp_app import build
+from server.service import Boards
 from tests.test_docs import DOC_TOOLS
 from tests.test_mcp_app import TOOLS
 from tests.test_service import service
@@ -98,6 +100,15 @@ def test_hermes_passes_the_knowledge_server_the_docs_configs_secrets():
         assert f"{env}: ${{{env}}}" in hermes_servers()["knowledge"]
 
 
+def test_hermes_serves_every_board_in_a_directory_with_each_backends_secrets():
+    board = hermes_servers()["board"]
+    assert "python, -m, server, boards/]" in board  # one profile, every board (D43)
+    for example in sorted((ROOT / "examples" / "boards").glob("*.example.toml")):
+        conn = load_board(example).connection
+        for env in filter(None, (conn.token_env, conn.user_env)):
+            assert f"{env}: ${{{env}}}" in board, f"{example.name} needs {env}"
+
+
 def test_hermes_platforms_reach_both_servers_and_nothing_else():
     text = (HERMES / "config.fragment.yaml").read_text()
     platforms = re.findall(r"^  (\w+): \[([^\]]*)\]", re.search(r"^platform_toolsets:\n((?:  .*\n)+)", text, re.M)
@@ -117,7 +128,7 @@ def test_sdk_chat_frames_like_the_readme_and_hermes():
 @pytest.mark.anyio
 async def test_sdk_chat_asks_before_exactly_the_server_writes():
     svc, _, _ = service()
-    async with Client(build(svc)) as client:
+    async with Client(build(Boards([svc]))) as client:
         tools = (await client.list_tools()).tools
     reads = {tool.name for tool in tools if tool.annotations.read_only_hint}
     assert set(sdk_constant("READS")) == reads

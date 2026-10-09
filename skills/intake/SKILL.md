@@ -16,7 +16,16 @@ example `mcp__agentic-administration__find_items`).
 ## 1. Read the board once
 
 Call `describe_board()` at the start and keep the result for the rest of
-the conversation. From it, note:
+the conversation.
+
+If it returns `boards`, the server serves several. Use the board the
+request names, by its name, its project or its description. If it names
+none, list the boards with their descriptions and ask which one. Don't
+choose one yourself. Then call `describe_board(board="<board>")` and keep
+that result instead. Pass that `board` on every call, and name the board
+in everything you show before a yes.
+
+From the result, note:
 
 - `problems`: if this is not empty, stop. Nothing can be filed until the
   operator fixes the board. Tell the requester, and list the problems for
@@ -119,5 +128,6 @@ letters, digits, `.`, `_` and `-`, up to 64 characters. Make it once per
 request and keep it. Every re-proposal and retry of this request reuses
 it, which is what stops a retry from filing a duplicate.
 
-Continue with the create skill you chose. Carry the record so far: `id`,
-`problem`, `outcome`, `constraints`, `urgency` and `related`.
+Continue with the create skill you chose. Carry the board and the record
+so far: `id`, `problem`, `outcome`, `constraints`, `urgency` and
+`related`.

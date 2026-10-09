@@ -17,6 +17,7 @@ from server.config import (
     Naming,
     Template,
     load,
+    load_boards,
 )
 from server.model import (
     Capabilities,
@@ -402,3 +403,53 @@ def test_template_rules_are_checked_against_the_rest_of_the_config():
         "templates.names.description: unknown placeholders {hook} (it takes {description})",
         "templates.braces.title: expected '}' before end of string (write a literal brace as {{ or }})",
     ]
+
+
+# --- several boards (D43) -------------------------------------------------------
+
+DOCS_EXAMPLE = BOARDS.parent / "knowledge" / "confluence.example.toml"
+
+
+def copy_to(path: Path, source: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(source.read_text())
+    return path
+
+
+def test_a_description_says_what_the_board_holds():
+    assert BoardConfig.from_dict(variant(description="  The web app's backlog ")).description == "The web app's backlog"
+    assert BoardConfig.from_dict(PLANE).description == ""
+    assert problems_of(variant(description=["web"])) == ["description must be a string"]
+
+
+def test_load_boards_names_each_board_by_its_file_and_skips_other_configs(tmp_path):
+    copy_to(tmp_path / "web.toml", EXAMPLE)
+    copy_to(tmp_path / "content.toml", CALENDAR_EXAMPLE)
+    docs = copy_to(tmp_path / "docs.toml", DOCS_EXAMPLE)  # a docs config kept beside the boards
+    boards, skipped = load_boards([tmp_path, BOARDS / "jira.example.toml"])
+    assert list(boards) == ["content", "web", "jira.example"] and skipped == [docs]
+    assert boards["content"].board_type is BoardType.CALENDAR and boards["jira.example"].backend is Backend.JIRA
+
+
+def test_a_named_file_must_be_a_board(tmp_path):
+    with pytest.raises(InvalidBoardConfig) as exc:
+        load_boards([DOCS_EXAMPLE])
+    assert "confluence.example.toml: missing section: backend" in exc.value.problems
+
+
+def test_load_boards_reports_every_problem_and_a_shared_name(tmp_path):
+    copy_to(tmp_path / "one" / "team.toml", EXAMPLE)
+    copy_to(tmp_path / "two" / "Team.toml", EXAMPLE)  # names match ignoring case, as `board` does
+    (tmp_path / "two" / "broken.toml").write_text('backend = "plane"\n')
+    (tmp_path / "two" / "half-edited.toml").write_text("[space\n")  # not even TOML: a clean report, no traceback
+    with pytest.raises(InvalidBoardConfig) as exc:
+        load_boards([tmp_path / "one", tmp_path / "two"])
+    assert exc.value.problems[0] == f"{tmp_path / 'two' / 'Team.toml'}: a second board named 'Team'"
+    assert "broken.toml: missing section: connection" in exc.value.problems
+    assert any(p.startswith("half-edited.toml: not valid TOML") for p in exc.value.problems)
+
+
+def test_a_directory_with_no_boards_is_refused(tmp_path):
+    copy_to(tmp_path / "docs.toml", DOCS_EXAMPLE)
+    with pytest.raises(InvalidBoardConfig, match="no board configs in"):
+        load_boards([tmp_path])

@@ -21,6 +21,7 @@ from server import titlecase
 from server.config import DESCRIPTION_SLOTS, WEEKDAYS, DateRule, ItemCase, load
 from server.mcp_app import build
 from server.model import Materialization
+from server.service import Boards
 from tests.test_docs import DOC_TOOLS, published
 from tests.test_mcp_app import TOOLS
 from tests.test_service import service
@@ -42,6 +43,15 @@ FULL_READ = {  # a read that must see everything: an iteration's items, the revi
 }
 CYCLE_ITEM = re.compile(r"`(\d{8}-cycle)/(([a-z]+)-(\d{4}-\d{2}-\d{2}))`")  # plan-cycle's example external id
 JSON_BLOCK = re.compile(r"```json\n(.*?)```", re.S)
+ENTRY = ["intake", "plan-sprint", "plan-cycle", "groom"]  # each starts a request, so each picks its board (D43)
+BOARD_STEP = (
+    "If it returns `boards`, the server serves several. Use the board the request names, by its name, its project "
+    "or its description. If it names none, list the boards with their descriptions and ask which one. Don't choose "
+    'one yourself. Then call `describe_board(board="<board>")` and keep that result instead. Pass that `board` on '
+    "every call, and name the board in everything you show before a yes."
+)
+ON_INTAKES_BOARD = ("Work on the board intake chose: pass that `board` on every call, and name the board in "
+                    "everything you show before a yes.")
 INTAKE_ID = re.compile(r"\d{8}-[a-z0-9-]+")  # the skills' convention: YYYYMMDD-<slug>
 
 
@@ -86,13 +96,24 @@ async def test_a_skill_passes_only_arguments_its_tool_takes(tmp_path):
     svc, _, _ = service()
     docs, _ = published(tmp_path)
     params: dict[str, set[str]] = {}
-    for server in (build(svc), build_docs(docs)):  # the schemas a host sees
+    for server in (build(Boards([svc])), build_docs(docs)):  # the schemas a host sees
         async with Client(server) as client:
             params |= {t.name: set(t.input_schema.get("properties", {})) for t in (await client.list_tools()).tools}
     for name in NAMES:
         for tool, args in ARGS.findall(read(name)[1]):
             unknown = set(KEYWORD.findall(args)) - params[tool]
             assert not unknown, f"{name}: {tool} takes no {sorted(unknown)}"
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_skill_works_on_one_named_board(name):
+    body = " ".join(read(name)[1].split())  # the sentences, whatever the line breaks
+    if name in ENTRY:  # the same words everywhere: ask unless the request names the board
+        assert BOARD_STEP in body
+    else:  # a create skill runs after intake, which carries the board to it
+        assert name in CREATE and ON_INTAKES_BOARD in body
+    if name == "intake":
+        assert "Carry the board and the record" in body
 
 
 def test_intake_retrieves_only_in_its_context_step():

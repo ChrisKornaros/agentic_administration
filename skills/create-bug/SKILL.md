@@ -9,7 +9,8 @@ One defect becomes one bug. This skill needs the intake record's shared
 context: `id`, `problem` and `outcome`, plus `constraints`, `urgency` and
 `related` when the requester gave them. If any of that is missing, run the
 intake skill first. The tool names are the server's, and your host may add
-a prefix.
+a prefix. Work on the board intake chose: pass that `board` on every call,
+and name the board in everything you show before a yes.
 
 If `describe_board()` reports `capabilities.levels.bug` as `absent`, the
 board has no bug level (a calendar board), and `propose_item` refuses a

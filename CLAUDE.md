@@ -94,6 +94,10 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   label, `external_id` = `intake_id[/part]`, propose → commit with a 30-minute token, title-case
   warnings, the template fill) live in [server/service.py](server/service.py); [server/mcp_app.py](server/mcp_app.py) only
   registers the 11 tools. The SDK runs sync tools in threads, so the service serializes adapter calls.
+  One server serves many boards (D43, inferred, for AOR): `Boards` holds a `BoardService` per board, named by
+  its file stem, and every tool takes `board` (optional with one). With several, `describe_board()` lists them
+  from the configs, any other call without one refuses, and a token never commits on another board. The
+  skills ask which board unless the request names it (Chris, 2026-10-09).
   The docs are a second server (D27), never board tools: [knowledge/mcp_app.py](knowledge/mcp_app.py)
   registers `search_docs` / `get_doc` over [knowledge/docs.py](knowledge/docs.py), same pattern.
 - **Public-bound (D9):** MIT, public at Phase 7. No company names or company data in code, docs,
@@ -108,7 +112,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 
 | Path | Role |
 |---|---|
-| [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml>`, stdio) |
+| [server/](server/) | Canonical model, board config, secrets; the MCP server (`python -m server <board.toml or boards/>`, stdio; a directory serves each `*.toml` with a `backend`, and skips the rest, such as docs configs) |
 | [schema/](schema/) | The intake record (one request → its parts) and its Markdown rendering; `propose_item(intake=…, part=…)` consumes it |
 | [skills/](skills/) | The **product** skills (public): `intake` (its context step, and only it, also calls `search_docs` → `get_doc` where the host has them), `create-story` / `create-bug` / `create-epic`, `plan-sprint` (rollover: one yes, then close → create → move), `plan-cycle` (a cycle from the templates' `days` cadence: one yes on the exact write-up, then cycle → epic → each slot under it → read-back; ids `<first day>-cycle/<template>-<date>`, so a rerun finds what landed; intake sends a dated piece there), `groom` (the review queue via `find_items(label=…)`; one yes, then a fresh `get_item` before each `update_item`). Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 + 2 tools, the tools' arguments and the schema |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` and `jira/` adapters (`jira/adf.py`: Markdown ↔ ADF, tables included, shared with Confluence) |
@@ -120,5 +124,5 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [tests/](tests/) | Offline unit tests (`fake_plane.py`, `fake_jira.py`, `fake_confluence.py` transports) |
 | [examples/boards/](examples/boards/) | The committed board-config templates (Plane, Jira, and a calendar board). `board_type` (D38): a `calendar` board may leave `bug` out (capabilities report it `absent`) and has review off unless it names `labels.review` (D39, D40). `[fields]` (D41) maps a name to a Plane work-item property or a Jira `customfield_*` (on Jira, only once it is on a screen); items carry `start_date` / `target_date` (Jira: "Start date" by name, `duedate`). `[templates.<name>]` (D41, D42): level, feature, labels, fields, state, a `{month}` `{year}` title pattern, a skeleton whose `{description}` takes the request's text, and the `days` + `dates` cadence, used by `propose_item(template=…)`; [tests/test_config.py](tests/test_config.py) loads every example |
 | [examples/knowledge/](examples/knowledge/) | The publisher's config template (site, space, parent page, label, write cap); the real one goes in gitignored `boards/`. `publish-docs.yml`: the publish-on-push GitHub Actions job, tied to the CLI and the template by [tests/test_knowledge.py](tests/test_knowledge.py) |
-| [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio servers: `board` with the 11-tool include, an optional `knowledge` with the 2; skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
+| [examples/hermes/](examples/hermes/) | Hermes reference wiring: a profile `config.fragment.yaml` (stdio servers: `board` over `boards/` with every backend's token and the 11-tool include, so one profile serves every board; an optional `knowledge` with the 2; skills in place, `write_approval`) + `SOUL.md` (the framing line). [tests/test_examples.py](tests/test_examples.py) ties both to the tools and the README |
 | [examples/agent-sdk/](examples/agent-sdk/) | The Agent SDK terminal chat (`chat.py`): the repo as a plugin, the framing line, `tools=["Skill"]` + the 11 board tools and the 2 docs tools only, no settings sources or claude.ai connectors, reads unasked and each write behind a `y`. [tests/test_examples.py](tests/test_examples.py) reads its constants by AST (the SDK is optional) and ties them to the servers' read-only annotations, SOUL.md and the README's `--allowedTools` (`${T}` board, `${K}` docs) |

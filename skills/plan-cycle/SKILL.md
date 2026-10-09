@@ -16,10 +16,19 @@ unfinished work is the plan-sprint skill's job. Nothing is deleted.
 
 ## 1. Read the board
 
-Call `describe_board()` and keep the result. If `problems` is not empty,
-stop. Every write refuses until the operator fixes the board, so list the
-problems for them. Note `naming`, `iterations`, `containers` (the
-features), `labels`, `fields` (each with its kind and options),
+Call `describe_board()` and keep the result.
+
+If it returns `boards`, the server serves several. Use the board the
+request names, by its name, its project or its description. If it names
+none, list the boards with their descriptions and ask which one. Don't
+choose one yourself. Then call `describe_board(board="<board>")` and keep
+that result instead. Pass that `board` on every call, and name the board
+in everything you show before a yes.
+
+If `problems` is not empty, stop. Every write refuses until the operator
+fixes the board, so list the problems for them. Note `naming`,
+`iterations`, `containers` (the features), `labels`, `fields` (each with
+its kind and options),
 `capabilities.backend` and `templates`.
 
 - **The epic template** is the one whose `level` is `epic`. If there are
@@ -112,6 +121,7 @@ planned, plan only that slot. Show the list again after each change.
    the board (`existing`), fix the plan and check again. The tokens are
    simply dropped.
 2. **Show the exact write-up,** in the order the calls will run:
+   - The board, by name.
    - The cycle: its name and dates, whether it exists or will be created,
      and whether it is active or upcoming, with the `create_iteration`
      call and its arguments.

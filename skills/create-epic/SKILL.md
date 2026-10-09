@@ -9,7 +9,9 @@ One request becomes an epic plus the stories under it. This skill needs the
 intake record's shared context: `id`, `problem` and `outcome`, plus
 `constraints`, `urgency` and `related` when the requester gave them. If any
 of that is missing, run the intake skill first. The tool names are the
-server's, and your host may add a prefix.
+server's, and your host may add a prefix. Work on the board intake chose:
+pass that `board` on every call, and name the board in everything you show
+before a yes.
 
 ## 1. Decompose
 

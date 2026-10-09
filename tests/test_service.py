@@ -7,7 +7,7 @@ import pytest
 
 from adapters.base import AuthError, Blocked, RateLimited, TransportError
 from schema.intake import Intake, render
-from server.service import DRAFT_TTL, BoardService, ToolFailure
+from server.service import DRAFT_TTL, Boards, BoardService, ToolFailure
 from tests import fake_plane as fp
 from tests.test_intake import SPLIT
 from tests.test_plane_adapter import CALENDAR, CONFIG, make
@@ -433,3 +433,50 @@ def test_a_retry_finishes_a_jira_transition_that_failed_after_the_create():
     assert again["already_existed"] is True and again["item"]["state"] == "todo"
     posts = [p for m, p in t.log if m == "POST"]
     assert posts.count("/rest/api/3/issue") == 1 and len(t.bodies("POST", "/transitions")) == 1
+
+
+# --- several boards (D43) -------------------------------------------------------
+
+
+def two_boards():
+    """A software board `web` and a calendar board `content`, each on its own fake transport."""
+    web, wt = make()
+    content, ct = make(config={**CALENDAR, "description": "A content calendar"})
+    clock = Clock()
+    boards = Boards([BoardService(web, name="web", clock=clock), BoardService(content, name="content", clock=clock)])
+    return boards, wt, ct
+
+
+def test_with_several_boards_every_call_names_one():
+    boards, wt, ct = two_boards()
+    listed = boards.describe_board(None)["boards"]
+    assert listed[1] == {"board": "content", "description": "A content calendar", "backend": "plane",
+                         "board_type": "calendar", "project": "AA"}
+    assert [b["board"] for b in listed] == ["web", "content"] and wt.calls == ct.calls == []  # configs alone
+    with pytest.raises(ToolFailure, match=r"several boards \(web, content\), so every call names one"):
+        boards.get(None)
+    with pytest.raises(ToolFailure, match=r"No board 'docs' on this server \(boards: web, content\)"):
+        boards.get("docs")
+    described = boards.describe_board(" Content ")  # names match ignoring case and spaces
+    assert described["board"] == "content" and described["board_type"] == "calendar"
+    assert ct.calls and wt.calls == []
+
+
+def test_one_board_needs_no_name():
+    svc, _, _ = service()
+    boards = Boards([svc])
+    assert boards.get(None) is svc and boards.get("BOARD") is svc
+    assert boards.describe_board(None)["board"] == "board"  # the board itself, not a list
+
+
+def test_a_draft_commits_only_on_the_board_it_was_proposed_on():
+    boards, wt, ct = two_boards()
+    out = boards.get("content").propose_item("20261009-post", "story", "Loaves Of The Week")
+    assert out["board"] == "content"
+    with pytest.raises(ToolFailure, match="proposed on board 'content', not 'web', so nothing was written"):
+        boards.commit_item(out["token"], "web")
+    assert wt.calls == []
+    done = boards.commit_item(out["token"], "content")
+    assert done["board"] == "content" and done["already_existed"] is False
+    with pytest.raises(ToolFailure, match="Unknown draft token"):
+        boards.commit_item("nope", "web")
