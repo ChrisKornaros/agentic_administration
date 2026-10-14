@@ -71,6 +71,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 - **Board content never lands in git:** `boards/`, `probes/probe-report.json`,
   `conformance/reports/` and `transcripts/raw/` are gitignored; only `*.example` files and
   summarized `transcripts/*.md` (keys and checks, no item text) are committed.
+  [tests/test_public.py](tests/test_public.py) fails on a tracked one, a token-shaped string, a
+  random (v4) UUID or a real `*.atlassian.net` site; the fakes' ids are made up, never v4.
 - **Live requester runs** load this repo as a plugin from an empty directory: Chris runs
   `claude --plugin-dir <repo>` with `AGENTIC_ADMIN_BOARD` + the token env exported (plus
   `AGENTIC_ADMIN_KNOWLEDGE` for the docs) and the framing `--append-system-prompt` (exact block:

@@ -65,8 +65,10 @@ the right sprint, on whatever tracker your team already runs.
   criteria, sprint planning and rollover, planning a calendar's cycle
   from templates, and a backlog-grooming pass.
 - **Backend adapters** that map the canonical model onto a real
-  tracker's API: Plane and Jira Cloud (Premium/Enterprise). A
-  parent-only generic mode covers trackers without typed hierarchies.
+  tracker's API: Plane and Jira Cloud (Premium/Enterprise). A level the
+  tracker has no type for can map to a parent link plus a type label
+  instead (not yet run against a live board). Another tracker is a new
+  adapter (below).
 - **Propose-then-confirm by default.** The agent drafts in chat, the
   requester confirms, the item lands in the backlog flagged for a
   product owner's review. The tool has **no delete path**; work is
@@ -116,7 +118,7 @@ agentic_administration/
 ├── CLAUDE.md          # agent context; modules/ + .claude/skills/ vendored from agentic_optimization_research  ✅
 ├── .claude-plugin/    # plugin.json: loads skills/ + the MCP server into Claude Code  ✅
 ├── server/            # the MCP server + canonical model  ✅ model.py, config.py, secrets.py, service.py, mcp_app.py
-├── adapters/          # plane/, jira/, generic/  ✅ base.py (interface + errors), plane/, jira/
+├── adapters/          # ✅ base.py (interface + errors), plane/, jira/
 ├── boards/            # real board configs — gitignored; examples/boards/ has the templates
 ├── skills/            # ✅ intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, groom
 ├── schema/            # the intake schema + its Markdown rendering  ✅ intake.py (the board config schema is server/config.py)
@@ -133,7 +135,9 @@ agentic_administration/
 Python ≥ 3.12, managed with [uv](https://docs.astral.sh/uv/). The one
 runtime dependency is the official [`mcp`](https://pypi.org/project/mcp/)
 SDK (v2), for the server; the model, config, intake schema and adapters
-are standard library only.
+are standard library only. Comments and docs cite design decisions as
+`roadmap/14 D<n>`: that design doc lives in the author's private research
+repo, and each decision's effect is in the code, its tests and this README.
 
 ```sh
 uv sync            # dev deps (pytest) into .venv

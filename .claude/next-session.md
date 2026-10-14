@@ -1,41 +1,27 @@
-# Next session: the AOR catch-up for 6c, then the Phase 7 kickoff (written 2026-10-13, after the 6c gate)
+# Next session: Phase 7 step 2, the README for a stranger (written 2026-10-14, after step 1)
 
-- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 rows **6c** and **7**, §10, and D38–D42. D43 (multi-board) isn't in the roadmap yet.
+- **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 row 7 and §10 item 4. The kickoff plan and Chris's answers are in memory `phase7-decisions`.
 - **Deadline: 2026-10-27**, when the Jira and Confluence trials end.
 
-## Done: Phase 6c (gate PASS, 2026-10-13)
-- Steps #34–#39 are merged. The gate ran on `feat/phase6c-gate` ([the record](../transcripts/2026-10-13-phase6c-gate.md)): Hermes po from Discord, over two boards.
-- po asked which board when a request named none. It then planned FCONTENT `202611` after one yes: FCONTENT-138 (the epic) and 139…164. The read-back matched, and AGADMIN is unchanged.
-- **ms01:** po's board server names the two board files. The config backup is `config.yaml.bak-20261013`. po's staged `plan-cycle` patch (pending `2d411c31`) waits for Chris to reject it.
+## Done: step 1, `feat/phase7-public-audit`
+- The tree and every commit were scanned. Nothing was found: no token, no board config or report, no live id or site, and no company or client name. Chris confirmed that no work content ever touched the repo.
+- `tests/test_public.py` now guards the tree on every run. It refuses a tracked board-content path, a token-shaped string, a v4 UUID and a real Atlassian site.
+- The README no longer claims a `generic` backend; the parent-plus-label mapping is flagged as never run live. It also says the `roadmap/14 D<n>` citations point to a private repo.
 
-## Next 1: the AOR catch-up (a separate PR, in AOR)
-- §9 row 6c ✅ with this gate, and a §3.8 evidence section from the record's findings.
-- **D43**, from memory `phase6c-multi-board`:
-  - boards named by file stem, with an optional `description`;
-  - a directory skips a TOML with no `backend`;
-  - `board` is optional with one board;
-  - the list comes from the configs;
-  - a token commits only on its own board;
-  - name the files to serve only some boards.
-- The D41/D42 amendments from steps 3–5 (memory `phase6c-decisions`), §6's `description` and directory form, and §5 layer 3.
+## Next: step 2, `feat/phase7-readme`
+- Rewrite the README for a stranger: what it is, a quick start (clone, `uv sync`, an example config, `describe`), the three hosts, and the evidence as a short list.
+- **Done when:** a fresh subagent with only the README and `examples/` writes a config for a described Plane board that `server.config` loads, and `test_examples` stays green.
+- **Then:** step 3 `adapter-guide`, step 4 `release` (0.1.0, CHANGELOG, minimal CI; a tag and release only), step 5 `gate`, then the AOR case study.
 
-## Next 2: Phase 7, the public flip (`/phase-kickoff`)
-- **Row 7:** the README, conformance docs for adapter authors, a first release, and the AOR case study from the Phase 1–6c transcripts.
-- **The gate:** someone other than Chris points it at a tracker with only config.
-- §10 item 4 (public under MIT, with no company-identifying content) is still open. The kickoff settles the step order and that test.
-
-## Before 2026-10-27 (Chris's calls)
-- `groom` hasn't run under a host (AGADM-6).
-- No Jira sprint is active until `202611` starts.
-- After Oct 27, re-run the read-only Confluence probe on Free (§11).
+## Chris's calls
+- **Who the gate tester is**, before step 5. The repo stays private until the gate passes; the tester gets collaborator access at the tag.
+- If the tester uses Plane's free plan, the parent-plus-label path needs a live conformance run first.
+- **Before 2026-10-27:** `groom` under a host (AGADM-6); po's pending `plan-cycle` patch (`2d411c31`) on ms01.
+- **Before the flip:** re-run step 1's history scan, since steps 2–5 add commits.
 
 ## Open follow-ups (not blockers)
-- **Gate findings:**
-  - `plan-cycle` batched its proposes, then its commits (3);
-  - its read-back opened only 3 of 27 items (4);
-  - Plane's `find_items` returns `fields: {}` without saying so (5);
-  - should skills forbid suggesting a board? (2)
-- **Older:** Plane's by-key `get_item` has no iteration; today comes from the machine's date; share the throttle per token; `publish-docs.yml` has never run; the Phase 5 items.
+- The 6c gate findings: `plan-cycle` batches its proposes, then its commits (3); its read-back opened only 3 of 27 items (4); Plane's `find_items` returns `fields: {}` without saying so (5).
+- **Older:** Plane's by-key `get_item` has no iteration; today comes from the machine's date; share the throttle per token; `publish-docs.yml` has never run.
 
 ---
-*Written by the session-handoff module after `feat/phase6c-gate`. If the roadmap has moved on, trust the roadmap over this file.*
+*Written by the session-handoff module after `feat/phase7-public-audit`. If the roadmap has moved on, trust the roadmap over this file.*
