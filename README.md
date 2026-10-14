@@ -41,10 +41,13 @@ the right sprint, on whatever tracker your team already runs.
 > A board config can name item templates, so one call drafts a dated
 > piece of work with its category, labels, fields and description
 > skeleton. A planning skill drafts a whole cycle from them, its epic and
-> one item per dated slot, and files it after one yes (offline tests so
-> far). One server can serve every board config in a directory, so one
-> agent covers all of a team's boards, and it asks which board when a
-> request doesn't name one (offline tests so far).
+> one item per dated slot, and files it after one yes. One server can
+> serve every board config in a directory, so one agent covers all of a
+> team's boards, and it asks which board when a request doesn't name one.
+> Both have run live from Discord through Hermes: one agent over two
+> boards asked which board when a request named none, then planned a
+> month of a real content calendar, 27 items, after one yes, and the
+> read-back matched ([the record](transcripts/2026-10-13-phase6c-gate.md)).
 > Watch the releases for the first usable version.
 
 ## What it is
@@ -332,7 +335,8 @@ it out otherwise ([the Hermes docs record](transcripts/2026-10-03-hermes-docs-ru
 holds every skill write for the operator's approval, so the agent can't
 replace a skill with its own local copy. One profile serves every board:
 the fragment points the server at `boards/`, and the server's `env` passes
-each board's token. The profile's `.env` holds those tokens and its own
+each board's token. To serve only some of them, name their files instead
+of the directory ([the 6c gate record](transcripts/2026-10-13-phase6c-gate.md)). The profile's `.env` holds those tokens and its own
 Discord bot token, since each profile runs its own gateway. If Hermes runs in Docker, mount the repo read-only and keep the
 fragment's two `UV_*` lines, which put the venv on a writable path. Hermes
 has no permission prompt for MCP tools, so the skill's own "wait for yes" is
