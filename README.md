@@ -447,6 +447,9 @@ uv run python -m conformance.knowledge boards/<name>.toml    # the publisher, un
 [conformance/README.md](conformance/README.md) has the cases and the
 dated results. A new tracker is a new adapter written against
 [adapters/base.py](adapters/base.py) and proven by this suite.
+[adapters/README.md](adapters/README.md) is the guide to writing one:
+the interface and its errors, the rules every adapter keeps, the fake
+transport and the wiring.
 
 ## Evidence
 
@@ -497,7 +500,7 @@ is the contract for coding agents working on the repo.
 agentic_administration/
 ├── .claude-plugin/    # plugin.json: the skills and both MCP servers as a Claude Code plugin
 ├── server/            # the board MCP server, the canonical model, the board config, secrets
-├── adapters/          # base.py (the interface and errors), plane/, jira/
+├── adapters/          # base.py (the interface and errors), plane/, jira/, README.md (writing one)
 ├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, groom
 ├── schema/            # the intake record and its Markdown rendering
 ├── knowledge/         # the Markdown → Confluence publisher and the docs MCP server
