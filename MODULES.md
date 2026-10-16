@@ -15,7 +15,7 @@ When a module's canonical version bumps, re-copy and update the row here. Local 
 | [phase-kickoff](modules/phase-kickoff/index.md) | 1 | `bee8f3c` | 2026-09-23 | The phase doc is AOR roadmap/14 §9 (external), not a file in this repo |
 | [claude-md-as-map](modules/claude-md-as-map/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [docs-two-layer](modules/docs-two-layer/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
-| [status-emoji-discipline](modules/status-emoji-discipline/index.md) | 1 | `bee8f3c` | 2026-09-23 | README's Layout tree keeps its in-place `✅ = exists` legend (a presence marker, not a status table) |
+| [status-emoji-discipline](modules/status-emoji-discipline/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [secrets-no-plaintext](modules/secrets-no-plaintext/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [external-api-adapter-boundary](modules/external-api-adapter-boundary/index.md) | 2 | `468facd` | 2026-09-29 | — |
 | [no-live-external-in-tests](modules/no-live-external-in-tests/index.md) | 1 | `bee8f3c` | 2026-09-23 | `probes/` (read-only) and `conformance/` (writes to a throwaway board) are live by design; they are not tests and never run from `tests/` |

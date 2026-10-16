@@ -1,27 +1,35 @@
-# Next session: Phase 7 step 2, the README for a stranger (written 2026-10-14, after step 1)
+# Next session: Phase 7 step 3, the adapter guide (written 2026-10-16, after step 2)
 
 - **Source:** AOR [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md) §9 row 7 and §10 item 4. The kickoff plan and Chris's answers are in memory `phase7-decisions`.
 - **Deadline: 2026-10-27**, when the Jira and Confluence trials end.
 
-## Done: step 1, `feat/phase7-public-audit`
-- The tree and every commit were scanned. Nothing was found: no token, no board config or report, no live id or site, and no company or client name. Chris confirmed that no work content ever touched the repo.
-- `tests/test_public.py` now guards the tree on every run. It refuses a tracked board-content path, a token-shaped string, a v4 UUID and a real Atlassian site.
-- The README no longer claims a `generic` backend; the parent-plus-label mapping is flagged as never run live. It also says the `roadmap/14 D<n>` citations point to a private repo.
+## Done: step 2, `feat/phase7-readme`
+- The README is rewritten for a stranger. It covers what the project is, a quick start, a board-config reference, the four ways to host it, how it works, an evidence list and a "not yet run live" list.
+- **Gate passed.** A fresh subagent saw only the README and `examples/` and wrote a config for a described self-hosted Plane board. `server.config.load` loaded it, and every value matched. It found 5 doc gaps, all fixed: `base_url`, the iteration pattern, `{name}`, `taxonomy` and Plane state groups.
+- `plane.example.toml` no longer cites the private CONVENTIONS doc, and MODULES.md drops the README's ✅ override.
 
-## Next: step 2, `feat/phase7-readme`
-- Rewrite the README for a stranger: what it is, a quick start (clone, `uv sync`, an example config, `describe`), the three hosts, and the evidence as a short list.
-- **Done when:** a fresh subagent with only the README and `examples/` writes a config for a described Plane board that `server.config` loads, and `test_examples` stays green.
-- **Then:** step 3 `adapter-guide`, step 4 `release` (0.1.0, CHANGELOG, minimal CI; a tag and release only), step 5 `gate`, then the AOR case study.
+## Next: step 3, `feat/phase7-adapter-guide`
+- A guide for adapter authors:
+  - the `adapters/base.py` interface and its errors;
+  - adapters stay mechanical, and conventions stay in `server/service.py`;
+  - no delete path, and every write is read-proven first;
+  - a fake transport plus the conformance suite as the proof.
+- Link it from the README's "Proving an adapter" section.
+- **Done when (proposed):** a test ties the guide to `base.py`, so every abstract method and error class is named in it, and `uv run pytest` stays green.
+- **Then:** step 4 `release` (0.1.0, CHANGELOG, minimal CI; the tag and release wait for Chris's OK), step 5 `gate`, then the AOR case study.
 
 ## Chris's calls
-- **Who the gate tester is**, before step 5. The repo stays private until the gate passes; the tester gets collaborator access at the tag.
-- If the tester uses Plane's free plan, the parent-plus-label path needs a live conformance run first.
-- **Before 2026-10-27:** `groom` under a host (AGADM-6); po's pending `plan-cycle` patch (`2d411c31`) on ms01.
-- **Before the flip:** re-run step 1's history scan, since steps 2–5 add commits.
+- **Who the gate tester is**, before step 5. The repo stays private until the gate passes; the tester gets collaborator access at the tag. If the tester is on Plane's free plan, the `parent`/`label` path needs a live conformance run first.
+- **Before 2026-10-27:** run `groom` under a host (AGADM-6), and apply po's pending `plan-cycle` patch (`2d411c31`) on ms01.
+- **Before the flip:** re-run step 1's history scan.
 
 ## Open follow-ups (not blockers)
-- The 6c gate findings: `plan-cycle` batches its proposes, then its commits (3); its read-back opened only 3 of 27 items (4); Plane's `find_items` returns `fields: {}` without saying so (5).
-- **Older:** Plane's by-key `get_item` has no iteration; today comes from the machine's date; share the throttle per token; `publish-docs.yml` has never run.
+- 6c gate findings 3–5: `plan-cycle` proposes in one batch, then commits in another; its read-back opened only 3 of 27 items; Plane's `find_items` returns `fields: {}` without saying so.
+- **Older:**
+  - Plane's by-key `get_item` has no iteration.
+  - "Today" comes from the machine's clock.
+  - The throttle should be shared per token.
+  - `publish-docs.yml` has never run.
 
 ---
-*Written by the session-handoff module after `feat/phase7-public-audit`. If the roadmap has moved on, trust the roadmap over this file.*
+*Written by the session-handoff module after `feat/phase7-readme`. If the roadmap has moved on, trust the roadmap over this file.*

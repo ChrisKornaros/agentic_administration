@@ -76,7 +76,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 - **Live requester runs** load this repo as a plugin from an empty directory: Chris runs
   `claude --plugin-dir <repo>` with `AGENTIC_ADMIN_BOARD` + the token env exported (plus
   `AGENTIC_ADMIN_KNOWLEDGE` for the docs) and the framing `--append-system-prompt` (exact block:
-  README → Claude Code). Chris plays the requester;
+  README → Hosts → Claude Code). Chris plays the requester;
   afterwards read the session JSONL under `~/.claude/projects/<cwd-key>/` and check the board read-only.
   **Through Hermes** (ms01, Docker): the `po` profile ([examples/hermes/](examples/hermes/) with ms01's
   paths, `knowledge` included; its `.env` holds the Plane key, the bot token and the Jira token + email),
