@@ -1,4 +1,4 @@
-"""The adapter interface — the eight domain operations the MCP server calls,
+"""The adapter interface — the domain operations the MCP server calls,
 in canonical-model terms, plus the error taxonomy every backend maps its
 vendor's failures onto (design: roadmap/14 §5 layer 2, applying
 modules/external-api-adapter-boundary).
@@ -18,6 +18,8 @@ Errors: callers `except AdapterError` (or a subclass) and never a vendor
 exception. `ValidationError` covers the tracker rejecting a write —
 including Plane's hierarchy rules, which have no read surface and only
 show up as write errors (roadmap/14 §3.1).
+
+Writing a new adapter: adapters/README.md.
 """
 
 from __future__ import annotations
