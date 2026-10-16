@@ -45,7 +45,7 @@ cancelled   = "Cancelled"
 
 [labels]
 review   = "needs-review"                     # D5: cleared by the product owner
-taxonomy = ["bug", "feature", "chore", "docs"] # the code-board label axis (CONVENTIONS §4)
+taxonomy = ["bug", "feature", "chore", "docs"] # the board's other labels, listed for the agent
 
 [naming]
 iteration = "YYYYMM"     # cycle names, e.g. 202609
