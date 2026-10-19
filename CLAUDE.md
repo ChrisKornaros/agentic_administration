@@ -52,7 +52,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 
 ## Project rules
 
-- **Verify:** `uv sync`, then `uv run pytest`, which is offline and the smoke for every commit. Live
+- **Verify:** `uv sync`, then `uv run pytest`, which is offline and the smoke for every commit; CI
+  ([.github/workflows/test.yml](.github/workflows/test.yml)) runs it with `uv sync --locked` on every push and PR. Live
   surfaces are [probes/](probes/) (read-only) and [conformance/](conformance/) (writes); run them
   only when the task calls for it. Live conformance asks permission.
 - **No delete path, anywhere.** Work is completed or cancelled; no adapter method, server
@@ -102,6 +103,10 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   skills ask which board unless the request names it (Chris, 2026-10-09).
   The docs are a second server (D27), never board tools: [knowledge/mcp_app.py](knowledge/mcp_app.py)
   registers `search_docs` / `get_doc` over [knowledge/docs.py](knowledge/docs.py), same pattern.
+- **Releases:** one PR bumps `pyproject.toml` and `.claude-plugin/plugin.json`, re-runs `uv lock`, and adds
+  the CHANGELOG entry and the README's status line; [tests/test_release.py](tests/test_release.py) fails on any
+  mismatch, and both servers report the installed version. After the merge, Chris approves the `v<version>` tag
+  and the GitHub release, made from that CHANGELOG entry. No PyPI.
 - **Public-bound (D9):** MIT, public at Phase 7. No company names or company data in code, docs,
   fixtures or commits.
 - **Git:** `main` only; `feat/phase<N>-<slug>` (one PR per phase step), `chore/<slug>`,
@@ -119,6 +124,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
 | [skills/](skills/) | The **product** skills (public): `intake` (its context step, and only it, also calls `search_docs` → `get_doc` where the host has them), `create-story` / `create-bug` / `create-epic`, `plan-sprint` (rollover: one yes, then close → create → move), `plan-cycle` (a cycle from the templates' `days` cadence: one yes on the exact write-up, then cycle → epic → each slot under it → read-back; ids `<first day>-cycle/<template>-<date>`, so a rerun finds what landed; intake sends a dated piece there), `groom` (the review queue via `find_items(label=…)`; one yes, then a fresh `get_item` before each `update_item`). Not the dev skills in `.claude/skills/`. Frontmatter is `name` + `description` only, and tools are named bare because hosts prefix them. [tests/test_skills.py](tests/test_skills.py) ties them to the 11 + 2 tools, the tools' arguments and the schema |
 | [adapters/](adapters/) | `base.py` interface + error taxonomy; `plane/` and `jira/` adapters (`jira/adf.py`: Markdown ↔ ADF, tables included, shared with Confluence); [README.md](adapters/README.md), the guide to writing one, tied to `base.py` and the wiring by [tests/test_adapter_guide.py](tests/test_adapter_guide.py), which also scans every adapter for a DELETE |
 | [knowledge/](knowledge/) | Phase 6b, stdlib only: `python -m knowledge publish <dir> --config <toml>`, a dry run unless `--apply`. It publishes Markdown → Confluence pages over the Jira transport (`confluence.py` is the only file that knows the wire) and finds its pages by the `md-source` property, both under the configured parent and by CQL label, since the search index lags; a page counts only if it carries the label (one label per tree; trees may share a parent). No DELETE: the classic token can delete (D29), so [tests/test_knowledge.py](tests/test_knowledge.py) scans for one. `python -m knowledge serve --config <toml>` is the `knowledge` MCP server (step 4, [tests/test_docs.py](tests/test_docs.py)): the same TOML, scoped to its space + label, CQL `siteSearch` (ranked; `text ~` isn't), `get_doc` refusing any page outside that scope; an empty `--config` serves no tools |
+| [CHANGELOG.md](CHANGELOG.md) | Every release, newest first ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)): what it added, what hasn't run live, the known issues |
+| [.github/workflows/](.github/workflows/) | `test.yml`: CI, the offline suite on every push to `main` and every PR. `examples/knowledge/publish-docs.yml` is an example for a docs repo, not this repo's CI |
 | [.claude-plugin/](.claude-plugin/) | `plugin.json`: `skills/` + two servers as a Claude Code plugin: `board` (from `AGENTIC_ADMIN_BOARD`) and `knowledge` (from `${AGENTIC_ADMIN_KNOWLEDGE:-}`; the `:-` matters, since an unset variable fails a plugin server, and empty means no tools). Inline `mcpServers`, not a root `.mcp.json`, which would also load in dev sessions |
 | [conformance/](conformance/) | Live adapter suite + dated results; `knowledge.py` is the publisher's live suite (`python -m conformance.knowledge <kb.toml>`: a fresh, empty parent page per run id, one stop for a person to archive the orphan) |
 | [probes/](probes/) | Dated read-only API evidence |

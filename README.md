@@ -5,9 +5,10 @@ an epic, story, bug or task, with acceptance criteria, filed under the
 right parent and in the right sprint, on the tracker your team already
 runs. Plane and Jira Cloud are supported; another tracker is one adapter.
 
-> **Status: pre-release.** Everything below runs and has been proven
-> against live trackers ([the evidence](#evidence)), but nothing is tagged
-> yet. Watch the releases for 0.1.0, the first version to use.
+> **Status: 0.1.0, the first release** ([the changelog](CHANGELOG.md)).
+> Everything below runs and has been proven against live trackers
+> ([the evidence](#evidence)), which also lists what hasn't run live yet.
+> Until 1.0, a minor release may change the board config or the tools.
 
 ## What it is
 
@@ -488,6 +489,10 @@ uv sync            # dev deps (pytest) into .venv
 uv run pytest      # offline, never a live tracker; live checks are probes/ and conformance/
 ```
 
+CI runs the same two, with `uv sync --locked`, on every push to `main`
+and every pull request ([.github/workflows/test.yml](.github/workflows/test.yml)).
+Each release is listed in [CHANGELOG.md](CHANGELOG.md).
+
 The one runtime dependency is the official
 [`mcp`](https://pypi.org/project/mcp/) SDK (v2), for the servers; the
 model, config, intake schema and adapters are standard library only.
@@ -499,6 +504,7 @@ is the contract for coding agents working on the repo.
 ```
 agentic_administration/
 ├── .claude-plugin/    # plugin.json: the skills and both MCP servers as a Claude Code plugin
+├── .github/workflows/ # test.yml: the offline tests on every push and pull request
 ├── server/            # the board MCP server, the canonical model, the board config, secrets
 ├── adapters/          # base.py (the interface and errors), plane/, jira/, README.md (writing one)
 ├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, groom

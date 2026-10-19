@@ -1,6 +1,6 @@
 {
   "name": "agentic-administration",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Backlog administration from a chat window: the intake and create-story / create-bug / create-epic skills, plus plan-sprint for rollover and groom for the PO's review, over a board's MCP server (propose, then commit), and the team's published docs to search when there are any.",
   "author": {"name": "Chris Kornaros"},
   "license": "MIT",
