@@ -17,6 +17,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from knowledge.docs import Docs, DocsFailure
+from server import __version__
 
 READ = ToolAnnotations(read_only_hint=True)
 
@@ -28,7 +29,8 @@ page in full, as Markdown. Read the page before you tell anyone what it says."""
 
 def build(docs: Docs | None) -> MCPServer:
     """The server; with no `docs` (a host with no docs configured), it has no tools."""
-    mcp = MCPServer("agentic-administration-knowledge", instructions=INSTRUCTIONS if docs else None)
+    mcp = MCPServer("agentic-administration-knowledge", instructions=INSTRUCTIONS if docs else None,
+                    version=__version__)
     if docs is None:
         return mcp
 

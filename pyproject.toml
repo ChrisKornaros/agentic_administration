@@ -1,6 +1,6 @@
 [project]
 name = "agentic-administration"
-version = "0.0.1"
+version = "0.1.0"
 description = "Agent-operated backlog administration over a canonical work-item model, tracker-agnostic via adapters."
 readme = "README.md"
 license = "MIT"

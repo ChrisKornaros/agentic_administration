@@ -1,0 +1,24 @@
+# The offline test suite on every push to main and every pull request: the
+# README's two Development commands, with --locked so a uv.lock that no
+# longer matches pyproject.toml fails here instead of being rewritten. No
+# tracker, token or secret: live checks are probes/ and conformance/, run by
+# hand.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv sync --locked
+      - run: uv run pytest

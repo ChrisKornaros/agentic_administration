@@ -20,6 +20,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from schema.intake import Intake
+from server import __version__
 from server.model import to_jsonable
 from server.service import Boards, BoardService, ToolFailure
 
@@ -42,7 +43,7 @@ setting its state to done or cancelled."""
 
 
 def build(boards: Boards) -> MCPServer:
-    mcp = MCPServer("agentic-administration", instructions=INSTRUCTIONS)
+    mcp = MCPServer("agentic-administration", instructions=INSTRUCTIONS, version=__version__)
 
     def call(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         try:
