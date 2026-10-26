@@ -27,8 +27,8 @@ entry says how.
   follow from the repo's URL ("set this up for my organization") or for a
   person: what to ask, the config, fitting it with `describe`, the token,
   the host, the first item and the team's hand-off, with rules that keep
-  the agent away from tokens and board writes. Not yet run by an agent
-  from a fresh directory.
+  the agent away from tokens and board writes. An agent rehearsed it
+  against a stand-in Jira board; it hasn't yet run against a live one.
 
 ### Changed
 
@@ -38,7 +38,15 @@ entry says how.
 - **Two states can no longer share a status.** A board config that maps
   two of the five states onto one status fails to load: a read maps a
   status back to one state, so a finished item read back as cancelled.
-  The README and the Jira template no longer suggest it.
+  The README and the Jira template no longer suggest it, and say that a
+  new Jira status needs transitions into it and a board column, which
+  `describe` doesn't check.
+
+### Fixed
+
+- `describe` prints its verdict after the board's JSON even when its
+  output is captured, as an agent's shell does; the verdict used to come
+  first.
 
 ## [0.1.0] - 2026-10-19
 
