@@ -1,6 +1,6 @@
 """The Markdown → Confluence publisher (Phase 6b), offline against the fake:
-the tree, the two passes, idempotency, links, the cap, titles, orphans, and no
-delete anywhere."""
+the tree, the two passes, idempotency, links and the graph (wikilinks, front
+matter, backlinks), the cap, titles, orphans, and no delete anywhere."""
 
 import re
 import shlex
@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from adapters.base import AuthError, ValidationError
+from adapters.jira import adf
 from knowledge import __main__ as cli
 from knowledge.__main__ import main, summary
 from knowledge.config import InvalidKnowledgeConfig, KnowledgeConfig, from_dict, load
@@ -68,6 +69,14 @@ def links(doc):
     return found
 
 
+def body(doc):
+    """An ADF doc without its closing "Linked from" section, the backlinks."""
+    content = doc["content"]
+    cut = next((i for i, b in enumerate(content) if b["type"] == "heading" and b["content"][0]["text"] == "Linked from"),
+               len(content))
+    return {**doc, "content": content[:cut]}
+
+
 def url(fake, title):
     return f"{BASE}/spaces/{KEY}/pages/{fake.by_title(title)['id']}"
 
@@ -107,19 +116,84 @@ def test_the_first_publish_builds_the_tree_under_the_parent(tmp_path):
     assert setup["labels"] == {"md-published", file_label("md-published", "guides/setup.md")}
     assert fake.prop("Setup")["value"] == {"path": "guides/setup.md", "hash": fake.prop("Setup")["value"]["hash"],
                                            "version": 2}  # created empty (v1), then written (v2)
-    blocks = fake.doc("Setup")["content"]
+    blocks = body(fake.doc("Setup"))["content"]
     assert [b["type"] for b in blocks] == ["table", "paragraph", "codeBlock"]  # the H1 is the title, not the body
-    assert [b["type"] for b in fake.doc("Guides")["content"]] == ["paragraph"]  # no front matter
+    assert [b["type"] for b in body(fake.doc("Guides"))["content"]] == ["table", "paragraph"]  # its front matter
     assert fake.by_title("notes")["version"]["number"] == 1  # a bare folder is never rewritten
 
 
 def test_relative_links_become_page_urls(tmp_path):
     fake = FakeConfluence()
     run(tree(tmp_path), fake)
-    assert links(fake.doc("Handbook")) == [url(fake, "Setup"), url(fake, "Guides")]
-    assert links(fake.doc("Guides")) == [url(fake, "Setup")]  # the #fragment is dropped
-    assert links(fake.doc("Setup")) == [url(fake, "Handbook")]  # not the one in the code block
+    assert links(body(fake.doc("Handbook"))) == [url(fake, "Setup"), url(fake, "Guides")]
+    assert links(body(fake.doc("Guides"))) == [url(fake, "Setup")]  # the #fragment is dropped
+    assert links(body(fake.doc("Setup"))) == [url(fake, "Handbook")]  # not the one in the code block
     assert "[not a link](nowhere.md)" in fake.doc("Setup")["content"][2]["content"][0]["text"]
+
+
+# -- the graph: wikilinks, front matter, backlinks -----------------------------------------------
+
+VAULT = {
+    "README.md": "# Vault\n",
+    "modules/alpha/index.md": "---\nname: alpha\ntype: workflow\ndependencies:\n  - beta\n  - gone\n"
+                              "evidence: [notes/gamma.md#why, \"roadmap/x.md\"]\n---\n# Alpha\n\n"
+                              "Follows [[beta]] and [[modules/beta|the beta module]]; see [[gamma#why]], "
+                              "[[nowhere]], [[a]], [[delta]] and ![[diagram]]. `[[alpha]]` is code.\n",
+    "modules/beta/index.md": "# Beta\n\nNo links out.\n",
+    "notes/gamma.md": "# Gamma\n\nBack to [[Alpha]]; see [[beta]].\n",
+    "a/delta.md": "# Delta A\n",  # a/ has no index, so it is no folder note
+    "b/delta.md": "# Delta B\n",
+}
+
+
+def text(node):
+    return "".join(t.get("text", "") for t in node.get("content") or [])
+
+
+def closing(fake, title):
+    """The blocks after a page's body: its backlinks section, if any."""
+    return {"content": fake.doc(title)["content"][len(body(fake.doc(title))["content"]):]}
+
+
+def test_wikilinks_land_on_the_note_they_name(tmp_path):
+    fake = FakeConfluence()
+    report = run(tree(tmp_path, VAULT), fake)
+    assert report.ok
+    paragraph = body(fake.doc("Alpha"))["content"][1]  # after the front matter's table
+    assert links(paragraph) == [url(fake, "Beta"), url(fake, "Beta"), url(fake, "Gamma")]  # a folder note, a path, a file
+    assert text(paragraph) == ("Follows beta and the beta module; see gamma, nowhere, a, delta and diagram. "
+                               "[[alpha]] is code.")
+    assert links(body(fake.doc("Gamma"))) == [url(fake, "Alpha"), url(fake, "Beta")]  # case aside, as in Obsidian
+    assert sorted(e.note for e in report.entries if e.action == "warn") == [
+        "embed ![[diagram]] is not published; its text stays",
+        "link to [[a]]: it names no note of this tree; its text stays",
+        "link to [[delta]]: 2 notes have that name; its text stays",
+        "link to [[nowhere]]: it names no note of this tree; its text stays"]
+
+
+def test_front_matter_becomes_a_table_whose_values_link_where_they_name_a_page(tmp_path):
+    fake = FakeConfluence()
+    run(tree(tmp_path, VAULT), fake)
+    table = body(fake.doc("Alpha"))["content"][0]
+    rows = [[text(cell["content"][0]) for cell in row["content"]] for row in table["content"]]
+    assert rows == [["Property", "Value"], ["name", "alpha"], ["type", "workflow"], ["dependencies", "beta, gone"],
+                    ["evidence", "notes/gamma.md#why, roadmap/x.md"]]
+    assert links(table) == [url(fake, "Beta"), url(fake, "Gamma")]  # its own name, and what isn't in the tree, stay text
+    assert f"| dependencies | [beta]({url(fake, 'Beta')}), gone |" in adf.to_markdown(fake.doc("Alpha"))  # get_doc's view
+
+
+def test_each_page_ends_with_the_pages_that_link_to_it(tmp_path):
+    fake, root = FakeConfluence(), tree(tmp_path, VAULT)
+    run(root, fake)
+    beta = closing(fake, "Beta")
+    assert text(beta["content"][0]) == "Linked from" and links(beta) == [url(fake, "Alpha"), url(fake, "Gamma")]
+    assert links(closing(fake, "Gamma")) == [url(fake, "Alpha")]  # once, though Alpha links twice
+    assert links(closing(fake, "Alpha")) == [url(fake, "Gamma")] and closing(fake, "Delta A")["content"] == []
+    assert run(root, fake).writes == 0
+    (root / "notes" / "gamma.md").write_text("# Gamma\n\nBack to [[Alpha]].\n")
+    report = run(root, fake)
+    assert actions(report, "update") == ["modules/beta/", "notes/gamma.md"]  # Beta's backlinks lose Gamma
+    assert links(closing(fake, "Beta")) == [url(fake, "Alpha")]
 
 
 def test_a_rerun_writes_nothing(tmp_path):
@@ -160,8 +234,8 @@ def test_a_tree_under_the_same_parent_with_another_label_is_left_alone(tmp_path)
 def test_an_edit_makes_exactly_one_new_version(tmp_path):
     fake, root = FakeConfluence(), tree(tmp_path)
     run(root, fake)
-    (root / "guides" / "setup.md").write_text("# Setup\n\nNow shorter.\n")
-    since = len(fake.calls)
+    (root / "guides" / "setup.md").write_text("# Setup\n\nNow shorter. Back to [the handbook](../README.md).\n")
+    since = len(fake.calls)  # the same link, so no other page's backlinks change
     report = run(root, fake)
     setup = fake.by_title("Setup")["id"]
     assert fake.writes(since) == [("PUT", f"/wiki/api/v2/pages/{setup}"),
@@ -222,7 +296,7 @@ def test_the_write_cap_defers_the_rest_and_the_next_run_finishes(tmp_path):
     assert "notes/deep/todo.md" in actions(report, "deferred")  # its folder's page wasn't placed either
     report = run(root, fake)
     assert report.ok and not actions(report, "deferred")
-    assert links(fake.doc("Handbook")) == [url(fake, "Setup"), url(fake, "Guides")]
+    assert links(body(fake.doc("Handbook"))) == [url(fake, "Setup"), url(fake, "Guides")]
 
 
 def test_a_title_held_elsewhere_or_shared_gets_its_folder_and_one_taken_even_then_is_skipped(tmp_path):

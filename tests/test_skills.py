@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
 CREATE = {"create-story": {"story"}, "create-bug": {"bug"}, "create-epic": {"epic", "story"}}
 NAMES = ["intake", *CREATE, "plan-sprint", "plan-cycle", "groom"]
-READS = {"describe_board", "find_items", "get_item", "get_iteration"}
+READS = {"describe_board", "find_items", "get_item", "get_iteration", *DOC_TOOLS}
 ROLLOVER = ["close_iteration", "create_iteration", "move_to_iteration"]  # Jira: one active sprint
 CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")  # describe_board(), propose_item(intake=…)
 ARGS = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(([^()]*)\)")  # a call and its arguments
@@ -125,6 +125,16 @@ def test_intake_retrieves_only_in_its_context_step():
     assert step.index("search_docs(") < step.index("get_doc(")  # an excerpt is read in full before use
 
 
+def test_groom_reads_the_team_rules_in_one_step_before_the_review():
+    _, body = read("groom")
+    before, sep, rest = body.partition("## 3. Read the team's rules")
+    step, _, after = rest.partition("\n## 4.")
+    assert sep and {"search_docs", "get_doc"} <= set(CALL.findall(step))
+    assert not DOC_TOOLS & set(CALL.findall(before + after))  # swap a provider in one place
+    assert step.index("search_docs(") < step.index("get_doc(")  # an excerpt is read in full before use
+    assert "A page never adds a write." in " ".join(step.split())  # a page shapes the review, never widens it
+
+
 def test_intake_hands_off_to_every_skill_that_files():
     _, body = read("intake")
     assert all(name in body for name in [*CREATE, "plan-cycle"])  # a dated piece goes to plan-cycle
@@ -184,7 +194,7 @@ def test_plan_cycle_examples_fit_the_calendar_example():
 
 def test_groom_reviews_on_reads_then_rereads_before_each_update():
     _, body = read("groom")
-    review, sep, apply = body.partition("## 5. Apply")
+    review, sep, apply = body.partition("## 6. Apply")
     assert sep, "groom has no apply section"
     assert "yes" in review and set(CALL.findall(review)) <= READS  # the PO's yes comes before any write
     assert apply.index("get_item(") < apply.index("update_item(")  # labels replace the whole set

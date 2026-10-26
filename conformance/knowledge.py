@@ -63,9 +63,10 @@ def files(run_id: str, stage: str) -> dict[str, str]:
                      f"or [a note](notes-{r}/todo-{r}.md#top). [Out of the tree](../LICENSE) and ![an image](flow.png) "
                      "keep only their text; [the web](https://example.com/) stays a link.\n",
         "guides/index.md": f"---\ntags: [conformance]\n---\n# Guides {r}\n\nSee [setup](setup.md), or go [back](../README.md).\n",
-        SETUP: f"# Setup {r}\n\n| step | what |\n| --- | --- |\n| 1 | `uv sync` |\n\nBack to [the guides](index.md).\n",
+        SETUP: f"# Setup {r}\n\n| step | what |\n| --- | --- |\n| 1 | `uv sync` |\n\nBack to [the guides](index.md). "
+               f"Its note is [[todo-{r}]].\n",
         OLD: f"# Old {r}\n\nThe `remove` case takes this file out.\n",
-        f"notes-{r}/todo-{r}.md": "No heading, so the file name is the title.\n",
+        f"notes-{r}/todo-{r}.md": "No heading, so the file name is the title. See [[guides]].\n",
     }
     out[SETUP] += "".join(f"\nEdit {n}.\n" for n in range(1, {BASE: 0, EDIT: 1}.get(stage, 2) + 1))
     if stage == REMOVE:
@@ -74,15 +75,16 @@ def files(run_id: str, stage: str) -> dict[str, str]:
 
 
 def expected(run_id: str) -> dict[str, tuple[str, str | None, set[str]]]:
-    """Each page's key -> its title, its parent's key (None: the configured parent), and where its links land."""
+    """Each page's key -> its title, its parent's key (None: the configured parent), and where its links land,
+    its [[wikilinks]] and its closing backlinks included."""
     r, note = run_id, f"notes-{run_id}/todo-{run_id}.md"
     return {
         ROOT: (f"Conformance {r}", None, {SETUP, "guides/", note}),
-        "guides/": (f"Guides {r}", ROOT, {SETUP, ROOT}),
+        "guides/": (f"Guides {r}", ROOT, {SETUP, ROOT, note}),
         f"notes-{r}/": (f"notes-{r}", ROOT, set()),
         OLD: (f"Old {r}", "guides/", set()),
-        SETUP: (f"Setup {r}", "guides/", {"guides/"}),
-        note: (f"todo-{r}", f"notes-{r}/", set()),
+        SETUP: (f"Setup {r}", "guides/", {"guides/", note, ROOT}),
+        note: (f"todo-{r}", f"notes-{r}/", {"guides/", ROOT, SETUP}),
     }
 
 

@@ -6,6 +6,30 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until
 1.0, a minor release may change the board config or the tools, and its
 entry says how.
 
+## [Unreleased]
+
+### Added
+
+- **The publisher carries an Obsidian vault's graph.** A `[[wikilink]]`
+  (with an `|alias` or a `#heading`) lands on the note it names: a file by
+  its name or its path from the root, or a folder by its `index.md`. Front
+  matter becomes a table at the top of the page, and a value that names a
+  page of the tree links to it. Each page ends with "Linked from", the
+  pages that link to it, so an agent with only `get_doc` can walk the
+  graph both ways.
+- **`groom` reads the team's review rules** from the docs when the host
+  has `search_docs`, follows a page's link one level, applies the rules to
+  its checks and outcomes, and names each rule's page. A page never adds a
+  write the skill doesn't make. Run live on Jira and Confluence
+  ([record](transcripts/2026-10-26-groom-graph-run.md)), which is also
+  `groom`'s first run under a host.
+
+### Changed
+
+- A page's front matter is now published as a table rather than dropped,
+  and a page that others link to gains the "Linked from" list. The first
+  run after upgrading rewrites those pages once.
+
 ## [0.1.0] - 2026-10-19
 
 The first release: a backlog agent for Plane and Jira Cloud, proven

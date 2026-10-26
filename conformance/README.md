@@ -242,7 +242,7 @@ uv run python -m conformance.knowledge boards/<kb>.toml             # live: real
 | Case | Checks |
 |---|---|
 | `space` | Read before any write: the space, its homepage, and a parent page that isn't the homepage and holds nothing. |
-| `publish` | A dry run writes nothing and plans six creates. The real run makes them in the planned number of writes. Read back apart from the publisher, each page has its title and sits under its folder's page. Each page's version equals its `md-source` property's. Every relative link lands on its target page's URL, and the external link survives. |
+| `publish` | A dry run writes nothing and plans six creates. The real run makes them in the planned number of writes. Read back apart from the publisher, each page has its title and sits under its folder's page. Each page's version equals its `md-source` property's. Every relative link and `[[wikilink]]` lands on its target page's URL, as does each page's closing "Linked from" list, and the external link survives. |
 | `search` | How long CQL takes to find the pages by the run's label (polls every 5 s, up to 180 s); a file's own label then finds exactly its page. |
 | `paging` | The v2 page listing and v1 CQL, read one row at a time: the form `_links.next` takes, and whether the walk reaches the same rows as one call. |
 | `rerun` | The same tree again: no write at all, every page unchanged, none reported as drift. |
@@ -258,6 +258,12 @@ uv run python -m conformance.knowledge boards/<kb>.toml             # live: real
 | Ran | Space | Verdict |
 |---|---|---|
 | 2026-09-28 | Confluence Cloud (Premium trial), throwaway space `AGKB`, under a fresh page | **PASS 11/11**, over two processes with one stop for the archive. It sent GET 106, POST 20, PUT 16 and no DELETE, with no 429. It found one publisher bug, fixed in the same PR (below). |
+
+The suite's tree gained a wikilink to a note and one to a folder note on
+2026-10-25, with the backlinks they bring. That change passes offline
+against the fake, but the suite hasn't been re-run live since. The same
+three forms ran live that day in a 77-page publish
+([the groom graph run](../transcripts/2026-10-26-groom-graph-run.md)).
 
 ### What the 2026-09-28 run settled
 
