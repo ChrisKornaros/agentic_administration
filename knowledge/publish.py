@@ -28,6 +28,12 @@ target's page id:
    that page's URL) and PUT it at version + 1, unless the hash of its title,
    parent and body matches the property's, when nothing is written.
 
+The links are an Obsidian vault's graph too: a `[[wikilink]]` lands on the
+file or folder note it names, the front matter becomes a table at the top of
+the page whose values link where they name a page of the tree, and each page
+ends with the pages that link to it (Obsidian's backlinks), so an agent with
+only `get_doc` can walk the graph both ways.
+
 Only pages carrying the property are ever written, and never the space
 homepage or the configured parent. A dry run (the default) reads and plans
 the same way without writing. `max_writes` caps the page creates and updates
@@ -55,10 +61,14 @@ PROPERTY = "md-source"
 INDEX_NAMES = ("index.md", "README.md")  # a folder's own page, the first one present
 ROOT = "./"
 
-_FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n", re.S)
+_FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+_META_KEY = re.compile(r"^(\w[\w .-]*):\s*(.*)$")  # top-level only: a nested map stays out
+_META_ITEM = re.compile(r"^\s+-\s+(.*)$")
 _H1 = re.compile(r"^#\s+(.*?)\s*#*\s*$")
 _FENCE = re.compile(r"^\s*(```|~~~)")
-_LINK = re.compile(r"`[^`]*`|(?P<img>!?)\[(?P<text>[^\]]*)\]\((?P<href>[^)\s]+)\)")  # a code span is left alone
+_LINK = re.compile(r"`[^`]*`"  # a code span is left alone
+                   r"|(?P<embed>!?)\[\[(?P<name>[^\]|#]+)(?:#[^\]|]*)?(?:\|(?P<alias>[^\]]*))?\]\]"  # [[note#heading|alias]]
+                   r"|(?P<img>!?)\[(?P<text>[^\]]*)\]\((?P<href>[^)\s]+)\)")
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.I)
 
 
@@ -132,10 +142,33 @@ def walk(root: Path) -> dict[str, Node]:
     return dict(sorted(nodes.items(), key=lambda kv: (depth(kv[0]), kv[0])))
 
 
-def _read(source: Path) -> tuple[str | None, str]:
-    """A file's first `# ` heading, as plain text for its title, and its body
-    with the front matter and that heading taken out."""
-    text = _FRONT_MATTER.sub("", source.read_text(encoding="utf-8").replace("\r\n", "\n"), count=1)
+def _unquote(value: str) -> str:
+    value = value.strip()
+    return value[1:-1] if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'" else value
+
+
+def _meta(block: str) -> list[tuple[str, list[str]]]:
+    """The front matter's top-level keys with their values: a scalar, a
+    `[a, b]` list or `- item` lines. Stdlib only, so just that much YAML."""
+    out: list[tuple[str, list[str]]] = []
+    for line in block.split("\n"):
+        if (m := _META_ITEM.match(line)) and out:
+            out[-1][1].append(_unquote(m.group(1)))
+        elif m := _META_KEY.match(line):
+            value = m.group(2).strip()
+            if value.startswith("[") and value.endswith("]"):
+                out.append((m.group(1), [_unquote(v) for v in value[1:-1].split(",") if v.strip()]))
+            else:
+                out.append((m.group(1), [_unquote(value)] if value else []))
+    return [(key, values) for key, values in out if values]
+
+
+def _read(source: Path) -> tuple[str | None, str, list[tuple[str, list[str]]]]:
+    """A file's first `# ` heading, as plain text for its title, its body
+    with the front matter and that heading taken out, and the front matter."""
+    text = source.read_text(encoding="utf-8").replace("\r\n", "\n")
+    front = _FRONT_MATTER.match(text)
+    meta, text = (_meta(front.group(1)), text[front.end():]) if front else ([], text)
     lines, fenced = text.split("\n"), False
     for i, line in enumerate(lines):
         if _FENCE.match(line):
@@ -143,8 +176,8 @@ def _read(source: Path) -> tuple[str | None, str]:
         elif not fenced and (m := _H1.match(line)):
             title = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", m.group(1)).replace("`", "").replace("**", "").strip()
             if title:
-                return title, "\n".join(lines[:i] + lines[i + 1:])
-    return None, text
+                return title, "\n".join(lines[:i] + lines[i + 1:]), meta
+    return None, text, meta
 
 
 def _hash(title: str, parent_id: str, doc: dict[str, Any]) -> str:
@@ -171,6 +204,8 @@ class _Run:
         self.space: Space
         self.listing: dict[str, dict[str, Any]] = {}
         self.targets: dict[str, str] = {}  # link path -> node key, for pass 2
+        self.names: dict[str, set[str]] = {}  # [[wikilink]] name -> the node keys it may land on
+        self.linked_from: dict[str, set[str]] = {}  # node key -> the keys whose pages link to it
 
     def go(self) -> None:
         self.space = self.client.space(self.cfg.space)
@@ -286,17 +321,18 @@ class _Run:
             self.report.add("create", n.key, n.title)
 
     def _write(self) -> None:
-        """Pass 2: write each placed page at version + 1, unless its hash says nothing changed."""
+        """Pass 2: write each placed page at version + 1, unless its hash says nothing changed.
+        Every body is read first, since a page's backlinks come from the others."""
         protected = {self.space.homepage_id, self.cfg.parent}
-        self.targets = self._targets()
-        for n in self.nodes.values():
+        self.targets, self.names = self._targets(), self._names()
+        placed = [n for n in self.nodes.values() if n.page_id and n.title and self._parent_id(n)]
+        bodies = {n.key: self._body(n) for n in placed if n.source is not None and n.page_id not in protected}
+        for n in placed:
             parent_id = self._parent_id(n)
-            if not (n.page_id and n.title and parent_id):
-                continue
             if n.page_id in protected:
                 self.report.add("skip", n.key, n.title, "refusing to write the space homepage or the configured parent")
                 continue
-            doc = self._render(n)
+            doc = adf.render(bodies[n.key] + self._backlinks(n)) if n.key in bodies else adf.empty()
             digest = _hash(n.title, parent_id, doc)
             if ((n.prop or {}).get("value") or {}).get("hash") == digest:
                 if not n.created:
@@ -328,16 +364,62 @@ class _Run:
                 out["." if n.key == ROOT else n.key.rstrip("/")] = n.key
         return out
 
-    def _render(self, n: Node) -> dict[str, Any]:
-        """The page body: the file's Markdown as ADF, with a relative link to a
-        file or folder of the tree pointing at its page. A link out of the tree
-        and an image (not published) keep only their text, with a warning."""
-        if n.source is None:
-            return adf.empty()
-        _, body = _read(n.source)
+    def _names(self) -> dict[str, set[str]]:
+        """What a `[[wikilink]]` may name → the nodes it may land on: a file by
+        its name or its path from the root, `.md` left off, and a folder whose
+        page has a body (a folder note) by the same. Case aside, as in Obsidian."""
+        out: dict[str, set[str]] = {}
+        for n in self.nodes.values():
+            if n.source is None or n.key == ROOT:
+                continue
+            path = n.key.rstrip("/") if n.key.endswith("/") else n.key.removesuffix(".md")
+            for name in {path, PurePosixPath(path).name}:
+                out.setdefault(name.casefold(), set()).add(n.key)
+        return out
+
+    def _named(self, name: str) -> tuple[str | None, str]:
+        """The node a `[[name]]` lands on, or else why none does."""
+        keys = self.names.get(name.strip().removesuffix(".md").casefold(), set())
+        if len(keys) == 1:
+            return next(iter(keys)), ""
+        return None, f"{len(keys)} notes have that name" if keys else "it names no note of this tree"
+
+    def _backlinks(self, n: Node) -> str:
+        """A closing section listing the pages whose links land on this one."""
+        froms = sorted((self.nodes[key] for key in self.linked_from.get(n.key, ())), key=lambda m: m.title.casefold())
+        if not froms:
+            return ""
+        return "\n\n## Linked from\n\n" + "".join(f"- [{m.title}]({self.space.page_url(m.page_id)})\n" for m in froms)
+
+    def _body(self, n: Node) -> str:
+        """The page body as Markdown: the front matter as a table, then the
+        file's text, with each relative link, `[[wikilink]]` and front-matter
+        value that names a file or folder of the tree pointing at its page,
+        and the link recorded for that page's backlinks. A link out of the tree
+        and an image or embed (not published) keep only their text, with a
+        warning."""
+        _, body, meta = _read(n.source)
         here = posixpath.dirname(n.source.relative_to(self.root).as_posix())
 
+        def url(key: str) -> str | None:
+            page_id = self.nodes[key].page_id
+            if page_id and key != n.key:
+                self.linked_from.setdefault(key, set()).add(n.key)
+            return self.space.page_url(page_id) if page_id else None
+
         def link(m: re.Match[str]) -> str:
+            if m.group("name") is not None:  # a [[wikilink]]
+                text = m.group("alias") or m.group("name")
+                if m.group("embed"):
+                    self.report.add("warn", n.key, n.title, f"embed {m.group(0)} is not published; its text stays")
+                    return text
+                key, why = self._named(m.group("name"))
+                href = url(key) if key else None
+                if href is None:
+                    self.report.add("warn", n.key, n.title,
+                                    f"link to {m.group(0)}: {why or 'its page is not placed'}; its text stays")
+                    return text
+                return f"[{text}]({href})"
             href, text = m.group("href"), m.group("text")
             if href is None:  # a code span
                 return m.group(0)
@@ -347,16 +429,25 @@ class _Run:
             if _SCHEME.match(href) or href.startswith(("#", "/")):
                 return m.group(0)
             key = self.targets.get(posixpath.normpath(posixpath.join(here, href.split("#", 1)[0])))
-            page_id = self.nodes[key].page_id if key else None
-            if page_id is None:
+            page = url(key) if key else None
+            if page is None:
                 why = "its page is not placed" if key else "it is not a file or folder of this tree"
                 self.report.add("warn", n.key, n.title, f"link to {href}: {why}; its text stays")
                 return text
-            return f"[{text}]({self.space.page_url(page_id)})"
+            return f"[{text}]({page})"
 
+        def cell(value: str) -> str:  # a value naming a file (from the root) or a note of the tree links to it
+            path = value.split("#", 1)[0]
+            key = (self.targets.get(posixpath.normpath(path)) if path else None) or self._named(value)[0]
+            page = url(key) if key and key != n.key else None
+            value = value.replace("|", "\\|")
+            return f"[{value}]({page})" if page else value
+
+        table = ["| Property | Value |", "| --- | --- |",
+                 *(f"| {key} | {', '.join(cell(v) for v in values)} |" for key, values in meta), ""] if meta else []
         lines, fenced = [], False
-        for line in body.split("\n"):
+        for line in table + body.split("\n"):
             fence = _FENCE.match(line) is not None
             fenced = fenced != fence
             lines.append(line if fenced or fence else _LINK.sub(link, line))
-        return adf.render("\n".join(lines))
+        return "\n".join(lines)

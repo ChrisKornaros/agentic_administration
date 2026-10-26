@@ -346,10 +346,13 @@ it.
   cycle, files the epic and each item under it, and reads them back. Its
   ids come from the cycle, so a rerun finds what already landed.
 - **`groom`** is the product owner's pass over what carries the review
-  label. It proposes fixes to each item's title, parent, feature or state
-  and flags duplicates. After one yes, it signs each item off: it clears
-  the label and moves a story, bug or task from the backlog to `todo`,
-  where `plan-sprint` looks for ready work.
+  label. Where the host has the docs, it first reads the team's review
+  rules there, such as a definition of ready. It proposes fixes to each
+  item's title, parent, feature or state, holds what isn't ready, and
+  flags duplicates, naming the page behind each rule it applies. A page
+  never adds a write the skill doesn't already make. After one yes, it
+  signs each item off: it clears the label and moves a story, bug or task
+  from the backlog to `todo`, where `plan-sprint` looks for ready work.
 
 ### Several boards
 
@@ -410,7 +413,11 @@ under the page named by `space.parent`. A tree is known by its
 it carries that label, so trees can share a parent page but each needs a
 label of its own. A page's title is its first `#` heading, or else its
 file name, and relative links between files become links between pages.
-A re-run writes only what changed. A page whose file is gone is reported
+An Obsidian vault's links come along too: a `[[wikilink]]` lands on the
+note it names (a file by name or path, or a folder by its `index.md`),
+front matter becomes a table at the top of the page whose values link
+where they name a page, and each page ends with "Linked from", the pages
+that link to it. A re-run writes only what changed. A page whose file is gone is reported
 for a person to archive, and nothing is ever deleted. Each run writes at
 most `publish.max_writes` pages, and the next run picks up the rest.
 Images aren't published yet.
@@ -471,6 +478,12 @@ Each claim above has a dated record in the repo:
   Hermes ([record](transcripts/2026-10-03-hermes-docs-run.md)).
 - **A real board:** the first run on a real, non-software board, including
   groom's sign-off ([record](transcripts/2026-10-05-food-content-week.md)).
+- **Team rules from a docs graph:** groom in Claude Code read a definition
+  of ready published from Obsidian-style Markdown, followed its link to
+  the standard it names, and gave five Jira items the outcomes predicted
+  before the run, citing each rule's page. It left out a page's request
+  for writes the skill doesn't make
+  ([record](transcripts/2026-10-26-groom-graph-run.md)).
 - **Several boards and a calendar:** one agent over two boards asked which
   board when a request named none, then planned a month of a real content
   calendar, 27 items, after one yes, and the read-back matched
@@ -478,9 +491,8 @@ Each claim above has a dated record in the repo:
 - **The APIs themselves:** dated read-only probes of each tracker
   ([probes/](probes/README.md)).
 
-Not yet run live: the `parent` and `label` level forms; `groom` under a
-host (its sign-off ran from a developer session); Jira below Premium; the
-`publish-docs.yml` workflow.
+Not yet run live: the `parent` and `label` level forms; Jira below
+Premium; the `publish-docs.yml` workflow.
 
 ## Development
 
