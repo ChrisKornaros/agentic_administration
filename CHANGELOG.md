@@ -23,12 +23,22 @@ entry says how.
   write the skill doesn't make. Run live on Jira and Confluence
   ([record](transcripts/2026-10-26-groom-graph-run.md)), which is also
   `groom`'s first run under a host.
+- **[SETUP.md](SETUP.md), the setup in order,** for a coding agent to
+  follow from the repo's URL ("set this up for my organization") or for a
+  person: what to ask, the config, fitting it with `describe`, the token,
+  the host, the first item and the team's hand-off, with rules that keep
+  the agent away from tokens and board writes. Not yet run by an agent
+  from a fresh directory.
 
 ### Changed
 
 - A page's front matter is now published as a table rather than dropped,
   and a page that others link to gains the "Linked from" list. The first
   run after upgrading rewrites those pages once.
+- **Two states can no longer share a status.** A board config that maps
+  two of the five states onto one status fails to load: a read maps a
+  status back to one state, so a finished item read back as cancelled.
+  The README and the Jira template no longer suggest it.
 
 ## [0.1.0] - 2026-10-19
 

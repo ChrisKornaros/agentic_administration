@@ -10,6 +10,11 @@ runs. Plane and Jira Cloud are supported; another tracker is one adapter.
 > ([the evidence](#evidence)), which also lists what hasn't run live yet.
 > Until 1.0, a minor release may change the board config or the tools.
 
+**Setting it up for a team?** [SETUP.md](SETUP.md) is the whole setup in
+order: what to ask, the config, the host and the first item. It is written
+for a coding agent to follow, so you can give one this repo's URL and say
+"set this up for my organization", or follow it yourself.
+
 ## What it is
 
 - **An MCP server** with eleven tools over one model of work items:
@@ -384,8 +389,9 @@ On Jira, Epic, Story, Bug and a sub-task type (the model's Task) are
 issue types. Feature can't be a Jira level, so it collapses, as does
 Initiative unless the site has a level above Epic. Statuses change
 through transitions. A new project's workflow has To Do, In Progress and
-Done, so add Backlog and Cancelled (in the Done category) or map two
-states onto one status. The board's sprints are the iterations. The
+Done, so add Backlog and Cancelled (Cancelled in the Done category): each
+state needs a status of its own, since two on one status read back as
+one of them. The board's sprints are the iterations. The
 target date is the due date and the start date is the field named "Start
 date"; a custom field shows up only once it is on one of the project's
 screens. The adapter labels each item `xid:<external_id>`, so a retried

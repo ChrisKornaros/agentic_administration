@@ -277,6 +277,13 @@ def test_states_must_cover_the_canonical_five():
     )
 
 
+def test_two_states_cannot_share_a_status():
+    # a done item would read back as cancelled, and every new item as ready
+    p = problems_of(variant(states={**PLANE["states"], "todo": PLANE["states"]["backlog"], "cancelled": "done"}))
+    assert any(m.startswith("states backlog and todo share the status") for m in p)
+    assert any(m.startswith("states done and cancelled share the status 'done'") for m in p)
+
+
 def test_review_label_is_required():
     assert "labels.review is required (the review marker, e.g. needs-review)" in problems_of(variant(labels={}))
     assert "labels.review is empty (the review marker is required)" in problems_of(variant(labels={"review": " "}))

@@ -326,6 +326,15 @@ class BoardConfig:
         empty = sorted(st.value for st, name in self.states.items() if not name.strip())
         if empty:
             problems.append(f"states mapped to an empty name: {', '.join(empty)}")
+        # a read maps a status back to one state, so two on one status read back wrong (done as cancelled)
+        by_name: dict[str, list[str]] = {}
+        for st, name in self.states.items():
+            if name.strip():
+                by_name.setdefault(name.strip().lower(), []).append(st.value)
+        for name, shared in by_name.items():
+            if len(shared) > 1:
+                problems.append(f"states {' and '.join(shared)} share the status {name!r}: each state needs "
+                                "its own, so add the missing status on the board")
         return problems
 
     def _validate_templates(self) -> list[str]:
