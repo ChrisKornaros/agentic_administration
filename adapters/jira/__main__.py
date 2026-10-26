@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         if exc.detail:
             print(f"  detail: {exc.detail}", file=sys.stderr)
         return 1
-    print(json.dumps(to_jsonable(board), indent=2))
+    print(json.dumps(to_jsonable(board), indent=2), flush=True)  # before the verdict, even when captured
     if board.problems:
         print("\nconfig does not fit the board:\n  - " + "\n  - ".join(board.problems), file=sys.stderr)
         return 1

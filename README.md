@@ -10,6 +10,11 @@ runs. Plane and Jira Cloud are supported; another tracker is one adapter.
 > ([the evidence](#evidence)), which also lists what hasn't run live yet.
 > Until 1.0, a minor release may change the board config or the tools.
 
+**Setting it up for a team?** [SETUP.md](SETUP.md) is the whole setup in
+order: what to ask, the config, the host and the first item. It is written
+for a coding agent to follow, so you can give one this repo's URL and say
+"set this up for my organization", or follow it yourself.
+
 ## What it is
 
 - **An MCP server** with eleven tools over one model of work items:
@@ -103,7 +108,7 @@ One TOML file per board, kept in `boards/`. Start from a template in
 | `[connection]` | yes | How to reach the board ([below](#connection)) |
 | `[levels]` | yes | How each level of the model exists on the board ([below](#levels)) |
 | `[states]` | yes | Each of the five canonical states, `backlog`, `todo`, `in_progress`, `done` and `cancelled`, mapped to a state name in your workflow. New items land in `backlog`; dropped work goes to `cancelled`. On Plane, any state can be mapped, whatever its group |
-| `[labels]` | `review`, on a software board | `review`: the label every new item carries until the product owner signs it off. `taxonomy`: the board's other labels, such as `["frontend", "backend"]`, which `describe_board` lists for the agent; the review label needn't be repeated there. Each must already exist on the board |
+| `[labels]` | `review`, on a software board | `review`: the label every new item carries until the product owner signs it off. `taxonomy`: the board's other labels, such as `["frontend", "backend"]`, which `describe_board` lists for the agent; the review label needn't be repeated there. On Plane, each must already exist on the board; Jira makes a label the first time an item carries it |
 | `[naming]` | no | `iteration`: the pattern sprint or cycle names follow, built from `YYYY`, `MM` and `DD`; other characters, such as `-`, are kept as written. The default is `"YYYYMM"`, as in `202611`. With `YYYYMM`, `plan-sprint` works out the next month itself; with any other pattern, it asks the PM for the next iteration's name and dates. `item_case`: `title`, `sentence` or `any` (the default). A title in the wrong case gets a warning and a suggested fix |
 | `[fields]` | no | Custom fields ([below](#dates-and-custom-fields)) |
 | `[templates.<name>]` | no | Item templates ([below](#templates)) |
@@ -195,8 +200,9 @@ Load the repo as a plugin.
 skills and starts the server for the board config, or the directory of
 them, in `AGENTIC_ADMIN_BOARD`, a path relative to the repo or an
 absolute one. Every board's token goes in the environment. Start from an
-empty directory, not the repo, so the repo's developer `CLAUDE.md` stays
-out of the requester's context:
+empty directory outside any project, not the repo, so the repo's
+developer `CLAUDE.md` stays out of the requester's context (Claude Code
+also reads a `CLAUDE.md` in a parent directory):
 
 ```sh
 export PLANE_API_KEY=...                       # or the Bitwarden variables above
@@ -384,8 +390,12 @@ On Jira, Epic, Story, Bug and a sub-task type (the model's Task) are
 issue types. Feature can't be a Jira level, so it collapses, as does
 Initiative unless the site has a level above Epic. Statuses change
 through transitions. A new project's workflow has To Do, In Progress and
-Done, so add Backlog and Cancelled (in the Done category) or map two
-states onto one status. The board's sprints are the iterations. The
+Done, so add Backlog and Cancelled (Cancelled in the Done category): each
+state needs a status of its own, since two on one status read back as
+one of them. Let every status move to each new one, since an item is
+created first and then moved to Backlog, and give each a column on the
+board; `describe` checks neither ([SETUP.md](SETUP.md), step 5). The
+board's sprints are the iterations. The
 target date is the due date and the start date is the field named "Start
 date"; a custom field shows up only once it is on one of the project's
 screens. The adapter labels each item `xid:<external_id>`, so a retried
@@ -492,7 +502,8 @@ Each claim above has a dated record in the repo:
   ([probes/](probes/README.md)).
 
 Not yet run live: the `parent` and `label` level forms; Jira below
-Premium; the `publish-docs.yml` workflow.
+Premium; a team's own Jira board, since every Jira run used a throwaway
+project; the `publish-docs.yml` workflow.
 
 ## Development
 

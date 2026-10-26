@@ -43,7 +43,10 @@ task       = { type = "Sub-task" }
 # Canonical state -> the project's status name. A status changes through
 # the transition that leads to it. A new project's workflow has To Do, In
 # Progress and Done: add Backlog and Cancelled (Cancelled in the Done
-# category) or map two states onto one status.
+# category). Each state needs a status of its own; two on one would read
+# back as one of them. Let every status move to each new one (an issue is
+# created, then moved to Backlog) and give each a board column: describe
+# checks neither (SETUP.md, step 5).
 [states]
 backlog     = "Backlog"
 todo        = "To Do"
