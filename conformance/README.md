@@ -258,12 +258,44 @@ uv run python -m conformance.knowledge boards/<kb>.toml             # live: real
 | Ran | Space | Verdict |
 |---|---|---|
 | 2026-09-28 | Confluence Cloud (Premium trial), throwaway space `AGKB`, under a fresh page | **PASS 11/11**, over two processes with one stop for the archive. It sent GET 106, POST 20, PUT 16 and no DELETE, with no 429. It found one publisher bug, fixed in the same PR (below). |
+| 2026-10-26 | `AGKB`, a new run, `20261026`, under a new empty page, with the tree's wikilinks and backlinks | **PASS 11/11** on the first run, over two processes with the one stop. GET 202, POST 20, PUT 16 and no DELETE. No fix was needed (below). |
 
-The suite's tree gained a wikilink to a note and one to a folder note on
-2026-10-25, with the backlinks they bring. That change passes offline
-against the fake, but the suite hasn't been re-run live since. The same
-three forms ran live that day in a 77-page publish
-([the groom graph run](../transcripts/2026-10-26-groom-graph-run.md)).
+### What the 2026-10-26 run settled
+
+- **Wikilinks and backlinks, live.** The tree gained a wikilink to a note
+  and one to a folder note on 2026-10-25. `publish` read every page back
+  apart from the publisher: each wikilink and each "Linked from" entry
+  landed on its target page's URL, as the relative links do.
+- **A page's own labels hold a just-written label at once.** Before any
+  wait, the v2 labels route showed the shared label on all six pages. That
+  was the inference behind the one-label-per-tree guard (PR #27), now
+  measured. CQL found the pages 14 s after the publish ended (16 s on
+  2026-09-28).
+- The rest matched the 2026-09-28 run: `_links.next` in the same forms,
+  each walk reaching the same rows as a single call; the same 409 and 400
+  bodies; and an archived page that stays in the listing and still blocks
+  its title.
+
+Left on `AGKB` by this run: `Conformance 20261026` and its five pages
+under `Conformance Test 20261026`, with `Old 20261026` archived.
+
+### The `publish-docs.yml` example, on GitHub's runners (2026-10-26)
+
+[examples/knowledge/publish-docs.yml](../examples/knowledge/publish-docs.yml)
+ran once, in a private throwaway docs repo: three pages (a relative link,
+a wikilink, front matter) under "Team Docs" with their own label. The
+workflow was copied unchanged, except that, while this repo is private,
+the `PUBLISHER` URL reads it with a fine-grained, read-only token (a third
+secret), pinned to `b0aedc1`.
+
+- **PASS** in 1 min 42 s. `actions/checkout@v7` and
+  `astral-sh/setup-uv@v10.2.0` resolved, the publisher installed from the
+  pinned commit (29 packages), and the run made 4 pages in 7 writes, as a
+  local dry run had planned. The log masked all three secrets.
+- Read back apart from the run: a re-run dry run planned 0 writes.
+  `search_docs` found all four pages, scoped to the label. `get_doc`
+  showed the wikilink and the relative link landing on their pages, each
+  page's "Linked from" list, and the front-matter table.
 
 ### What the 2026-09-28 run settled
 

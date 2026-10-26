@@ -435,7 +435,8 @@ Images aren't published yet.
 To publish on every push instead, copy
 [examples/knowledge/publish-docs.yml](examples/knowledge/publish-docs.yml)
 into the docs repo's `.github/workflows/`. Its header lists the config
-file and the two repository secrets it needs.
+file and the two repository secrets it needs. It has run on GitHub's
+runners ([the run](conformance/README.md#the-publish-docsyml-example-on-githubs-runners-2026-10-26)).
 
 Agents read the published docs through a second MCP server, `knowledge`,
 with two read-only tools. `search_docs(query, k)` returns up to `k`
@@ -498,12 +499,18 @@ Each claim above has a dated record in the repo:
   board when a request named none, then planned a month of a real content
   calendar, 27 items, after one yes, and the read-back matched
   ([record](transcripts/2026-10-13-phase6c-gate.md)).
+- **Setup from a fresh directory:** an agent with no context followed
+  [SETUP.md](SETUP.md) from the repo's URL to a fitted config and a
+  launcher, without asking for a token. The chat it set up then groomed
+  one Jira item and filed another, each after a yes. The author played the
+  admin, so a stranger's run is still to come
+  ([record](transcripts/2026-10-26-setup-self-test.md)).
 - **The APIs themselves:** dated read-only probes of each tracker
   ([probes/](probes/README.md)).
 
 Not yet run live: the `parent` and `label` level forms; Jira below
 Premium; a team's own Jira board, since every Jira run used a throwaway
-project; the `publish-docs.yml` workflow.
+project; the setup by someone other than the author.
 
 ## Development
 
