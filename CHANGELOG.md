@@ -16,7 +16,9 @@ entry says how.
   matter becomes a table at the top of the page, and a value that names a
   page of the tree links to it. Each page ends with "Linked from", the
   pages that link to it, so an agent with only `get_doc` can walk the
-  graph both ways.
+  graph both ways. The publisher's live suite passed 11/11 with them
+  ([results](conformance/README.md#what-the-2026-10-26-run-settled)), and
+  `publish-docs.yml` has now run on GitHub's runners.
 - **`groom` reads the team's review rules** from the docs when the host
   has `search_docs`, follows a page's link one level, applies the rules to
   its checks and outcomes, and names each rule's page. A page never adds a
@@ -28,7 +30,10 @@ entry says how.
   person: what to ask, the config, fitting it with `describe`, the token,
   the host, the first item and the team's hand-off, with rules that keep
   the agent away from tokens and board writes. An agent rehearsed it
-  against a stand-in Jira board; it hasn't yet run against a live one.
+  against a stand-in Jira board, then a fresh agent ran it on a live one,
+  with the author as the admin
+  ([record](transcripts/2026-10-26-setup-self-test.md)). Someone else's
+  run is still to come.
 
 ### Changed
 

@@ -21,6 +21,10 @@ step 7, after that person says yes.
   token. Don't run `bw get` or `bw list`, which print secrets: given an
   item's id or exact name, [server/secrets.py](server/secrets.py) reads it
   itself.
+- **Don't call the tracker's API yourself.** `describe` is the setup's
+  way in, and the chat is the person's. If you need something they don't
+  show, such as which of a project's boards is the Scrum board, ask the
+  person.
 - **Write nothing to the board during setup.** `describe` only reads. When
   the board lacks something the config needs, such as a status, a label
   or a work-item type, ask the person to add it in the tracker. Don't map
