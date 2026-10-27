@@ -6,54 +6,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until
 1.0, a minor release may change the board config or the tools, and its
 entry says how.
 
-## [Unreleased]
-
-### Added
-
-- **The publisher carries an Obsidian vault's graph.** A `[[wikilink]]`
-  (with an `|alias` or a `#heading`) lands on the note it names: a file by
-  its name or its path from the root, or a folder by its `index.md`. Front
-  matter becomes a table at the top of the page, and a value that names a
-  page of the tree links to it. Each page ends with "Linked from", the
-  pages that link to it, so an agent with only `get_doc` can walk the
-  graph both ways. The publisher's live suite passed 11/11 with them
-  ([results](conformance/README.md#what-the-2026-10-26-run-settled)), and
-  `publish-docs.yml` has now run on GitHub's runners.
-- **`groom` reads the team's review rules** from the docs when the host
-  has `search_docs`, follows a page's link one level, applies the rules to
-  its checks and outcomes, and names each rule's page. A page never adds a
-  write the skill doesn't make. Run live on Jira and Confluence
-  ([record](transcripts/2026-10-26-groom-graph-run.md)), which is also
-  `groom`'s first run under a host.
-- **[SETUP.md](SETUP.md), the setup in order,** for a coding agent to
-  follow from the repo's URL ("set this up for my organization") or for a
-  person: what to ask, the config, fitting it with `describe`, the token,
-  the host, the first item and the team's hand-off, with rules that keep
-  the agent away from tokens and board writes. An agent rehearsed it
-  against a stand-in Jira board, then a fresh agent ran it on a live one,
-  with the author as the admin
-  ([record](transcripts/2026-10-26-setup-self-test.md)). Someone else's
-  run is still to come.
-
-### Changed
-
-- A page's front matter is now published as a table rather than dropped,
-  and a page that others link to gains the "Linked from" list. The first
-  run after upgrading rewrites those pages once.
-- **Two states can no longer share a status.** A board config that maps
-  two of the five states onto one status fails to load: a read maps a
-  status back to one state, so a finished item read back as cancelled.
-  The README and the Jira template no longer suggest it, and say that a
-  new Jira status needs transitions into it and a board column, which
-  `describe` doesn't check.
-
-### Fixed
-
-- `describe` prints its verdict after the board's JSON even when its
-  output is captured, as an agent's shell does; the verdict used to come
-  first.
-
-## [0.1.0] - 2026-10-19
+## [0.1.0] - 2026-10-26
 
 The first release: a backlog agent for Plane and Jira Cloud, proven
 against live trackers ([the evidence](README.md#evidence)).
@@ -73,14 +26,27 @@ against live trackers ([the evidence](README.md#evidence)).
 - **The board config**, one TOML file per board. It maps the model's
   levels, states and labels onto the board, and sets the naming rules,
   the board type (`software` or `calendar`), custom fields and item
-  templates. Tokens stay in the environment or Bitwarden.
+  templates. Each state needs a status of its own: a config that maps two
+  onto one fails to load, since a read maps a status back to one state.
+  Tokens stay in the environment or Bitwarden.
 - **The intake record**: one request and the parts it becomes, rendered
   to Markdown with Given/When/Then acceptance criteria.
 - **Seven skills:** `intake`, `create-story`, `create-bug`, `create-epic`,
-  `plan-sprint`, `plan-cycle` and `groom`.
+  `plan-sprint`, `plan-cycle` and `groom`. Where the host has the docs,
+  `groom` reads the team's review rules from them, one link deep, and a
+  page never adds a write the skill doesn't make.
 - **Docs on Confluence (optional):** a one-way Markdown publisher,
   `python -m knowledge publish`, with a GitHub Actions example, and a
-  second MCP server, `knowledge`, with `search_docs` and `get_doc`.
+  second MCP server, `knowledge`, with `search_docs` and `get_doc`. The
+  publisher carries an Obsidian vault's graph: a `[[wikilink]]` lands on
+  the note it names, front matter becomes a table, and each page ends with
+  the pages that link to it, so an agent with only `get_doc` can walk the
+  graph both ways.
+- **[SETUP.md](SETUP.md), the setup in order,** for a coding agent given
+  the repo's URL ("set this up for my organization") or for a person:
+  what to ask, the config, fitting it with `describe`, the token, the
+  host, the first item and the team's hand-off, with rules that keep the
+  agent away from tokens and board writes.
 - **Three hosts:** a Claude Code plugin, a Hermes profile, and a terminal
   chat on the Claude Agent SDK.
 - **The proof:** live conformance suites for both adapters and the
@@ -92,10 +58,9 @@ against live trackers ([the evidence](README.md#evidence)).
 
 - The `parent` and `label` level forms, which a Plane plan without
   work-item types needs.
-- `groom` under a host. Its sign-off has run, but only from a developer
-  session.
-- Jira below Premium.
-- The `publish-docs.yml` workflow.
+- Jira below Premium, and a team's own Jira board: every Jira run used a
+  throwaway project.
+- The setup by someone other than the author.
 
 ### Known issues
 
@@ -107,5 +72,9 @@ against live trackers ([the evidence](README.md#evidence)).
   the tracker's rate limit twice as fast.
 - "Today" is the machine's local date, while iteration dates are read in
   the board's time zone, so near midnight the two can differ by a day.
+- `describe` checks status names only, not the transitions into them,
+  the board's columns or Cancelled's category.
+- A front-matter value written as a YAML block scalar (`key: |`) shows
+  as a lone `|` in the page's table.
 
 [0.1.0]: https://github.com/ChrisKornaros/agentic_administration/releases/tag/v0.1.0
