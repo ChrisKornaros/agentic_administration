@@ -110,8 +110,8 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   the CHANGELOG entry and the README's status line; [tests/test_release.py](tests/test_release.py) fails on any
   mismatch, and both servers report the installed version. After the merge, Chris approves the `v<version>` tag
   and the GitHub release, made from that CHANGELOG entry. No PyPI.
-- **Public-bound (D9):** MIT, public at Phase 7. No company names or company data in code, docs,
-  fixtures or commits.
+- **Public (D9):** MIT, public since 2026-10-27 (v0.1.0). No company names or company data in code,
+  docs, fixtures, commits, PR bodies or comments: each is public the moment it lands.
 - **Git:** `main` only; `feat/phase<N>-<slug>` (one PR per phase step), `chore/<slug>`,
   `docs/<slug>`. AOR changes are separate PRs in AOR.
 - **Memory:** `~/vault/claude/memory/agentic_administration/`, symlinked per machine from
