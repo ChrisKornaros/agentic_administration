@@ -67,7 +67,7 @@ fixes the board, so list the problems for them. Note `naming.iteration`,
 4. **Ask what comes in from the backlog.** To show candidates, call
    `find_items(state="todo", limit=50)` and leave out the items already in
    an iteration. The PM may name any other item by key; read it with
-   `get_item("<key>")`.
+   `get_item(ref="<key>")`.
    - If an item still has the review label, the PO hasn't reviewed it
      yet. Say so, and bring it in only if the PM confirms.
    - If the PM picks a task, bring its story or bug in with it.
