@@ -73,7 +73,7 @@ If no page sets rules, say so in the review and go on.
 
 ## 4. Review each item
 
-Read the item with `get_item("<key>")` and keep what it shows: its title,
+Read the item with `get_item(ref="<key>")` and keep what it shows: its title,
 state, parent, feature and labels. Then check four things, and the item
 against each team rule from step 3. Propose a change only where one is
 needed. An item that is already right is simply signed off.
@@ -138,7 +138,7 @@ always wait.
 
 For each item the PO approved, in the order shown:
 
-1. **Read it again.** Call `get_item("<key>")`. If its title, state,
+1. **Read it again.** Call `get_item(ref="<key>")`. If its title, state,
    parent, feature or labels differ from what the review showed, someone
    changed it in the meantime. Skip it for now and go on to the next.
 2. **Write the changes in one call:**

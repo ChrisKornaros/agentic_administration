@@ -107,8 +107,11 @@ name follows the day), add one from any template, or switch a slot to
 another template. They may also change a slot's title, description,
 feature, labels or field values. Fields go by their names in `fields`, and
 options by their option names. The state comes from the template, because
-`propose_item` doesn't take one. To add one item to a cycle that's already
-planned, plan only that slot. Show the list again after each change.
+`propose_item` doesn't take one. If the PM wants another state for a slot,
+its write-up adds an `update_item` call after the slot's commit. To add
+items to a cycle that's already planned, plan only those slots. Their
+parent is the cycle's epic from step 2. Show the list again after each
+change.
 
 ## 4. Check, then show the write-up and wait for one yes
 
@@ -157,12 +160,16 @@ planned, plan only that slot. Show the list again after each change.
    right away with no second question, because the PM approved exactly
    this. Keep the epic's key. If the plan's epic was filed some other way
    (step 3), skip this and use its key.
-3. **Each slot, by day.** Call
+3. **The slots, by day.** For each slot, call
    `propose_item(template="<name>", intake_id="<id>", part="<part>", title="<title>", description="<text>", target_date="<day>", parent="<the epic's key>", iteration="<cycle>")`.
    Send `start_date` instead of `target_date`, or both, as the template's
    `dates` says. Add `feature`, `labels` or `fields` only where the slot
-   differs from its template. Compare in the same way, and if it matches,
-   call `commit_item(token)`.
+   differs from its template. Compare each preview in the same way, and
+   commit the ones that match with `commit_item(token)`, in order. You may
+   commit each slot as it matches, or propose and compare them all first.
+   In a batch, a preview that differs stops the run before any slot is
+   committed (item 5). Commit each token within its 30 minutes, so for a
+   long plan, propose and commit in smaller batches.
 4. **If `existing` is set,** an earlier run filed that item. Commit anyway.
    `commit_item` returns that item instead of a duplicate and fills in only
    what an interrupted run left unset.
@@ -170,10 +177,17 @@ planned, plan only that slot. Show the list again after each change.
    For a failure, fix the slot and say what changed. For a suggested
    title, ask which one they want. Propose that item again, and once they
    agree, carry on with the rest.
-6. **Read it back.** Call `find_items(iteration="<cycle>", limit=200)` and
-   check that every item filed into the cycle is there. Then read each one with
-   `get_item("<key>")`, and compare its title, dates, feature, labels,
-   state, fields and parent with the write-up.
+6. **A state the PM changed.** After that slot's commit, call
+   `update_item(ref="<key>", state="<state>")`, as the write-up showed.
+7. **Read it back.** Call `find_items(iteration="<cycle>", limit=200)` and
+   check that every item filed into the cycle is there. Then read every one
+   of them, not a sample, with `get_item(ref="<key>")`, and compare its
+   title, dates, feature, labels, state, fields and parent with the
+   write-up. Each read can leave a value out: a list may return `fields`
+   empty, and a read by key may return no `iteration` (Plane does both).
+   So take the cycle from the list and the field values from `get_item`.
+   Neither gap means a write failed. A multi-option field's options may
+   come back in another order, and still match.
 
 **If a write fails:**
 - **Rate limit, edge wall, or tracker unreachable:** wait as the message

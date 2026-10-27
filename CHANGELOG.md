@@ -6,7 +6,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until
 1.0, a minor release may change the board config or the tools, and its
 entry says how.
 
-## [0.1.0] - 2026-10-26
+## [0.1.0] - 2026-10-27
 
 The first release: a backlog agent for Plane and Jira Cloud, proven
 against live trackers ([the evidence](README.md#evidence)).
