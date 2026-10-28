@@ -27,11 +27,13 @@ board_id    = 1                           # the Scrum board whose sprints are th
 #   parent    = "<label>"                       parent link + a type label (generic fallback, D4)
 #   label     = "<label>"                       a label alone marks the level
 #   collapse  = "label" | "component" | "description_line"   [+ template]
-# Jira fixes the levels: Epic at hierarchy level 1, Story and Bug at 0, and
-# the canonical Task (a story's child) is a sub-task at −1. Premium's custom
-# levels sit only above Epic, so Feature cannot be a Jira level: collapse
-# it. A collapse label has its spaces turned into dashes (Jira labels hold
-# none); a collapse component must already exist.
+# The types below are Jira's defaults; use your site's names where they
+# differ. A level maps to a type by hierarchy level, not by name: Epic at 1,
+# Story and Bug at 0, and the canonical Task (a story's child) a sub-task at
+# −1. Premium's custom levels sit only above Epic, so the model's Feature
+# collapses, even on a site with a Feature type; a type above Epic, whatever
+# its name, can be the initiative. A collapse label has its spaces turned
+# into dashes (Jira labels hold none); a collapse component must already exist.
 [levels]
 initiative = { collapse = "description_line", template = "**Initiative:** {name}" }
 epic       = { type = "Epic" }

@@ -11,7 +11,7 @@ When a module's canonical version bumps, re-copy and update the row here. Local 
 | [auto-commit-on-branch-done](modules/auto-commit-on-branch-done/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [ask-merged-via-popup](modules/ask-merged-via-popup/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [smoke-before-commit](modules/smoke-before-commit/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
-| [session-handoff](modules/session-handoff/index.md) | 3 | `bee8f3c` | 2026-09-23 | Kickoff is drawn from AOR roadmap/14 (another repo). Transferable lessons are flagged for an AOR session, not written into AOR from here. SessionStart hook runs from the global dotfiles |
+| [session-handoff](modules/session-handoff/index.md) | 3 | `bee8f3c` | 2026-09-23 | Kickoff is drawn from AOR roadmap/14 (another repo). Transferable lessons are flagged for an AOR session, not written into AOR from here. SessionStart hook runs from the global dotfiles. The kickoff isn't committed, since the repo is public (2026-10-28): `.claude/next-session.md` is a gitignored, per-machine symlink to `next-session.md` in the private memory store, which the vault's hooks sync (CLAUDE.md, **Memory**) |
 | [phase-kickoff](modules/phase-kickoff/index.md) | 1 | `bee8f3c` | 2026-09-23 | The phase doc is AOR roadmap/14 §9 (external), not a file in this repo |
 | [claude-md-as-map](modules/claude-md-as-map/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |
 | [docs-two-layer](modules/docs-two-layer/index.md) | 1 | `bee8f3c` | 2026-09-23 | — |

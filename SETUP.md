@@ -143,8 +143,13 @@ exits 0. Until then, every write refuses.
 For each problem, take the right name from the JSON:
 
 - **A level:** map it to the board's type by the name in `types`. On
-  Jira, Feature can't be a level, so the template collapses it into a
-  label, and Initiative, below Premium, into a line in the description.
+  Jira, the template names the default types, so use the site's names
+  where they differ. A type the site added, such as a Feature, maps by
+  where it sits in the hierarchy, not by its name: one above Epic
+  (Premium) can be the model's Initiative, and one beside Story reads
+  back as a story. No Jira level sits between Epic and Story, so the
+  template collapses the model's Feature into a label, and Initiative,
+  without a type above Epic, into a line in the description.
   On Plane's free plan there are no work-item
   types: the `parent` and `label` forms
   ([levels](README.md#levels)) cover that, but haven't run against a live
@@ -187,7 +192,8 @@ Tell the person, before anything changes:
 - Work already in the status mapped to `todo` counts as ready, so
   `plan-sprint` offers it for the next sprint.
 - On Jira, the model's task is a sub-task. An issue of the board's own
-  Task type reads back as a story, and the agent files no new ones.
+  Task type reads back as a story, and the agent files no new ones. So
+  does one of a type the site added beside Story, such as a Feature.
 
 ## 6. Wire the chat
 

@@ -29,9 +29,10 @@ don't pull `main` over it. Surface it and ask: resume, or stash/branch fresh.
 
 ## 2. Read the handoff
 
-- Read [`.claude/next-session.md`](../../.claude/next-session.md) first if it
-  exists (a `SessionStart` hook may have surfaced it — read it deliberately
-  anyway).
+- Read `.claude/next-session.md` first if it exists (a `SessionStart` hook
+  may have surfaced it — read it deliberately anyway). Here it's a
+  gitignored symlink into the private memory store
+  ([MODULES.md](../../../MODULES.md)).
 - Absent / empty of direction → fall back to the host's roadmap / planning doc.
 - The handoff is a warm-context distillation, not law. **If the roadmap has
   moved on, trust the roadmap.**
@@ -59,8 +60,8 @@ Plan confirmed → `git switch -c <feat|docs|chore>/<slug>` *before* editing.
 
 Collapses the start-of-session "re-derive state" cost the
 [session-handoff](../../modules/session-handoff/index.md) module exists to
-kill — it's the deliberate *read* of the handoff the wrap-up persisted into
-the PR. Distinct from the passive `SessionStart` hook (which only injects the
+kill — it's the deliberate *read* of the handoff the wrap-up persisted.
+Distinct from the passive `SessionStart` hook (which only injects the
 file's text — it can't `git pull`, decide resume-vs-fresh, or run the
 plan-gate). Full rationale in
 [prompts/session-start.md](../../prompts/session-start.md).
