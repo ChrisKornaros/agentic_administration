@@ -386,9 +386,15 @@ export JIRA_API_TOKEN=... JIRA_USER=you@example.com
 uv run python -m adapters.jira describe boards/<board>.toml
 ```
 
-On Jira, Epic, Story, Bug and a sub-task type (the model's Task) are
-issue types. Feature can't be a Jira level, so it collapses, as does
-Initiative unless the site has a level above Epic. Statuses change
+Jira's default issue types are Epic, Story, Task, Bug and Sub-task. The
+example maps Epic, Story and Bug to the levels of the same name, and
+Sub-task to the model's Task. Many sites add types of their own, such as
+a Feature. A level maps to a type by where the type sits in the
+hierarchy, not by its name, and `describe` refuses one at the wrong
+level. Jira's custom levels sit above Epic, never between Epic and
+Story, so the model's Feature collapses, even on a site with a Feature
+type. A type above Epic, whatever its name, can be the model's
+Initiative; without one, Initiative collapses too. Statuses change
 through transitions. A new project's workflow has To Do, In Progress and
 Done, so add Backlog and Cancelled (Cancelled in the Done category): each
 state needs a status of its own, since two on one status read back as
