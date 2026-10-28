@@ -14,8 +14,8 @@ instead; the rest of this file is for the repo's contributors.
 **Design source of truth:** AOR
 [roadmap/14](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md)
 (decisions D1–D10, phases §9). Start each session from
-[.claude/next-session.md](.claude/next-session.md) (surfaced by the global
-SessionStart hook); where it disagrees with the roadmap, the roadmap wins.
+`.claude/next-session.md` (surfaced by the global SessionStart hook; private, see
+**Memory** below); where it disagrees with the roadmap, the roadmap wins.
 
 ## Composed modules
 
@@ -40,8 +40,8 @@ Canonical loop: [git-flow-session-end](modules/git-flow-session-end/index.md), r
 `/session-wrapup`. When the branch goal is met and verified, in one response:
 
 1. **Doc sync + hand-off, before committing:** README status/layout,
-   [conformance/README.md](conformance/README.md) after a live run, this file, and
-   overwrite `.claude/next-session.md` from roadmap/14 — all in the same diff.
+   [conformance/README.md](conformance/README.md) after a live run and this file, all in
+   the same diff; overwrite `.claude/next-session.md` from roadmap/14, which stays out of the PR.
 2. **Commit → push → `gh pr create`** with the
    [Delivered + Verified](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/templates/_shared/git-workflow.md#the-delivered--verified-footer)
    footer. No "ready to commit?" stall.
@@ -116,6 +116,9 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   `docs/<slug>`. AOR changes are separate PRs in AOR.
 - **Memory:** `~/vault/claude/memory/agentic_administration/`, symlinked per machine from
   `~/.claude/projects/<key>/memory`. The vault's hooks commit it; never commit it from here.
+  The hand-off lives there too, as `next-session.md`, since the repo is public; `.claude/next-session.md`
+  is a gitignored symlink to it, made once per machine:
+  `ln -s ../../../claude/memory/agentic_administration/next-session.md .claude/next-session.md`.
 - **`plane-board-ops`** drives AOR's `tools/plane/plane.py`, not this repo's adapter.
 
 ## Layout

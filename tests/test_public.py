@@ -1,6 +1,6 @@
 """The repo is public-bound (roadmap/14 D9, §10 item 4): nothing tracked may
 hold a secret, a live board's id or board content. The board configs, probe
-and conformance reports and raw transcripts are gitignored; these checks
+and conformance reports, raw transcripts and the session hand-off are gitignored; these checks
 catch one forced in with `git add -f`, a pasted token, or a real id copied
 into a doc. The fakes' ids are made up, never a random (version 4) UUID."""
 
@@ -12,7 +12,9 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 
-PRIVATE_PATHS = re.compile(r"^(boards|conformance/reports|transcripts/raw)/|^probes/.*-report\.json$|\.env$")
+PRIVATE_PATHS = re.compile(
+    r"^(boards|conformance/reports|transcripts/raw)/|^probes/.*-report\.json$|\.env$|^\.claude/next-session\.md$"
+)
 SECRETS = {
     "Plane API key": r"plane_api_[0-9a-f]{32}",
     "Atlassian API token": r"ATATT3[A-Za-z0-9_=-]{100,}",

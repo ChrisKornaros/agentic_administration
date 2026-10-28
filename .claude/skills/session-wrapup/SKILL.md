@@ -18,11 +18,11 @@ module; this skill is its mid-session trigger.
 
 Just do it — don't ask "ready to commit?". First write the next-session
 kickoff (the [session-handoff](../../modules/session-handoff/index.md)
-emit, see D-1) into `.claude/next-session.md` so it rides this PR, then:
+emit, see D-1) into `.claude/next-session.md`, then:
 
 ```
 # Overwrite .claude/next-session.md with the roadmap-grounded kickoff (D-1).
-git add -A                          # includes .claude/next-session.md
+git add -A                          # the hand-off is gitignored: it never rides the PR
 git commit -m "<scoped message>"   # status emoji flips 🔴→🟢 INSIDE this PR
 git push -u origin <branch>
 gh pr create --title "..." --body "...<Delivered + Verified footer>"
@@ -65,8 +65,9 @@ planning doc** (not conversational recall): source section, suggested
 branch, the steps, what to run, open questions. **Cap it at ~40 lines;
 link the roadmap section instead of restating it** (the file is injected
 verbatim at next session start — module has the full rule). If nothing's
-queued, say "pick from the roadmap" — never invent direction. Write it
-before `git add` so it lands in this PR.
+queued, say "pick from the roadmap" — never invent direction. This repo
+is public, so the file is a gitignored symlink into the private memory
+store, and the vault's hooks sync it ([MODULES.md](../../../MODULES.md)).
 
 **D-2. Memory triage — *after* the sync, before the Session end block.**
 Project-specific state → that project's per-project memory store.

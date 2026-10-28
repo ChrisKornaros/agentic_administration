@@ -29,3 +29,6 @@ conformance/reports/
 
 # raw session transcripts — board content; transcripts/*.md holds the committed summary
 transcripts/raw/
+
+# the session hand-off — private; a per-machine symlink into the vault's memory store (CLAUDE.md)
+/.claude/next-session.md
