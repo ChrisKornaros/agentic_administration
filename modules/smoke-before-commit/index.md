@@ -31,11 +31,11 @@ A 60–100 line smoke script catches ~80% of the regressions a real
 test suite would for ~5% of the cost: syntax errors (100%), import
 errors (100%), route-registration breakage (100%), template render
 errors (~80%)
-([playbook §The smoke script](../../playbook/04-testing-verification.md#the-smoke-script--the-highest-leverage-100-lines)).
+([playbook §The smoke script](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/04-testing-verification.md#the-smoke-script--the-highest-leverage-100-lines)).
 Running it *before* the commit means a broken tree never reaches a
 PR, so the human-merge gate reviews working code, not a guess. The
 product-use-tracker case study
-([§5](../../case-studies/product-use-tracker/playbook.md#5-testing--verification-patterns))
+([§5](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#5-testing--verification-patterns))
 made the smoke pass the local stand-in for CI — the verify loop
 named explicitly in `CLAUDE.md` so the agent reaches for it instead
 of hand-rolling curl loops.

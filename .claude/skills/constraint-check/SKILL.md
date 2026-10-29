@@ -27,4 +27,4 @@ Constraint violations are the most expensive bug class in
 agent-assisted development — they don't trip smoke, they only show up
 in production. "Confirm and move on" tells the agent that "no
 violation" is a complete answer, avoiding hedged rationalizations.
-Full rationale in [prompts/constraint-check.md](../../prompts/constraint-check.md).
+Full rationale in [prompts/constraint-check.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/constraint-check.md).

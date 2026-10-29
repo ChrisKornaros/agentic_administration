@@ -33,13 +33,13 @@ committed-but-unpushed work is friction, not safety.
 The "ready to commit?" turn is a round-trip with no information in
 it: the agent already has everything it needs to proceed, and the
 human's "yes" is reflexive. The product-use-tracker v3 cycle
-([§1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle),
+([§1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle),
 PUT PR #32) counted the cost and made the auto-shape a rule. It is
 only safe *because* [[git-flow-no-direct-main]] denies
 `gh pr merge` and `git push origin main` — a person still has to
 click merge in the GitHub UI, so the agent committing and pushing a
 branch can't ship anything unreviewed. The
-[playbook write-up](../../playbook/02-workflow-patterns.md#1-auto-commit--auto-pr-at-end-of-branch-session)
+[playbook write-up](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/02-workflow-patterns.md#1-auto-commit--auto-pr-at-end-of-branch-session)
 frames it as: the gate that makes auto-commit safe is the merge
 gate, not a commit-confirmation gate.
 

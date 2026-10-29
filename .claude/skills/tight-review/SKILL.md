@@ -11,7 +11,7 @@ tags: [review, agentic-optimization-research]
 
 Use to get a focused review of a diff or PR without burying the
 structural issues under style nits. Canonical text is the
-[tight-code-review](../../modules/tight-code-review/index.md) module.
+[tight-code-review](../../../modules/tight-code-review/index.md) module.
 
 ```
 Read this diff: <branch | PR # | file path>. Don't suggest
@@ -31,5 +31,5 @@ After I respond, then suggest improvements if you want.
 structural issue (a half-applied refactor, a missing call-site update)
 gets buried under "prefer f-strings here." The three questions surface
 the high-value review content first. Full rationale in the
-[tight-code-review module](../../modules/tight-code-review/index.md) /
-[prompts/tight-code-review.md](../../prompts/tight-code-review.md).
+[tight-code-review module](../../../modules/tight-code-review/index.md) /
+[prompts/tight-code-review.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/tight-code-review.md).

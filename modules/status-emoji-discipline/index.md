@@ -30,8 +30,8 @@ discipline: in the master case study a v2 item shipped 🔴 and earned a
 follow-up `chore/e4-flip-status` PR of pure overhead, after which the
 rule became "the status entry ships green with Delivered + Verified in
 the same PR that lands the work"
-([playbook/02 §4](../../playbook/02-workflow-patterns.md),
-[case study §1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle)).
+([playbook/02 §4](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/02-workflow-patterns.md),
+[case study §1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle)).
 A status that lags the work is either a lie or a second PR; both are
 avoidable.
 

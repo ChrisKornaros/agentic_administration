@@ -12,7 +12,7 @@ tags: [guardrail, agentic-optimization-research]
 Use *before* committing a phase to a third-party substrate — an
 external API, a data source, a service with rate limits or paid
 metering, any vendor surface you haven't load-bearing-tested. Canonical
-text is the [substrate-preflight](../../modules/substrate-preflight/index.md)
+text is the [substrate-preflight](../../../modules/substrate-preflight/index.md)
 module.
 
 ```
@@ -44,5 +44,5 @@ mid-phase reversal — a ~5-minute pre-flight avoids a redo PR (the PUT
 B2 → B2-redo when a 10 req/min limit met a search-as-you-type UX).
 Question (5) is the cost-discipline anchor; (7) is the leverage
 question. Full rationale in the
-[substrate-preflight module](../../modules/substrate-preflight/index.md) /
-[prompts/substrate-preflight.md](../../prompts/substrate-preflight.md).
+[substrate-preflight module](../../../modules/substrate-preflight/index.md) /
+[prompts/substrate-preflight.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/substrate-preflight.md).

@@ -32,7 +32,7 @@ cost double: they bloat the diff the human must review (burying the
 actual change in noise), and they make `git blame` and `git revert`
 lie — reverting "the bug fix" now also reverts an unrelated rename.
 The reviewer's trust depends on the diff meaning what the PR title
-says. The [scope-guard skill](../../skills/scope-guard/SKILL.md)
+says. The [scope-guard skill](../../.claude/skills/scope-guard/SKILL.md)
 names these temptations at task kickoff; this module is the
 edit-time rule for the ones that survive into the diff anyway.
 
@@ -81,6 +81,6 @@ edit-time rule for the ones that survive into the diff anyway.
   the rest of the per-edit discipline family.
 - [[git-flow-branch-naming]] — the "unrelated fix gets its own
   branch" half of the discipline lands there.
-- The [scope-guard skill](../../skills/scope-guard/SKILL.md) — the
+- The [scope-guard skill](../../.claude/skills/scope-guard/SKILL.md) — the
   kickoff-time checklist that catches these temptations before
   editing starts.

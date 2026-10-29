@@ -53,7 +53,7 @@ and trains the team to reach for elevated permissions instead of
 diagnosing root cause.
 
 The product-use-tracker case study
-([§1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
+([§1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
 codified this after a root-owned `instance/tracker.db.wal` on the
 production Pi almost got "fixed" with `sudo chown`. The actual fix
 was `docker compose start app`, which let DuckDB consume its own
@@ -142,7 +142,7 @@ a task but leaves the host in a state nobody reviewed.
   [[stay-in-project-tree]]; together they cover the scope-of-action
   guardrail family at the settings layer. The
   `enforced_by:` frontmatter field is still future work (see
-  [roadmap/03-instruction-modules.md §8](../../roadmap/03-instruction-modules.md#8-open-questions)).
+  [roadmap/03-instruction-modules.md §8](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/03-instruction-modules.md#8-open-questions)).
   **Fixed in v2 (2026-09-29):** v1's `Bash(kubectl exec * --user=root:*)`
   mixed `*` with the trailing `:*` prefix syntax, so it was matched as
   a literal prefix and never fired. It's now

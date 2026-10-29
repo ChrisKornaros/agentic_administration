@@ -30,7 +30,7 @@ The PR + human-merge sequence is the only step in the workflow
 where a person *has to* look at the change before it ships.
 Bypassing it — even for a "small fix" — turns the merge gate
 into folklore. The product-use-tracker case study
-([§1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
+([§1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
 codified `gh pr merge` on the deny list specifically because the
 human's click is the approval that creates a reviewable history.
 Force-push and direct-to-main both delete that history.

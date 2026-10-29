@@ -31,7 +31,7 @@ minutes of edits happened against a misread spec — a one-turn
 "summarize what you're about to build" upfront catches the
 mismatch before it costs a session. Step (4) — pre-committing
 to the auto-PR shape — was added in the v3 cycle
-([case study §1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
+([case study §1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
 after every phase started ending with a redundant "ready to
 commit?" round-trip; baking the wrap-up into the kickoff makes
 the [[git-flow-session-end]] shape implicit instead of explicit.

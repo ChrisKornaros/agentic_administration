@@ -28,4 +28,4 @@ Skipping the repro is the single most common debugging failure mode —
 without one you "fix" something that wasn't broken. Step (2) catches
 the case where there's no encoded expectation, meaning the bug is
 undefined behavior needing a spec decision first. Full rationale in
-[prompts/minimal-repro.md](../../prompts/minimal-repro.md).
+[prompts/minimal-repro.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/minimal-repro.md).

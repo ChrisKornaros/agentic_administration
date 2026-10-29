@@ -27,4 +27,4 @@ Produces the artifact you'd want in the PR body anyway, and surfaces
 shaky understanding fast — if the agent can't articulate why it chose
 this approach (or names a fake "alternative"), dig deeper. The "cold
 review" framing forces a self-contained explanation. Full rationale in
-[prompts/explain-back.md](../../prompts/explain-back.md).
+[prompts/explain-back.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/explain-back.md).

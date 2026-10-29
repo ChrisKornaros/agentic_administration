@@ -29,8 +29,8 @@ don't split.
 One `README.md` that tries to onboard humans, brief the agent, list the
 gotchas, and document the API does all of them badly because the readers
 have different needs
-([playbook/01](../../playbook/01-documentation-stack.md),
-[case study §2](../../case-studies/product-use-tracker/playbook.md#2-the-documentation-stack)).
+([playbook/01](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/01-documentation-stack.md),
+[case study §2](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#2-the-documentation-stack)).
 The agent's biggest waste is re-deriving state every session; a prose
 spec forces it to re-infer the invariants each time, while a declarative
 contract states them once, by id, so a diff can be checked against each.

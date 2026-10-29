@@ -34,14 +34,14 @@ the substrate. A ~5-minute pre-flight is the cheap insurance against a
 redo PR — in the master case study, PUT's Smart Add B2 became B2-redo
 when OpenFoodFacts' 10 req/min REST limit met a search-as-you-type UX
 that needed ~30 req/min in practice
-([case study §1.4.2](../../case-studies/product-use-tracker/playbook.md#142-the-b2--b2-redo-lesson--mid-phase-re-architecture-is-ok),
-[playbook/07 #11](../../playbook/07-anti-patterns.md#11-external-paid-surface-introduced-without-a-pre-locked-cost-discipline)).
+([case study §1.4.2](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#142-the-b2--b2-redo-lesson--mid-phase-re-architecture-is-ok),
+[playbook/07 #11](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/07-anti-patterns.md#11-external-paid-surface-introduced-without-a-pre-locked-cost-discipline)).
 Question (5) is the cost-discipline anchor — a paid call from a request
 handler is the anti-pattern, a queued job with bounded concurrency is
 the pattern. Question (7) is the leverage question: a local mirror
 refreshed periodically often beats a live API for read-mostly use even
 before the rate-limit math. Full rationale in
-[prompts/substrate-preflight.md](../../prompts/substrate-preflight.md).
+[prompts/substrate-preflight.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/substrate-preflight.md).
 
 ## How to apply
 

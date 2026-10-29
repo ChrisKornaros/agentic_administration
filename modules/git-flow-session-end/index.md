@@ -43,7 +43,7 @@ the popup; the sync + branch-delete sequence and the closing
 The "ready to commit?" turn was a round-trip with no information
 in it — the agent had everything it needed to proceed, and the
 human's "yes" was reflexive. The product-use-tracker v3 cycle
-([case study §1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
+([case study §1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
 counted the cost and made the auto-shape a rule:
 [[git-flow-no-direct-main]] is the safety net, so sitting on
 uncommitted work is friction, not safety. The popup-for-merge
@@ -94,14 +94,16 @@ passing, acceptance criteria observable), execute these steps
    If the host vendors [[session-handoff]], its **kickoff emit**
    (`.claude/next-session.md`) is written *here too*, alongside the
    doc-sync — so the next-session handoff is `git add`ed into the same
-   commit and rides this PR, not left as a stray change on `main`. (The
-   memory-triage half of that module runs *after* the merge; see step
-   6.)
+   commit and rides this PR, not left as a stray change on `main`. A
+   public host keeps it untracked instead
+   ([session-handoff § public hosts](../session-handoff/index.md#public-hosts-keep-the-kickoff-private)).
+   (The memory-triage half of that module runs *after* the merge; see
+   step 6.)
 2. **Commit + push + open PR in one response.** `git add` →
    `git commit` → `git push -u origin <branch>` →
    `gh pr create` with title, body, and the
    *Delivered + Verified* footer (see
-   [templates/_shared/git-workflow.md](../../templates/_shared/git-workflow.md#the-delivered--verified-footer)).
+   [templates/_shared/git-workflow.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/templates/_shared/git-workflow.md#the-delivered--verified-footer)).
    Print the PR URL.
 3. **Pop the merge question via `AskUserQuestion`, not by
    ending the turn.** Phrasing:
@@ -221,7 +223,7 @@ the merge, the OPEN-state nudge says so and the agent may stop.
 ### PreToolUse companion — wrap-up-surface nudge on `gh pr create`
 
 The H5 experiment
-([RESULT §2–§4](../../case-studies/agentic-optimization-research/experiments/h5-pointer-follow-adherence/RESULT.md))
+([RESULT §2–§4](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/agentic-optimization-research/experiments/h5-pointer-follow-adherence/RESULT.md))
 measured that sessions ship their end-of-session PR **without loading any
 wrap-up surface** 60–67% of the time — the workflow mostly still happens
 (via the Stop guard, the injected handoff, and priors), but the module

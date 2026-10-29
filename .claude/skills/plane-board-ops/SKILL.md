@@ -1,7 +1,7 @@
 ---
 name: plane-board-ops
 description: "Drives a Plane board through the repo-owned CLI following Chris's conventions — YYYYMM cycles, roadmap/calendar epics, repo-area/category modules, no-delete (Complete-or-Cancel) discipline. Use when creating, updating, or organizing issues, cycles, epics, or modules on a Plane board."
-version: 1.0.0
+version: 1.1.0
 source: tools/plane/CONVENTIONS.md
 tags: [plane, project-management, po-agent, agentic-optimization-research]
 ---
@@ -26,7 +26,9 @@ naming stay consistent, and enforces the no-delete discipline.
   top-level.
 - **Modules** = a cross-cutting grouping: content **category** on calendar
   boards (`Baking Videos`), repo **subdirectory** on code boards (`tools`,
-  `agents`, `hosts`).
+  `agents`, `hosts`). On a *new* board run by the agentic_administration
+  backlog agent, a module is a **Feature** instead (CONVENTIONS §2,
+  roadmap/14 D3); existing boards keep theirs.
 - **Naming:** project identifier ALL CAPS; cycle `YYYYMM`; every work item
   Proper Case Like This.
 - **Labels:** one standardized set per project *kind* — code → `bug`/
@@ -46,9 +48,9 @@ naming stay consistent, and enforces the no-delete discipline.
 ## Before you write
 
 - **Prove the matching `list` read live first** for any surface
-  ([tools/plane/CLAUDE.md](../../tools/plane/CLAUDE.md) rule 2).
+  ([tools/plane/CLAUDE.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/tools/plane/CLAUDE.md) rule 2).
 - Resolve state/label/assignee **names → UUIDs** via `states list` (the
   write body takes UUIDs, not names).
 
 Full model + the worked Food Content example:
-[tools/plane/CONVENTIONS.md](../../tools/plane/CONVENTIONS.md).
+[tools/plane/CONVENTIONS.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/tools/plane/CONVENTIONS.md).
