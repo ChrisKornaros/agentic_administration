@@ -6,7 +6,7 @@ Each skill is a thin SKILL.md shim, vendored into `.claude/skills/<name>/` — a
 | Skill | Version | Source commit | Copied at | Backs module | Override |
 |---|---|---|---|---|---|
 | [session-wrapup](.claude/skills/session-wrapup/SKILL.md) | 1.2.0 | `bee8f3c` | 2026-09-23 | git-flow-session-end | — |
-| [session-start](.claude/skills/session-start/SKILL.md) | 1.0.0 | `bee8f3c` | 2026-09-23 | session-handoff | Says the kickoff is a gitignored symlink into the private memory store, since the repo is public (2026-10-28). The canonical text still assumes a committed kickoff, so re-apply this after a `--force` re-vendor |
+| [session-start](.claude/skills/session-start/SKILL.md) | 1.1.0 | `13477d8` | 2026-10-28 | session-handoff | — |
 | [phase-kickoff](.claude/skills/phase-kickoff/SKILL.md) | 1.0.0 | `bee8f3c` | 2026-09-23 | phase-kickoff | — |
 | [substrate-preflight](.claude/skills/substrate-preflight/SKILL.md) | 1.0.0 | `bee8f3c` | 2026-09-23 | substrate-preflight | — |
 | [tight-review](.claude/skills/tight-review/SKILL.md) | 1.0.0 | `bee8f3c` | 2026-09-23 | tight-code-review | — |
