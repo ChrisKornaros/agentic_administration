@@ -28,7 +28,7 @@ call-site update, an untested edge — gets buried under the noise.
 Forcing the review through three specific structural questions first
 puts the things that actually break production at the top, where the
 author reads them. Full rationale in
-[prompts/tight-code-review.md](../../prompts/tight-code-review.md). Kept
+[prompts/tight-code-review.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/tight-code-review.md). Kept
 `experimental` until this repo's own review sessions provide the
 case-study evidence.
 
@@ -75,5 +75,5 @@ After I respond, then suggest improvements if you want.
   for: question (1) maps each hunk to a behavior change.
 - [[smoke-before-commit]] — question (2) presumes a smoke exists to
   reason about its blind spots.
-- The [scope-guard skill](../../skills/scope-guard/SKILL.md) — the
+- The [scope-guard skill](../../.claude/skills/scope-guard/SKILL.md) — the
   kickoff-time sibling; this is the merge-time one.

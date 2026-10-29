@@ -38,7 +38,7 @@ the artifact that justified it. When a session opens on
 `feat/phase-c-notifier`, the agent immediately knows to read the
 phase-C section of the roadmap — no archaeology, no asking. The
 product-use-tracker case study
-([§1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
+([§1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle))
 ran this convention across its whole lifecycle; the prefix told
 every cold session which tracking doc to load, and the `fix/<N>` /
 `feat/e<N>` numbers reconciled the branch against the

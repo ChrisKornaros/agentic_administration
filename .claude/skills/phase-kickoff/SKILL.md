@@ -10,7 +10,7 @@ tags: [workflow, agentic-optimization-research]
 # Phase kickoff
 
 Use at the start of a session implementing a roadmap phase. Canonical
-text is the [phase-kickoff](../../modules/phase-kickoff/index.md) module.
+text is the [phase-kickoff](../../../modules/phase-kickoff/index.md) module.
 
 ```
 We're starting Phase <X> from REQUIREMENTS_V<N>.md. Read §<phase-section>
@@ -36,5 +36,5 @@ Don't write code yet.
 Forces an explicit orient → plan → confirm → implement loop; asking
 for the expected smoke output catches "building X but actually Y"
 mismatches before they cost a session. Full rationale in the
-[phase-kickoff module](../../modules/phase-kickoff/index.md) /
-[prompts/phase-kickoff.md](../../prompts/phase-kickoff.md).
+[phase-kickoff module](../../../modules/phase-kickoff/index.md) /
+[prompts/phase-kickoff.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/phase-kickoff.md).

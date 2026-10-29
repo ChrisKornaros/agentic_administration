@@ -53,7 +53,7 @@ turns the host into an unreviewed working tree. Edits to
 package manager's global state look fine at the moment but leave
 no audit trail, don't roll back with `git revert`, and don't
 reproduce on the next host. The
-[case study §1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle)
+[case study §1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle)
 codified the in-repo installer pattern after a host-scope rule
 violation on the production Pi created drift that wasn't
 recoverable from `git`. The installer pattern keeps host changes
@@ -125,7 +125,7 @@ that ends with secrets in a transcript.
   `.claude/settings.json` to enforce this rule at the permission
   layer. Modules can ship `enforced_by:` metadata in a future
   spec version (see
-  [roadmap/03-instruction-modules.md §8](../../roadmap/03-instruction-modules.md#8-open-questions));
+  [roadmap/03-instruction-modules.md §8](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/03-instruction-modules.md#8-open-questions));
   for now the snippet is alongside the prose.
   **Anchor gotcha (fixed in v2):** in `Read`/`Edit`/`Write` rules a
   single leading `/` is relative to the settings source, not the

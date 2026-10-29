@@ -30,13 +30,13 @@ callers don't change.
 
 This is the "thin routes, thick services" / framework-agnostic
 service-layer pattern
-([../../playbook/03-design-patterns.md §The seven patterns](../../playbook/03-design-patterns.md#the-seven-patterns),
+([../../playbook/03-design-patterns.md §The seven patterns](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/03-design-patterns.md#the-seven-patterns),
 patterns 1 and 4), pushed out to the *vendor* edge: the same way a
 web route shouldn't carry business logic, application code shouldn't
 carry vendor-SDK shapes. The repo already states the
 auth-specific corner of this — "no hand-rolled auth; use a proven
 library"
-([../../tools-stack/web.md §Patterns to keep, framework-agnostic](../../tools-stack/web.md#patterns-to-keep-framework-agnostic)) —
+([../../tools-stack/web.md §Patterns to keep, framework-agnostic](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/tools-stack/web.md#patterns-to-keep-framework-agnostic)) —
 the adapter boundary generalizes it: a proven library is fine, but
 it lives behind your interface so swapping or upgrading it isn't a
 codebase-wide edit.
@@ -81,7 +81,7 @@ vendor*. Offline tests prove the claim is self-consistent, not that
 it's true. Four habits keep the claims honest. They come from the
 agentic_administration build, where the Plane, Jira and Confluence
 adapters each went through a live conformance run
-([roadmap/14 §3.1–§3.6b](../../roadmap/14-agentic-administration.md#3-evidence-base-research-2026-09-16)):
+([roadmap/14 §3.1–§3.6b](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/14-agentic-administration.md#3-evidence-base-research-2026-09-16)):
 
 - **Know which rules your fake has seen live.** A fake transport built
   from the vendor's docs tests your reading of the docs. Mark each of

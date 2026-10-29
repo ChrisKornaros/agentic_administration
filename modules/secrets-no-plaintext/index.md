@@ -31,11 +31,11 @@ pasting it into chat or a commit is not.
 
 The agentic guardrails already forbid touching secrets, credentials,
 or `.env*` files without explicit human approval
-([../../agents/_shared/common-guardrails.md §Never](../../agents/_shared/common-guardrails.md#never-without-explicit-human-approval)),
+([../../agents/_shared/common-guardrails.md §Never](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/agents/_shared/common-guardrails.md#never-without-explicit-human-approval)),
 and the ops stack documents where they're allowed to live — a
 git-ignored host `.env`, or `age`-encrypted files in git for rotated
 multi-host secrets, never bare env vars on a shared CI host
-([../../tools-stack/ops.md §Secrets](../../tools-stack/ops.md#secrets)).
+([../../tools-stack/ops.md §Secrets](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/tools-stack/ops.md#secrets)).
 What those two don't yet state portably is the *single-boundary*
 half: the rule that secret access funnels through one module so the
 storage backend is swappable and the audit surface is one file.
@@ -84,7 +84,7 @@ can leak into a commit, a log line, or chat.
   transcript, the terminal scrollback, and possibly a log file.
 - Putting secrets in plain environment variables on a shared CI
   runner with no vault — flagged directly in
-  [../../tools-stack/ops.md §Secrets](../../tools-stack/ops.md#secrets).
+  [../../tools-stack/ops.md §Secrets](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/tools-stack/ops.md#secrets).
 
 ## Related
 

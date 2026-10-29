@@ -30,8 +30,8 @@ labelled as such — never part of the default `pytest` run.
 The repo already enforces the database corner of this: tests use an
 isolated fixture (per-test tmp DuckDB via `conftest.py`), never the
 live DB
-([../../playbook/04-testing-verification.md §Live DB never mutated in tests](../../playbook/04-testing-verification.md#live-db-never-mutated-in-tests--tmp-duckdb-fixtures);
-[../../agents/_shared/common-guardrails.md §Never](../../agents/_shared/common-guardrails.md#never-without-explicit-human-approval)).
+([../../playbook/04-testing-verification.md §Live DB never mutated in tests](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/04-testing-verification.md#live-db-never-mutated-in-tests--tmp-duckdb-fixtures);
+[../../agents/_shared/common-guardrails.md §Never](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/agents/_shared/common-guardrails.md#never-without-explicit-human-approval)).
 This module generalizes that proven rule from "the DB" to "any
 external system," because the failure shape is identical: a test that
 reaches a live dependency is non-deterministic (it fails when the
@@ -93,6 +93,6 @@ at all.
 - [[secrets-no-plaintext]] — tests that never hit the live service
   never need the real secret; recorded fixtures are scrubbed.
 - `no-live-db-in-tests` (sketched in
-  [../../roadmap/03-instruction-modules.md §5](../../roadmap/03-instruction-modules.md#5-migration-sketch--what-would-become-modules))
+  [../../roadmap/03-instruction-modules.md §5](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/03-instruction-modules.md#5-migration-sketch--what-would-become-modules))
   — the database-only sibling; this module supersedes its scope by
   covering any external system, so the sketch row folds in here.

@@ -30,7 +30,7 @@ function comes back as a class hierarchy with a config object and
 defensive guards for impossible inputs. Every unrequested line is a
 line the human must review, a surface that can break, and a
 generalization guess that's usually wrong. The
-[scope-guard skill](../../skills/scope-guard/SKILL.md) catches this
+[scope-guard skill](../../.claude/skills/scope-guard/SKILL.md) catches this
 at the PR boundary ("what else am I tempted to *add* to this PR");
 this module is the inside-the-diff discipline — restraint within the
 code being written, not the work being packaged.
@@ -79,5 +79,5 @@ code being written, not the work being packaged.
   touched*.
 - [[assumptions-before-code]] / [[verifiable-goal-before-code]] —
   the rest of the per-edit discipline family.
-- The [scope-guard skill](../../skills/scope-guard/SKILL.md) — the
+- The [scope-guard skill](../../.claude/skills/scope-guard/SKILL.md) — the
   same restraint applied to PR packaging instead of code content.

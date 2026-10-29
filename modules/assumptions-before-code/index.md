@@ -33,7 +33,7 @@ interpretation silently, implements it confidently, and the human
 discovers the mismatch only after reviewing a finished diff — the
 most expensive possible point. The library's existing planning
 surfaces don't catch this: the
-[session-start skill](../../skills/session-start/SKILL.md) and
+[session-start skill](../../.claude/skills/session-start/SKILL.md) and
 [[phase-kickoff]] operate at session/phase granularity, while
 ambiguity shows up per-edit, mid-task. This module is the per-edit
 slice.
@@ -89,6 +89,6 @@ slice.
   written and what gets touched.
 - [[phase-kickoff]] — the same surfacing instinct at phase
   granularity.
-- The [scope-guard skill](../../skills/scope-guard/SKILL.md) — the
+- The [scope-guard skill](../../.claude/skills/scope-guard/SKILL.md) — the
   PR-boundary cousin: it surfaces scope temptations at task start;
   this module surfaces interpretation/assumption gaps.

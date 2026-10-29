@@ -37,9 +37,9 @@ keeps the session warm and gives the human a one-click answer. This
 is the single most-dropped step of the session-end loop — the agent
 opens the PR and then stops in prose ("let me know once it's
 merged") instead of popping the question. The product-use-tracker v3
-cycle ([§1.4.1](../../case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle),
+cycle ([§1.4.1](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md#141-workflow-rules-codified-mid-cycle),
 PUT PR #25) made the popup the rule and the
-[playbook write-up](../../playbook/02-workflow-patterns.md#3-askuserquestion-answer--merge-confirmation-not-a-request-to-wait)
+[playbook write-up](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/playbook/02-workflow-patterns.md#3-askuserquestion-answer--merge-confirmation-not-a-request-to-wait)
 records why: the popup answer carries the same information as a
 free-text "yes" but without the cold restart.
 

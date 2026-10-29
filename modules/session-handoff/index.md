@@ -33,7 +33,7 @@ each output lands in the right place:
 2. **Memory triage — *after* the merge sync.** Decide what was learned
    this session and route it: *project-specific* state → the per-project
    memory store; *transferable* lessons → the cross-project
-   [`knowledge/` inbox](../../knowledge/lessons-log.md). This is
+   [`knowledge/` inbox](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/knowledge/lessons-log.md). This is
    human-gated and produces no feature-branch artifact, so it runs after
    the merge, before the Session end summary.
 
@@ -53,7 +53,7 @@ each needs its own destination:
 - **What we learned.** Per-project memory is siloed by design, so a
   *transferable* lesson learned in one project is invisible to the
   next. Without a shared inbox it's lost the moment the session ends.
-  The [`knowledge/`](../../knowledge/README.md) tier is that shared
+  The [`knowledge/`](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/knowledge/README.md) tier is that shared
   place; routing into it at session-end is the only reliable moment
   (the lesson is freshest, and the agent is already reflecting).
 
@@ -125,7 +125,7 @@ has moved on, trust the roadmap over this file.*
 injected verbatim into the next session's opening context (by the
 companion hook below), so every line spends always-loaded budget — the
 pre-cap norm was an ~11KB injection, a whole CLAUDE.md's worth of
-tokens ([roadmap/12 §5 S2](../../roadmap/12-progressive-disclosure-context-slimming.md)).
+tokens ([roadmap/12 §5 S2](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/12-progressive-disclosure-context-slimming.md)).
 The kickoff is a *pointer to* the next unit, not the plan itself: name
 the roadmap section and link it (`roadmap/NN §X`) instead of restating
 its steps, rationale, or history. A draft running past ~40 lines is
@@ -178,7 +178,7 @@ Watch-outs:
 
 Evidence: agentic_administration went public on 2026-10-27 and moved its
 kickoff the next day (its PR #51;
-[lessons-log](../../knowledge/lessons-log.md)).
+[lessons-log](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/knowledge/lessons-log.md)).
 
 ### 2. Memory triage (after the merge sync)
 
@@ -187,7 +187,7 @@ Reflect on the session and sort what's worth keeping:
 | What | Destination |
 |---|---|
 | Project state, a gotcha tied to *this* codebase, a preference about *this* repo | the **per-project** memory store (`~/.claude/projects/<key>/memory/`) — propose before saving |
-| A transferable workflow, a recurring failure mode, a "we work better when…" lesson | append to [`knowledge/lessons-log.md`](../../knowledge/lessons-log.md) in the inbox format ([knowledge/CLAUDE.md](../../knowledge/CLAUDE.md)) |
+| A transferable workflow, a recurring failure mode, a "we work better when…" lesson | append to [`knowledge/lessons-log.md`](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/knowledge/lessons-log.md) in the inbox format ([knowledge/CLAUDE.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/knowledge/CLAUDE.md)) |
 | A portable guardrail already crisp enough to be a rule | write it straight as a [module](../) |
 | Nothing meaningful | say so — "no handoff knowledge this session" — don't invent |
 
@@ -208,8 +208,8 @@ increasing order of agency:
   roadmap), and runs an orient → plan → confirm gate before any code.
   Unlike the hook below it can *act* (sync the remote, decide
   resume-vs-fresh on an interrupted branch), not just inject text. Lives
-  at [prompts/session-start.md](../../prompts/session-start.md) /
-  [skills/session-start/SKILL.md](../../skills/session-start/SKILL.md).
+  at [prompts/session-start.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/session-start.md) /
+  [skills/session-start/SKILL.md](../../.claude/skills/session-start/SKILL.md).
 - **Companion `SessionStart` hook (enforcement, optional).** This module
   ships an optional `SessionStart` hook,
   [`session_handoff_kickoff.py`](session_handoff_kickoff.py), wired via
@@ -228,15 +228,15 @@ increasing order of agency:
 | File | Role |
 |---|---|
 | [`session_handoff_kickoff.py`](session_handoff_kickoff.py) | The `SessionStart` hook — reads the payload on stdin and injects `.claude/next-session.md` via `hookSpecificOutput.additionalContext`. No-ops when the file is absent; fails open. |
-| [`settings-snippet.json`](settings-snippet.json) | Paste-ready `hooks.SessionStart` entry that runs the hook, guarded with `[ -f ] || exit 0` so it's a safe no-op until the module is vendored. Merge into the host's `.claude/settings.json` ([VENDORING.md §6](../VENDORING.md#6-inherit-the-matching-permission-settings-and-hooks)). |
+| [`settings-snippet.json`](settings-snippet.json) | Paste-ready `hooks.SessionStart` entry that runs the hook, guarded with `[ -f ] || exit 0` so it's a safe no-op until the module is vendored. Merge into the host's `.claude/settings.json` ([VENDORING.md §6](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/modules/VENDORING.md#6-inherit-the-matching-permission-settings-and-hooks)). |
 
-Vendoring this module via [`scripts/install-modules.sh`](../../scripts/install-modules.sh)
+Vendoring this module via [`scripts/install-modules.sh`](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/scripts/install-modules.sh)
 `cp -R`s both files in and the run notice points back here to wire the
 hook — and the Mode-B example settings
-([`claude-settings.example.json`](../../templates/_shared/claude-settings.example.json))
+([`claude-settings.example.json`](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/templates/_shared/claude-settings.example.json))
 already pre-wires the `SessionStart` block, so `/bootstrap-repo` auto-wires
 it. On Chris's own machines the hook is wired **user-globally** in
-[`dotfiles/.claude/settings.json`](../../dotfiles/.claude/settings.json)
+[`dotfiles/.claude/settings.json`](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/dotfiles/.claude/settings.json)
 (promoted there 2026-06-04 after repo-scoped dogfooding), so it fires in
 every repo with this module vendored.
 
@@ -264,5 +264,5 @@ every repo with this module vendored.
 ## Related
 
 - [[git-flow-session-end]] — the git mechanics this runs after
-- [knowledge/ inbox](../../knowledge/README.md) — the capture destination
-- [prompts/phase-kickoff.md](../../prompts/phase-kickoff.md) — the shape the emitted kickoff feeds
+- [knowledge/ inbox](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/knowledge/README.md) — the capture destination
+- [prompts/phase-kickoff.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/phase-kickoff.md) — the shape the emitted kickoff feeds

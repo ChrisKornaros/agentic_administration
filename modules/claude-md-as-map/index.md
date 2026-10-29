@@ -46,18 +46,18 @@ source repo:
 - Outcome: the eager chain fell 403 → 225 lines across two repos and
   deterministic adherence incidents *fell* (1.42 → 0.90 and
   1.24 → 0.59 per session) — the map did not regress behavior
-  ([H5 RESULT](../../case-studies/agentic-optimization-research/experiments/h5-pointer-follow-adherence/RESULT.md)).
+  ([H5 RESULT](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/agentic-optimization-research/experiments/h5-pointer-follow-adherence/RESULT.md)).
 - Mechanism: **pointers without decision-time triggers do not get
   read.** Classes backed by a hook or an injected file were followed
   80–91% of the time; bare-link classes ran 11–33%. Adherence held
   anyway because hooks, handoffs, and priors carried the rules — but
   that is insurance the map author must *build*, not assume. This is
-  [H1's finding](../../case-studies/agentic-optimization-research/experiments/h1-bash-grep-replacement/RESULT.md)
+  [H1's finding](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/agentic-optimization-research/experiments/h1-bash-grep-replacement/RESULT.md)
   (a passive pointer produced zero adoption until a hook surfaced it)
   recurring at the map level.
 - Confirmation, one iteration later: strengthening the two failing
   classes with a tier-1 hook lifted follow rates 40%→67% and 33%→91%
-  ([2026-08-20 re-measure](../../metrics/warehouse/experiments/2026-08-20-h5-remeasure/README.md))
+  ([2026-08-20 re-measure](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/metrics/warehouse/experiments/2026-08-20-h5-remeasure/README.md))
   — before/after evidence for the trigger-strength ladder at both
   ends. The one class still low sat behind a rules file that mostly
   never injected on the host clone: a trigger you don't verify as
@@ -121,5 +121,5 @@ source repo:
   applied to the injected handoff.
 - [[git-flow-session-end]] — the canonical example of a workflow that
   lives in a module and is *pointed at*, never restated, by host maps.
-- Source design + measurement: [roadmap/12](../../roadmap/12-progressive-disclosure-context-slimming.md),
-  [H5](../../case-studies/agentic-optimization-research/experiments/h5-pointer-follow-adherence/README.md).
+- Source design + measurement: [roadmap/12](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/roadmap/12-progressive-disclosure-context-slimming.md),
+  [H5](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/agentic-optimization-research/experiments/h5-pointer-follow-adherence/README.md).

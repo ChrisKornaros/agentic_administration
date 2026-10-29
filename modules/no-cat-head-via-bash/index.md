@@ -34,7 +34,7 @@ no information gain.
 ## Why
 
 The pre-obsidian baseline at
-[../../metrics/warehouse/experiments/2026-05-27-pre-obsidian/README.md](../../metrics/warehouse/experiments/2026-05-27-pre-obsidian/README.md)
+[../../metrics/warehouse/experiments/2026-05-27-pre-obsidian/README.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/metrics/warehouse/experiments/2026-05-27-pre-obsidian/README.md)
 classified Bash calls by regex and found:
 
 | Bash subtype | Calls | % of Bash |
@@ -116,7 +116,7 @@ hole, and this module closes the `Bash`-cat hole.
   host's `.claude/settings.json`. The paste-ready shape (with a
   missing-script fail-open guard, so it's safe to copy before the
   module is vendored) ships in
-  [../../templates/_shared/claude-settings.example.json](../../templates/_shared/claude-settings.example.json).
+  [../../templates/_shared/claude-settings.example.json](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/templates/_shared/claude-settings.example.json).
   The script is stdlib-only and fails open on any unexpected condition;
   disable it for a session with `H2_REREAD_GUARD_DISABLED=1`. It records
   each file's mtime at read-time and allows a re-read whose mtime has since
@@ -124,7 +124,7 @@ hole, and this module closes the `Bash`-cat hole.
   is treated as a real modification rather than blocked — which avoids a
   deadlock against the harness's own edit-freshness check. The
   canonical source is the H2 experiment tool
-  ([case-studies/.../h2-re-read-collapse/tool/pre_read_guard.py](../../case-studies/agentic-optimization-research/experiments/h2-re-read-collapse/tool/pre_read_guard.py));
+  ([case-studies/.../h2-re-read-collapse/tool/pre_read_guard.py](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/agentic-optimization-research/experiments/h2-re-read-collapse/tool/pre_read_guard.py));
   this is the vendored copy, kept in sync.
 
 ## Related

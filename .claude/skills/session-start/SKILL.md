@@ -10,9 +10,9 @@ tags: [workflow, agentic-optimization-research]
 # Session start
 
 Use at the *top* of a session instead of hand-writing "where were we."
-Canonical text is [prompts/session-start.md](../../prompts/session-start.md);
+Canonical text is [prompts/session-start.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/session-start.md);
 this is the read-side surface of the
-[session-handoff](../../modules/session-handoff/index.md) module
+[session-handoff](../../../modules/session-handoff/index.md) module
 (`/session-wrapup` is the write side).
 
 ## 1. Sync with the remote
@@ -33,7 +33,7 @@ don't pull `main` over it. Surface it and ask: resume, or stash/branch fresh.
   may have surfaced it — read it deliberately anyway).
 - If git ignores it (`git check-ignore -q .claude/next-session.md`), the
   host is public and the file is a symlink into a private store
-  ([session-handoff §Public hosts](../../modules/session-handoff/index.md#public-hosts-keep-the-kickoff-private)).
+  ([session-handoff §Public hosts](../../../modules/session-handoff/index.md#public-hosts-keep-the-kickoff-private)).
   Missing, or `ls -l` shows no `->`? Say so before falling back: this
   machine isn't linked yet, or an older checkout replaced the link.
 - Absent / empty of direction → fall back to the host's roadmap / planning doc.
@@ -62,10 +62,10 @@ Plan confirmed → `git switch -c <feat|docs|chore>/<slug>` *before* editing.
 ## Why this works
 
 Collapses the start-of-session "re-derive state" cost the
-[session-handoff](../../modules/session-handoff/index.md) module exists to
+[session-handoff](../../../modules/session-handoff/index.md) module exists to
 kill — it's the deliberate *read* of the handoff the wrap-up persisted,
 into the PR or, on a public host, a private store. Distinct from the
 passive `SessionStart` hook (which only injects the file's text — it
 can't `git pull`, decide resume-vs-fresh, or run the plan-gate). Full
 rationale in
-[prompts/session-start.md](../../prompts/session-start.md).
+[prompts/session-start.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/session-start.md).

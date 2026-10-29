@@ -32,9 +32,9 @@ single-source-of-truth manifest. `uv` is fast, manages Python
 interpreters too, ships a real lockfile (`uv.lock`) that pins
 transitive deps with hashes, and works identically on macOS dev and
 Linux deploy — see
-[tools-stack/ops.md](../../tools-stack/ops.md) (the `uv run` reference
+[tools-stack/ops.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/tools-stack/ops.md) (the `uv run` reference
 under §Alternative: systemd / launchd) and the
-[product-use-tracker smoke pattern](../../case-studies/product-use-tracker/playbook.md)
+[product-use-tracker smoke pattern](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/case-studies/product-use-tracker/playbook.md)
 that runs `uv run python app.py` in CI.
 
 Mixing `pip install` into a `uv`-managed project silently bypasses
@@ -80,7 +80,7 @@ which is exactly what the lockfile was supposed to prevent.
 - [`settings-snippet.json`](settings-snippet.json) — a portable
   deny-list snippet a Python host repo can merge into its
   `.claude/settings.json` to enforce this rule at the permission layer
-  ([VENDORING §6](../VENDORING.md#6-inherit-the-matching-permission-settings-and-hooks)).
+  ([VENDORING §6](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/modules/VENDORING.md#6-inherit-the-matching-permission-settings-and-hooks)).
   It denies `pip`/`pip3` install and uninstall (also as
   `python -m pip`), `pipx`, `poetry`, `pdm`, `virtualenv` and
   `python -m venv`. It leaves read-only `pip list` / `pip show` and

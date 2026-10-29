@@ -26,4 +26,4 @@ Default to follow-up.
 Naming the temptations forces them out of the implementation and onto
 a list you can decide on; "default to follow-up" sets the bias
 correctly so the decision is visible instead of hidden in the diff.
-Full rationale in [prompts/scope-guard.md](../../prompts/scope-guard.md).
+Full rationale in [prompts/scope-guard.md](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/prompts/scope-guard.md).
