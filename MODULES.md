@@ -22,7 +22,7 @@ When a module's canonical version bumps, re-copy and update the row here. Local 
 | [stay-in-project-tree](modules/stay-in-project-tree/index.md) | 2 | `80cb228` | 2026-10-29 | Live runs export the sibling AOR `tools/plane/.env` (Plane key pointers) and read `~/.cache/bw_session`: the sanctioned out-of-tree reads. Phase 4 (Hermes, on ms01) also writes the `po` profile's `config.yaml` + `SOUL.md` under `~/.hermes/profiles/po/` and the read-only repo mount in `~/hermes-agent/docker-compose.override.yml`, runs `docker exec hermes …`, and reads the Hermes source and docs in `~/hermes-agent` and the gate session from po's `state.db` (read-only); the profile's `.env` and the container recreate stay Chris's |
 | [no-sudo-as-shortcut](modules/no-sudo-as-shortcut/index.md) | 2 | `80cb228` | 2026-10-29 | — |
 | [python-uv-only](modules/python-uv-only/index.md) | 2 | `80cb228` | 2026-10-29 | — |
-| [no-cat-head-via-bash](modules/no-cat-head-via-bash/index.md) | 1 | `80cb228` | 2026-10-29 | Re-read guard runs from the global dotfiles (the H2 experiment copy), not this repo's settings (would double-fire) |
+| [no-cat-head-via-bash](modules/no-cat-head-via-bash/index.md) | 2 | `6a40fff` | 2026-11-08 | Re-read guard runs from the global dotfiles (the H2 experiment copy), not this repo's settings (would double-fire) |
 | [substrate-preflight](modules/substrate-preflight/index.md) | 1 | `80cb228` | 2026-10-29 | — |
 | [assumptions-before-code](modules/assumptions-before-code/index.md) | 1 | `80cb228` | 2026-10-29 | — |
 | [minimum-code-first](modules/minimum-code-first/index.md) | 1 | `80cb228` | 2026-10-29 | — |
