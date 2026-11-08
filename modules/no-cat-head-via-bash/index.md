@@ -9,7 +9,7 @@ evidence:
   - case-studies/agentic-optimization-research/experiments/h2-re-read-collapse/README.md
 applies_when:
   - host repo has the standard Read/Edit/Write tool surface (Claude Code, Claude Agent SDK)
-version: 1
+version: 2
 ---
 
 # Don't `cat`/`head`/`tail`/`sed`/`awk`/`echo` files via Bash
@@ -117,8 +117,29 @@ hole, and this module closes the `Bash`-cat hole.
   missing-script fail-open guard, so it's safe to copy before the
   module is vendored) ships in
   [../../templates/_shared/claude-settings.example.json](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/templates/_shared/claude-settings.example.json).
+  **Wire it once per machine, not once per repo.** User-level and
+  project hooks merge, so if the machine's `~/.claude/settings.json`
+  already runs this guard on the same matcher (the canonical
+  `dotfiles/` set-up does, pointing at the H2 tool copy), a project
+  block makes every `Read` spawn two guard processes and turns one block
+  into two denials. Seen on content_manager, 2026-11-04: harmless there,
+  but it stays harmless only while the two copies agree. Vendor the
+  script anyway, so the host is complete on a machine without the
+  dotfiles, and leave the project hook block out where the dotfiles
+  wire it; say so in the host's `MODULES.md` Override column
+  ([VENDORING §6](https://github.com/ChrisKornaros/agentic_optimization_research/blob/main/modules/VENDORING.md#6-inherit-the-matching-permission-settings-and-hooks),
+  "Unless the machine already runs them").
+
   The script is stdlib-only and fails open on any unexpected condition;
-  disable it for a session with `H2_REREAD_GUARD_DISABLED=1`. It records
+  disable it for a session with `H2_REREAD_GUARD_DISABLED=1`. A `Read` is
+  a **range** to it (v2, 2026-11-06): `offset`/`limit` name the lines,
+  `pages` a PDF's pages, neither the whole file. It records the ranges
+  read per file and blocks only a `Read` whose range lies inside what was
+  already read, so the first 200 lines and then `offset=200` for the rest
+  are two reads and both run; v1 keyed on the path alone and blocked the
+  second half of every large file
+  ([agentic_patterns #12](https://github.com/ChrisKornaros/agentic_patterns/issues/12)).
+  It records
   each file's mtime at read-time and allows a re-read whose mtime has since
   advanced, so an **external edit** (IDE save, `git pull`, another process)
   is treated as a real modification rather than blocked — which avoids a
