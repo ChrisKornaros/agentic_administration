@@ -85,6 +85,9 @@ The server makes each item's external id `<id>/<part>`, for example
    Its parent is the epic, and it goes in the cycle.
 3. **Titles and descriptions.** Ask the PM what each slot is, such as a
    post's title and caption. They can give some now and the rest later.
+   When the board states caption rules (`caption` is not null) and a
+   slot's description is its caption, draft that text with the
+   draft-caption skill, which checks it against those rules.
    - **Title:** the PM's, written in the board's `naming.item_case`. With
      none, the template's own title pattern fills it. Without a pattern,
      use a placeholder of the template's name and the day, such as

@@ -262,6 +262,7 @@ class BoardService:
             "label_taxonomy": list(cfg.labels.taxonomy),
             "naming": {"iteration": cfg.naming.iteration, "item_case": cfg.naming.item_case.value},
             "templates": to_jsonable(cfg.templates),
+            "caption": to_jsonable(cfg.caption),  # None: the board states no caption rules
         }
 
     @_operation

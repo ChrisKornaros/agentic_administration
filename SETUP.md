@@ -253,7 +253,8 @@ Nobody types a command. They type what they want:
 - **The PM:** "roll the sprint over" (`plan-sprint`), or "plan November"
   on a calendar board (`plan-cycle`). A rollover starts from a sprint, so
   on a board with none, the PM starts the first one in the tracker, named
-  by the `iteration` pattern.
+  by the `iteration` pattern. On a board that states caption rules,
+  "write the caption for <item>" (`draft-caption`).
 - **The product owner:** "groom". The agent reviews what carries the
   review label, proposes fixes, and signs items off after a yes.
 

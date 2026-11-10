@@ -214,6 +214,16 @@ def test_describe_board_reports_the_confirm_mode_and_naming():
     assert out["naming"] == {"iteration": "YYYYMM", "item_case": "any"}
 
 
+def test_describe_board_returns_the_caption_rules_or_null():
+    rules = {"max_hashtags": 5, "max_length": 2200, "link_prefix": "https://example.com/recipes/"}
+    svc, _, _ = service(config={**CALENDAR, "caption": rules})
+    assert svc.describe_board()["caption"] == rules
+    svc, _, _ = service(config={**CALENDAR, "caption": {"max_hashtags": 3}})
+    assert svc.describe_board()["caption"] == {"max_hashtags": 3, "max_length": None, "link_prefix": None}
+    svc, _, _ = service(config=CALENDAR)
+    assert svc.describe_board()["caption"] is None  # the board states no caption rules
+
+
 def test_a_calendar_board_refuses_a_bug_before_any_read_and_adds_no_review_label():
     svc, t, _ = service(config=CALENDAR)
     with pytest.raises(ToolFailure, match="This calendar board has no bug level.*as a story instead"):

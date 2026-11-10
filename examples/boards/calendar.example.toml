@@ -58,6 +58,17 @@ item_case = "title"      # "title" | "sentence" | "any"
 published = "Published"  # e.g. a yes/no property
 channels  = "Channels"   # e.g. a multi-select property
 
+# Caption rules (optional): for a board where an item's description is the
+# finished text of a post, which another tool imports and publishes as
+# written. describe_board returns them as `caption`, and the draft-caption
+# skill checks a draft against them before it files anything; the server
+# itself enforces none. Leave the table out and the skill drafts nothing.
+[caption]
+max_hashtags = 5         # the most distinct hashtags in the whole description, counting the ones a
+                         # template's skeleton adds; a board whose posts also go to a channel that allows three should say 3
+max_length = 2200        # optional: the most characters
+link_prefix = "https://example.com/recipes/"   # optional: the only kind of link a caption may carry, at most once, as a bare URL
+
 # Templates (D41, D42): propose_item(template="<name>", …) fills an item
 # from one, and the request adds the date and the specifics. A template
 # sets the level (story unless it says), the feature (a module), labels,

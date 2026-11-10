@@ -26,8 +26,8 @@ for a coding agent to follow, so you can give one this repo's URL and say
 - **Skills** that carry the judgment, as plain `SKILL.md` files: an
   intake conversation for a non-technical request, filing a story, bug or
   epic with Given/When/Then acceptance criteria, sprint rollover,
-  planning a calendar's month from templates, and the product owner's
-  review pass.
+  planning a calendar's month from templates, drafting a post's caption
+  to the board's rules, and the product owner's review pass.
 - **One config file per board.** Pointing the agent at your board means
   writing a TOML file: the backend, the connection, and how your
   tracker's types, states and labels map onto the model. No code changes.
@@ -112,6 +112,7 @@ One TOML file per board, kept in `boards/`. Start from a template in
 | `[naming]` | no | `iteration`: the pattern sprint or cycle names follow, built from `YYYY`, `MM` and `DD`; other characters, such as `-`, are kept as written. The default is `"YYYYMM"`, as in `202611`. With `YYYYMM`, `plan-sprint` works out the next month itself; with any other pattern, it asks the PM for the next iteration's name and dates. `item_case`: `title`, `sentence` or `any` (the default). A title in the wrong case gets a warning and a suggested fix |
 | `[fields]` | no | Custom fields ([below](#dates-and-custom-fields)) |
 | `[templates.<name>]` | no | Item templates ([below](#templates)) |
+| `[caption]` | no | The rules a description meets when it is a caption ([below](#caption-rules)) |
 
 The file is checked when it loads, and every problem is listed at once.
 
@@ -190,6 +191,23 @@ request's title, feature and dates win, and its labels and field values
 are added. A template's `days` and `dates` are the weekday cadence the
 `plan-cycle` skill plans by: a slot on each of those weekdays, and which
 of the item's dates the slot's day sets.
+
+### Caption rules
+
+On some boards an item's description is the finished text of a post, and
+another tool imports it and publishes it as written. A `[caption]` table
+states what that text must meet:
+
+- `max_hashtags` (required in the table): the most distinct hashtags the
+  whole description may carry, counting any a template's skeleton adds.
+- `max_length` (optional): the most characters.
+- `link_prefix` (optional): the only kind of link it may carry, at most
+  once, as a bare URL. It must start with `https://`.
+
+`describe_board` returns the table as `caption`, or `null` when the board
+has none. The server does not enforce these rules: `propose_item` and
+`update_item` take any description. The `draft-caption` skill does the
+checking, before it shows a draft and again on the read-back.
 
 ## Hosts
 
@@ -351,6 +369,13 @@ it.
   every item, field and call. After one yes, it finds or creates the
   cycle, files the epic and each item under it, and reads them back. Its
   ids come from the cycle, so a rerun finds what already landed.
+- **`draft-caption`** writes an item's description when that description
+  is a post's caption, on a board that states [caption rules](#caption-rules).
+  It drafts the text, checks the whole description as it will land
+  (hashtags, the one link, plain paragraphs, length) and shows it with
+  the counts. After one yes, it writes the description to an existing
+  item and reads it back, or hands the text to `plan-cycle` for a slot.
+  It changes nothing else on the item.
 - **`groom`** is the product owner's pass over what carries the review
   label. Where the host has the docs, it first reads the team's review
   rules there, such as a definition of ready. It proposes fixes to each
@@ -543,7 +568,7 @@ agentic_administration/
 ├── .github/workflows/ # test.yml: the offline tests on every push and pull request
 ├── server/            # the board MCP server, the canonical model, the board config, secrets
 ├── adapters/          # base.py (the interface and errors), plane/, jira/, README.md (writing one)
-├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, groom
+├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, draft-caption, groom
 ├── schema/            # the intake record and its Markdown rendering
 ├── knowledge/         # the Markdown → Confluence publisher and the docs MCP server
 ├── conformance/       # the live adapter and publisher suites, with dated results
