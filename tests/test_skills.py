@@ -5,7 +5,9 @@ model, which must pass the schema so the examples teach a valid shape, the
 arguments they pass, which must be the tools' own, plan-sprint's order (reads
 and one yes, then close, create, move), plan-cycle's (reads and checks and
 one yes, then the cycle, the epic, its slots and a read-back) and groom's
-(reads and one yes, then a fresh read before each update)."""
+(reads and one yes, then a fresh read before each update), and draft-caption's
+(reads and one yes, then one update and a read-back; its worked example must
+meet the calendar example's own caption rules)."""
 
 import json
 import re
@@ -29,7 +31,7 @@ from tests.test_service import service
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
 CREATE = {"create-story": {"story"}, "create-bug": {"bug"}, "create-epic": {"epic", "story"}}
-NAMES = ["intake", *CREATE, "plan-sprint", "plan-cycle", "groom"]
+NAMES = ["intake", *CREATE, "plan-sprint", "plan-cycle", "groom", "draft-caption"]
 READS = {"describe_board", "find_items", "get_item", "get_iteration", *DOC_TOOLS}
 ROLLOVER = ["close_iteration", "create_iteration", "move_to_iteration"]  # Jira: one active sprint
 CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")  # describe_board(), propose_item(intake=…)
@@ -43,7 +45,7 @@ FULL_READ = {  # a read that must see everything: an iteration's items, the revi
 }
 CYCLE_ITEM = re.compile(r"`(\d{8}-cycle)/(([a-z]+)-(\d{4}-\d{2}-\d{2}))`")  # plan-cycle's example external id
 JSON_BLOCK = re.compile(r"```json\n(.*?)```", re.S)
-ENTRY = ["intake", "plan-sprint", "plan-cycle", "groom"]  # each starts a request, so each picks its board (D43)
+ENTRY = ["intake", "plan-sprint", "plan-cycle", "groom", "draft-caption"]  # each starts a request, so each picks its board (D43)
 BOARD_STEP = (
     "If it returns `boards`, the server serves several. Use the board the request names, by its name, its project "
     "or its description. If it names none, list the boards with their descriptions and ask which one. Don't choose "
@@ -53,6 +55,10 @@ BOARD_STEP = (
 ON_INTAKES_BOARD = ("Work on the board intake chose: pass that `board` on every call, and name the board in "
                     "everything you show before a yes.")
 INTAKE_ID = re.compile(r"\d{8}-[a-z0-9-]+")  # the skills' convention: YYYYMMDD-<slug>
+TEXT_BLOCK = re.compile(r"```text\n(.*?)```", re.S)  # draft-caption's worked example
+HASHTAG = re.compile(r"#(\w+)", re.ASCII)  # `#` then letters, digits or underscores, anywhere
+URL = re.compile(r"https?://\S+")
+MARKDOWN_BLOCK = re.compile(r"^(?:# |- |\* |> |\d+\.)", re.M)  # a heading, a list item, a quote
 
 
 def read(name: str) -> tuple[dict[str, str], str]:
@@ -228,3 +234,36 @@ def test_every_example_record_is_valid_and_ordered(name):
             parent = p.placement.parent or ""
             assert not parent.startswith(SIBLING) or parent[1:] in seen
             seen.add(p.part)
+
+
+def test_draft_caption_reads_then_writes_only_the_description():
+    _, body = read("draft-caption")
+    draft, sep, write = body.partition("## 6. Write it and read it back")
+    assert sep, "draft-caption has no write section"
+    assert "yes" in draft and set(CALL.findall(draft)) <= READS  # the yes comes before the one write
+    assert set(CALL.findall(body)) - READS == {"update_item"}  # its only write
+    updates = [args for tool, args in ARGS.findall(body) if tool == "update_item"]
+    assert updates and all(set(KEYWORD.findall(args)) == {"ref", "description"} for args in updates)
+    assert write.index("update_item(") < write.index("get_item(")  # the read-back comes after the write
+    assert "If `caption` is null" in body  # no rules, no draft: it never invents limits
+
+
+def test_draft_caption_example_meets_the_calendar_examples_rules():
+    _, body = read("draft-caption")
+    cfg = load(ROOT / "examples" / "boards" / "calendar.example.toml")
+    rules, post = cfg.caption, cfg.templates["post"]
+    [example] = TEXT_BLOCK.findall(body)
+    landed = post.description_with(example)  # the template's skeleton adds hashtags of its own, and they count
+    assert landed != example.strip() and example.strip() in landed
+    tags = {tag.lower() for tag in HASHTAG.findall(landed)}
+    assert len(tags) == rules.max_hashtags  # the example sits at the limit, as its text says
+    [url] = URL.findall(landed)
+    assert url.startswith(rules.link_prefix) and f"\n{url}\n" in landed  # bare, on its own line
+    assert "](" not in landed and not MARKDOWN_BLOCK.search(landed)
+    assert len(landed) <= rules.max_length
+    assert landed.splitlines()[-1].split() == [w for w in landed.splitlines()[-1].split() if w.startswith("#")]
+    assert all(f"`{key}`" in body for key in ("max_hashtags", "max_length", "link_prefix"))
+
+
+def test_plan_cycle_points_a_slots_caption_at_draft_caption():
+    assert "draft-caption" in read("plan-cycle")[1]

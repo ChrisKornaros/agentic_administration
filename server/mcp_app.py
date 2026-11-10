@@ -65,7 +65,10 @@ def build(boards: Boards) -> MCPServer:
         review label (null when review is off), the naming rules and the item
         `templates` (each with its level, title pattern, description skeleton,
         feature, labels, field values, state, and the weekdays `days` it fills
-        with the date `dates` says). `problems` lists every mismatch, and every
+        with the date `dates` says). `caption` holds the rules a description
+        must meet when it is a caption (`max_hashtags`, `max_length`,
+        `link_prefix`), or null when the board states none; the server does
+        not enforce them. `problems` lists every mismatch, and every
         write refuses until it is empty. Call it first, and again after the
         board changes.
 

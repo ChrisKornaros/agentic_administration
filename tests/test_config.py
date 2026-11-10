@@ -460,3 +460,52 @@ def test_a_directory_with_no_boards_is_refused(tmp_path):
     copy_to(tmp_path / "docs.toml", DOCS_EXAMPLE)
     with pytest.raises(InvalidBoardConfig, match="no board configs in"):
         load_boards([tmp_path])
+
+
+# --- [caption]: the rules a description meets when it is a caption ---------------
+
+
+def test_a_caption_table_loads_and_a_board_without_one_still_loads():
+    cfg = BoardConfig.from_dict(variant(caption={"max_hashtags": 3, "max_length": 500,
+                                                 "link_prefix": "https://example.com/posts/"})).check()
+    assert (cfg.caption.max_hashtags, cfg.caption.max_length, cfg.caption.link_prefix) == (
+        3, 500, "https://example.com/posts/")
+    only = BoardConfig.from_dict(variant(caption={"max_hashtags": 5})).check().caption
+    assert (only.max_hashtags, only.max_length, only.link_prefix) == (5, None, None)
+    assert BoardConfig.from_dict(PLANE).check().caption is None
+    assert to_jsonable(cfg)["caption"] == {"max_hashtags": 3, "max_length": 500,
+                                           "link_prefix": "https://example.com/posts/"}
+
+
+@pytest.mark.parametrize(
+    "table, problem",
+    [
+        ({"max_hashtags": 5, "max_links": 1}, "caption: unknown keys max_links"),
+        ({"max_hashtags": 0}, "caption.max_hashtags must be a positive whole number"),
+        ({"max_hashtags": -2}, "caption.max_hashtags must be a positive whole number"),
+        ({"max_hashtags": True}, "caption.max_hashtags must be a positive whole number"),
+        ({"max_hashtags": 5, "max_length": 0}, "caption.max_length must be a positive whole number"),
+        ({"max_length": 100}, "caption.max_hashtags is required (the most distinct hashtags a description may carry)"),
+        ({"max_hashtags": 5, "link_prefix": "http://example.com/"},
+         "caption.link_prefix must be a URL prefix that starts with https://"),
+        ({"max_hashtags": 5, "link_prefix": "example.com/recipes/"},
+         "caption.link_prefix must be a URL prefix that starts with https://"),
+        ({"max_hashtags": 5, "link_prefix": "https://"},
+         "caption.link_prefix must be a URL prefix that starts with https://"),
+    ],
+)
+def test_a_caption_table_reports_each_shape_error(table, problem):
+    assert problem in problems_of(variant(caption=table))
+
+
+def test_caption_problems_are_listed_with_every_other_problem():
+    found = problems_of(variant(caption={"max_hashtags": 0, "extra": 1}, naming={"bogus": 1}))
+    assert {"caption: unknown keys extra", "caption.max_hashtags must be a positive whole number",
+            "naming: unknown keys bogus"} <= set(found)
+    assert "caption must be a table" in problems_of(variant(caption="five"))
+
+
+def test_the_calendar_example_states_its_caption_rules():
+    rules = load(CALENDAR_EXAMPLE).caption
+    assert (rules.max_hashtags, rules.max_length, rules.link_prefix) == (5, 2200, "https://example.com/recipes/")
+    assert load(EXAMPLE).caption is None  # a software board's example states none

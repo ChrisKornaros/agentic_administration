@@ -22,6 +22,12 @@ directories of configs, and names each board by its file's stem. An
 optional top-level `description` says in a line what the board holds, so
 the server's board list tells the boards apart.
 
+An optional `[caption]` table states the rules an item's description must
+meet when it is a caption that another tool publishes as written: the most
+hashtags, the most characters, and the one kind of link. The server only
+reports it (`describe_board`); the draft-caption skill checks a draft
+against it.
+
 **No secrets in the file.** The connection names the environment variable
 that holds the API token (`token_env`); the adapter reads it at the boundary
 (design: modules/secrets-no-plaintext). A value that does not look like an
@@ -227,6 +233,21 @@ class Template:
         """Whether the skeleton takes the request's description."""
         return "description" in _slots(self.description or "")
 
+
+@dataclass(frozen=True)
+class Caption:
+    """The rules a description must meet when it is a caption: text another
+    tool imports and publishes as written. `max_hashtags` is the most
+    distinct hashtags the whole description may carry, `max_length` the
+    most characters, and `link_prefix` the only kind of URL it may carry.
+    The server reports them through `describe_board` and enforces none;
+    the draft-caption skill does the checking."""
+
+    max_hashtags: int
+    max_length: int | None = None
+    link_prefix: str | None = None
+
+
 # --- the config ------------------------------------------------------------
 
 
@@ -243,6 +264,7 @@ class BoardConfig:
     fields: Mapping[str, str] = field(default_factory=dict)  # name -> Plane property / Jira field (D41)
     templates: Mapping[str, Template] = field(default_factory=dict)  # D41, D42
     description: str = ""  # what the board holds, for the server's board list (D43)
+    caption: Caption | None = None  # the rules a description meets when it is a caption; None = the board states none
 
     # -- validation ---------------------------------------------------------
 
@@ -386,7 +408,7 @@ class BoardConfig:
         left to `validate()` / `check()` so a caller can list both at once."""
         problems: list[str] = []
         known = {"backend", "board_type", "connection", "levels", "states", "labels", "naming", "confirm", "fields",
-                 "templates", "description"}
+                 "templates", "description", "caption"}
         unknown = sorted(set(data) - known)
         if unknown:
             problems.append(f"unknown top-level keys: {', '.join(unknown)}")
@@ -406,6 +428,7 @@ class BoardConfig:
         confirm = _enum(Confirm, data.get("confirm", "always"), "confirm", problems)
         custom = _fields(data.get("fields", {}), problems)
         templates = _templates(data.get("templates", {}), problems)
+        caption = _caption(data["caption"], problems) if "caption" in data else None
         description = data.get("description", "")
         if not isinstance(description, str):
             problems.append("description must be a string")
@@ -423,6 +446,7 @@ class BoardConfig:
             fields=custom,
             templates=templates,
             description=description.strip(),
+            caption=caption,
         )
 
 
@@ -652,6 +676,34 @@ def _templates(raw: Any, problems: list[str]) -> dict[str, Template]:
             dates=_enum(DateRule, spec.get("dates", "target"), f"{where}.dates", problems),
         )
     return out
+
+
+def _caption(raw: Any, problems: list[str]) -> Caption | None:
+    table = _table(raw, "caption", problems)
+    unknown = sorted(set(table) - {"max_hashtags", "max_length", "link_prefix"})
+    if unknown:
+        problems.append(f"caption: unknown keys {', '.join(unknown)}")
+
+    def positive(key: str) -> int | None:
+        value = table.get(key)
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:  # a bool is an int in Python
+            problems.append(f"caption.{key} must be a positive whole number")
+            return None
+        return value
+
+    max_hashtags, max_length = positive("max_hashtags"), positive("max_length")
+    if "max_hashtags" not in table:
+        problems.append("caption.max_hashtags is required (the most distinct hashtags a description may carry)")
+    link_prefix = table.get("link_prefix")
+    if link_prefix is not None and not (isinstance(link_prefix, str) and link_prefix.startswith("https://")
+                                        and len(link_prefix) > len("https://") and " " not in link_prefix):
+        problems.append("caption.link_prefix must be a URL prefix that starts with https://")
+        link_prefix = None
+    if max_hashtags is None:
+        return None
+    return Caption(max_hashtags=max_hashtags, max_length=max_length, link_prefix=link_prefix)
 
 
 def _slots(text: str) -> set[str]:
