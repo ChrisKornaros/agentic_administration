@@ -349,6 +349,17 @@ def test_a_retry_fills_in_values_a_failed_commit_left_unset():
     assert len([b for m, p, _, b in t.calls if m == "POST" and p.endswith(f"/{channels}/values/")]) == 2
 
 
+def test_update_item_adds_links_and_refuses_what_is_not_a_url():
+    svc, t, _ = service()
+    url = "https://example.com/issues/1"
+    assert svc.update_item("AA-2", links=[url])["links"] == [url]
+    assert svc.update_item("AA-2", links=[url])["links"] == [url]
+    assert svc.get_item("AA-2")["links"] == [url]
+    assert len([1 for m, p, _, _ in t.calls if m == "POST" and p.endswith("/links/")]) == 1
+    with pytest.raises(ToolFailure, match="http"):
+        svc.update_item("AA-2", links=["AA-1"])
+
+
 def test_update_item_moves_dates_and_sets_fields():
     svc, t, _ = fields_service()
     key = svc.commit_item(propose(svc, fields={"published": False})["token"])["item"]["key"]

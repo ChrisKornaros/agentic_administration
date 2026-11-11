@@ -311,6 +311,33 @@ def test_update_item_patches_only_what_changed():
     assert not any(m == "DELETE" for m, *_ in t.calls)
 
 
+def test_links_are_added_once_read_oldest_first_and_never_removed():
+    adapter, t = make()
+    first, second = "https://example.com/issues/1", "https://example.com/pull/2"
+    assert adapter.get_item("AA-2").links == ()
+    assert adapter.update_item("AA-2", ItemPatch(links=[first])).links == (first,)
+    again = adapter.update_item("AA-2", ItemPatch(links=[first, second, second]))
+    assert again.links == (first, second)
+    posts = [b for m, p, _, b in t.calls if m == "POST" and p.endswith("/links/")]
+    assert posts == [{"url": first}, {"url": second}]  # the repeat wrote nothing
+    assert not t.bodies("PATCH", "/work-items/")  # links alone patch no field
+    assert adapter.get_item("AA-2").links == (first, second)  # the fake lists newest first, as Plane does
+    assert all(i.links == () for i in adapter.find_items())  # the list read does not carry them
+    assert adapter.update_item("AA-2", ItemPatch(state=State.DONE)).links == ()  # nor an update that named none
+    with pytest.raises(ValidationError, match="empty"):
+        adapter.update_item("AA-2", ItemPatch(links=()))
+    assert not any(m == "DELETE" for m, *_ in t.calls)
+
+
+def test_create_item_writes_its_links():
+    adapter, t = make()
+    url = "https://example.com/issues/3"
+    made = adapter.create_item(WorkItem(Level.STORY, "Linked", parent=ItemRef(fp.I_EPIC), links=(url,)))
+    assert made.links == (url,) and adapter.get_item(made.id).links == (url,)
+    with pytest.raises(Unsupported, match="no links"):
+        adapter.create_item(WorkItem(Level.FEATURE, "Module", links=(url,)))
+
+
 def test_add_comment_renders_markdown():
     adapter, t = make()
     c = adapter.add_comment(Comment(ItemRef(fp.I_STORY), "Looks *good*."))

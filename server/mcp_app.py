@@ -102,7 +102,8 @@ def build(boards: Boards) -> MCPServer:
     @mcp.tool(annotations=READ)
     def get_item(ref: str, board: str | None = None) -> dict[str, Any]:
         """One work item by its key (e.g. AA-12) or id, with its current labels,
-        state, parent, feature, iteration, dates and custom-field values."""
+        state, parent, feature, iteration, dates, custom-field values and links
+        (find_items leaves `links` empty)."""
         return call(on(board).get_item, ref)
 
     @mcp.tool(annotations=READ)
@@ -197,17 +198,20 @@ def build(boards: Boards) -> MCPServer:
         start_date: str | None = None,
         target_date: str | None = None,
         fields: dict[str, Any] | None = None,
+        links: list[str] | None = None,
         board: str | None = None,
     ) -> dict[str, Any]:
         """Change fields of an existing item; omitted fields stay as they are.
         `labels` and `assignees` REPLACE the whole set, so call get_item first
         and send the full list. The product owner's review clears the review
         label this way. `start_date` / `target_date` are ISO dates; `fields`
-        sets only the custom fields it names. Retire work with state "done" or
+        sets only the custom fields it names. `links` ADDS each URL the item
+        does not carry yet (an issue or a pull request, say) and never
+        removes one; get_item shows them. Retire work with state "done" or
         "cancelled"; it cannot be deleted."""
         return call(on(board).update_item, ref, title=title, description=description, state=state,
                     assignees=assignees, labels=labels, parent=parent, feature=feature,
-                    start_date=start_date, target_date=target_date, fields=fields)
+                    start_date=start_date, target_date=target_date, fields=fields, links=links)
 
     @mcp.tool(annotations=WRITE)
     def add_comment(ref: str, body: str, board: str | None = None) -> dict[str, Any]:

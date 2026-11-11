@@ -137,6 +137,7 @@ async def test_dates_and_fields_over_mcp():
             "fields": {"published": True, "channels": ["Web"]}})
     for name in ("propose_item", "update_item"):
         assert {"start_date", "target_date", "fields"} <= set(tools[name].input_schema["properties"])
+    assert "links" in tools["update_item"].input_schema["properties"]
     assert not out.is_error
     assert out.structured_content["preview"]["fields"] == {"published": True, "channels": ["Web"]}
 

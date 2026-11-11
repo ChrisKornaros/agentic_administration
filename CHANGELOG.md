@@ -8,6 +8,17 @@ entry says how.
 
 ## [Unreleased]
 
+### Added
+
+- **Links on a work item, on Plane.** `update_item` takes `links`, a
+  list of URLs (an issue or a pull request, say). It adds each one the
+  item does not carry yet and never removes one, so sending the same
+  list twice writes nothing. `get_item` returns the item's links, oldest
+  first; `find_items` does not read them. A link must be an http(s) URL.
+  On Jira `links` is refused with a clear message, since its remote
+  links are not wired yet. Not in `propose_item`: a new item gets its
+  links by an `update_item` after the commit.
+
 ### Fixed
 
 - **Plane: a description read back keeps the blank line between

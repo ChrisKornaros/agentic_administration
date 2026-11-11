@@ -167,6 +167,7 @@ class FakeTransport:
         self.external_id_lookup = True  # False: the list ignores external_id and answers the envelope
         self.properties: dict[str, list[dict[str, Any]]] = {}  # type id -> its work-item properties
         self.values: dict[tuple[str, str], Any] = {}  # (item id, property id) -> the raw value(s)
+        self.links: dict[str, list[dict[str, Any]]] = {}  # item id -> its link records, newest first as Plane lists them
 
     @property
     def log(self) -> list[tuple[str, str]]:
@@ -254,6 +255,18 @@ class FakeTransport:
         m = re.fullmatch(rf"{re.escape(PP)}/work-items/([0-9a-f-]+)/work-item-properties/([0-9a-f-]+)/values/", path)
         if m and method in ("GET", "POST"):
             return self._values(method, m.group(1), m.group(2), body)
+        m = re.fullmatch(rf"{re.escape(PP)}/work-items/([0-9a-f-]+)/links/", path)
+        if m and method == "GET":
+            rows = copy.deepcopy(self.links.get(m.group(1), []))
+            return {"results": rows, "next_cursor": "", "next_page_results": False, "total_count": len(rows)}
+        if m and method == "POST":
+            if not (body or {}).get("url"):
+                raise ValidationError(f"HTTP 400 on {key}: url: This field is required.")
+            n = len(self.links.get(m.group(1), []))
+            rec = {"id": self.new_id("f0f0f0f0"), "url": body["url"], "title": body.get("title"),
+                   "created_at": f"2026-09-22T10:00:{n:02d}Z"}
+            self.links.setdefault(m.group(1), []).insert(0, rec)
+            return copy.deepcopy(rec)
         if method == "GET":
             m = re.fullmatch(rf"{re.escape(PP)}/work-item-types/([0-9a-f-]+)/work-item-properties/", path)
             if m:
