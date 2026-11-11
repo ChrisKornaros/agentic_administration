@@ -98,6 +98,8 @@ _CATEGORY_TO_STATE = {"new": State.BACKLOG, "indeterminate": State.IN_PROGRESS, 
 _SPRINT_STATE = {"future": IterationState.PLANNED, "active": IterationState.ACTIVE, "closed": IterationState.CLOSED}
 # Lucene's reserved characters, dropped from a free-text query rather than escaped
 _TEXT_RESERVED = re.compile(r'[+\-&|!(){}\[\]^~*?\\:"/]')
+_NO_LINKS = ("links are not written on Jira yet (its remote links are not wired here); "
+             "put the URL in the description or a comment")
 _MOVE_BATCH = 50  # issues per POST …/sprint/{id}/issue
 _SPRINT_SCAN = 1000  # rows read for find_items(iteration=…) before the current-sprint filter
 
@@ -618,6 +620,8 @@ class JiraAdapter(Adapter):
             raise Unsupported(f"this board has no {level.value} level (levels.{level.value} is not in the config)")
         if mapping.how is Materialization.NONE:
             raise Unsupported(f"levels.{level.value} collapses on this board; nothing to create")
+        if item.links:
+            raise Unsupported(_NO_LINKS)
 
         labels = list(item.labels)
         components: list[str] = [item.component] if item.component else []
@@ -690,6 +694,8 @@ class JiraAdapter(Adapter):
         ident = self._ident(ref)
         if patch.feature is not None:
             raise Unsupported("feature collapses on Jira; it is written at creation, by the collapse rule")
+        if patch.links:
+            raise Unsupported(_NO_LINKS)
         fields: dict[str, Any] = {}
         if patch.title is not None:
             fields["summary"] = patch.title

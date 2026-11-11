@@ -508,7 +508,24 @@ class PlaneAdapter(Adapter):
 
     def get_item(self, ref: ItemRef | str) -> WorkItem:
         item = self._to_item(self._record(ref))
+        item = replace(item, links=self._links(item.id or ""))
         return replace(item, fields=self._values(item.id or "", item.level)) if self._props else item
+
+    def _links(self, item_id: str) -> tuple[str, ...]:
+        """The item's link URLs, oldest first."""
+        rows = [r for r in self._t.get_all(f"{self._pp}/work-items/{item_id}/links/") if isinstance(r, dict)]
+        rows.sort(key=lambda r: r.get("created_at") or "")
+        return tuple(r["url"] for r in rows if r.get("url"))
+
+    def _add_links(self, item_id: str, urls: Sequence[str]) -> tuple[str, ...]:
+        """Add each URL the item does not carry yet; returns the links it has
+        afterwards. Additive: a link is never changed or removed here."""
+        have = list(self._links(item_id))
+        for url in _dedupe(urls):
+            if url not in have:
+                self._t.request("POST", f"{self._pp}/work-items/{item_id}/links/", body={"url": url})
+                have.append(url)
+        return tuple(have)
 
     def _record(self, ref: ItemRef | str) -> dict[str, Any]:
         """One item's record, without its custom-field values."""
@@ -653,6 +670,8 @@ class PlaneAdapter(Adapter):
                 raise Unsupported("a Plane module has no parent; a feature's epic is carried by its stories")
             if item.start_date or item.target_date or item.fields:
                 raise Unsupported("a Plane module takes no dates or custom fields here")
+            if item.links:
+                raise Unsupported("a Plane module takes no links here")
             body = {"name": item.title, "project_id": board.project_id}
             if item.description:
                 body["description"] = item.description
@@ -714,8 +733,10 @@ class PlaneAdapter(Adapter):
         if cycle_id:
             self._t.request("POST", f"{self._pp}/cycles/{cycle_id}/cycle-issues/", body={"issues": [created.id]})
         self._write_values(created.id or "", writes)
+        links = self._add_links(created.id or "", item.links) if item.links else ()
         return replace(
             created,
+            links=links,
             feature=item.feature if module_ids and item.feature is not None else created.feature,
             component=item.component,
             iteration=cycle_id or created.iteration,
@@ -767,6 +788,8 @@ class PlaneAdapter(Adapter):
             self._t.request("POST", f"{self._pp}/modules/{module_id}/module-issues/", body={"issues": [item_id]})
         self._write_values(item_id, writes)
         updated = self._to_item(rec)
+        if patch.links:  # the returned item carries its links only when the patch added some
+            updated = replace(updated, links=self._add_links(item_id, patch.links))
         if module_id:
             updated = replace(updated, feature=patch.feature)
         return replace(updated, fields=self._values(item_id, updated.level)) if self._props else updated

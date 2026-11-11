@@ -271,6 +271,14 @@ def test_update_replaces_labels_but_keeps_the_xid_and_transitions_state():
         adapter.update_item(story["key"], ItemPatch(feature=ItemRef("Intake")))
 
 
+def test_links_are_refused_not_dropped():
+    adapter, t = make()
+    before = len(t.calls)
+    with pytest.raises(Unsupported, match="links are not written on Jira"):
+        adapter.update_item("AA-2", ItemPatch(links=["https://example.com/issues/1"]))
+    assert not [c for c in t.calls[before:] if c[0] != "GET"]
+
+
 def test_add_comment_renders_adf_and_reads_the_author():
     fake, _, story, _ = seeded()
     adapter, t = make(fake)

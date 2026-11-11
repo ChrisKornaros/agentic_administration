@@ -246,7 +246,10 @@ class ItemPatch:
     marker). `fields` sets the custom fields it names and leaves the others;
     a value can't be cleared here. Moving between iterations is
     `move_to_iteration`, not a patch; there is no way to change an item's
-    level."""
+    level. `links` is the one add-only field: each URL the item does not
+    carry yet is added and none is ever removed, since no adapter deletes;
+    sending one twice changes nothing. The item `update_item` returns carries
+    its links only when the patch named some; `get_item` always does."""
 
     title: str | None = None
     description: str | None = None  # Markdown
@@ -258,9 +261,11 @@ class ItemPatch:
     start_date: date | None = None
     target_date: date | None = None
     fields: Mapping[str, Any] | None = None
+    links: Sequence[str] | None = None  # URLs to add; never replaces, never removes
 
     def is_empty(self) -> bool:
-        return all(getattr(self, f) is None for f in self.__dataclass_fields__ if f != "fields") and not self.fields
+        return (all(getattr(self, f) is None for f in self.__dataclass_fields__ if f not in ("fields", "links"))
+                and not self.fields and not self.links)
 
 
 # --- the interface -----------------------------------------------------------
@@ -307,7 +312,9 @@ class Adapter(ABC):
 
     @abstractmethod
     def get_item(self, ref: ItemRef | str) -> WorkItem:
-        """One item by backend id or human key; `NotFound` otherwise."""
+        """One item by backend id or human key; `NotFound` otherwise. The
+        only read that carries the item's `links` (URLs, oldest first):
+        `find_items` leaves them empty, to spare a call per row."""
 
     @abstractmethod
     def get_iteration(self, iteration: str) -> Iteration:

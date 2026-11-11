@@ -514,7 +514,11 @@ class BoardService:
         start_date: str | None = None,
         target_date: str | None = None,
         fields: Mapping[str, Any] | None = None,
+        links: Sequence[str] | None = None,
     ) -> dict[str, Any]:
+        for url in links or ():
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                raise ToolFailure(f"A link must be an http(s) URL; got {url!r}.")
         patch = ItemPatch(
             title=title,
             description=description,
@@ -526,6 +530,7 @@ class BoardService:
             start_date=_date(start_date, "start_date"),
             target_date=_date(target_date, "target_date"),
             fields=dict(fields) if fields else None,
+            links=tuple(links) if links else None,
         )
         return to_jsonable(self.adapter.update_item(ref, patch))
 

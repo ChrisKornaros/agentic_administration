@@ -39,7 +39,7 @@ refuses a config for another backend with a `ValueError`.
 | `get_item` | One item by its id or its human key, or `NotFound`. |
 | `get_iteration` | One iteration by id or name, in the state the tracker reports now, or `NotFound`. |
 | `create_item` | Calls `item.check()`, writes the item, and returns it with `id` and `key` filled. It applies the collapse rule for each level the board doesn't materialize, so an initiative or feature named on the item lands as a label, a component or a description line. |
-| `update_item` | Applies an `ItemPatch`. `None` leaves a field as it is, a sequence replaces (`labels=()` clears them), and `fields` sets only the fields it names. |
+| `update_item` | Applies an `ItemPatch`. `None` leaves a field as it is, a sequence replaces (`labels=()` clears them), and `fields` sets only the fields it names. `links` is the exception: add-only, each URL the item lacks is added and none is removed, and a repeat writes nothing. Plane writes them as the work item's links and `get_item` reads them back, oldest first (`find_items` leaves `links` empty; `create_item` writes `item.links` the same way). Jira raises `Unsupported` for now: its remote links are not wired, so a link is refused, never dropped. |
 | `add_comment` | Takes Markdown and writes the tracker's own format. |
 | `create_iteration` | Find-or-create by name, never a duplicate. `existing_iteration` refuses a found one whose dates differ from those given. An iteration whose dates cover today ends up active; Jira starts the sprint. |
 | `move_to_iteration` | Puts the items into the iteration with that id or name. |
