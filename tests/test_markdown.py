@@ -54,5 +54,14 @@ def test_acceptance_criteria_shape():
 
 
 def test_to_text_is_readable():
-    assert to_text("<p>one</p><p>two &amp; three</p><ul><li>a</li><li>b</li></ul>") == "one\ntwo & three\n- a\n- b"
+    assert to_text("<p>one</p><p>two &amp; three</p><ul><li>a</li><li>b</li></ul>") == "one\n\ntwo & three\n\n- a\n- b"
     assert to_text("<p></p>") == ""
+
+
+def test_to_text_keeps_the_blank_line_between_paragraphs():
+    caption = "Hook.\n\nThe recipe:\nhttps://example.com/recipes/ragu\n\n#ragu #pasta"
+    assert to_text(render(caption)) == caption
+    # Plane's editor stores an empty paragraph for an extra blank line, and
+    # wraps a list item's text in a paragraph.
+    assert to_text("<p>one</p><p></p><p>two</p>") == "one\n\ntwo"
+    assert to_text("<ul><li><p>a</p></li><li><p>b</p></li></ul><p>after</p>") == "- a\n- b\nafter"

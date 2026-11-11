@@ -6,6 +6,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until
 1.0, a minor release may change the board config or the tools, and its
 entry says how.
 
+## [Unreleased]
+
+### Fixed
+
+- **Plane: a description read back keeps the blank line between
+  paragraphs.** `get_item` and `find_items` returned a single line break
+  where the board stores two paragraphs, so text written as paragraphs
+  never read back as written. A read now returns a blank line after a
+  paragraph, a heading, a quote and a code block, as the Jira adapter
+  does. A list item and a `<br>` still end with one newline.
+
 ## [0.1.0] - 2026-10-27
 
 The first release: a backlog agent for Plane and Jira Cloud, proven
