@@ -173,9 +173,15 @@ def render(markdown: str) -> str:
 def to_text(html_text: str) -> str:
     """The reverse, lossy: strip Plane HTML to readable plain text for reads
     (descriptions come back as `description_html`; a faithful HTML→Markdown
-    is a follow-up). Block tags become newlines, entities are decoded."""
+    is a follow-up). A paragraph, heading, quote or code block ends with a
+    blank line, as `render` reads one; a `<br>`, list item or table row ends
+    with a newline. Entities are decoded."""
     text = re.sub(r"<br\s*/?>", "\n", html_text, flags=re.IGNORECASE)
-    text = re.sub(r"</(p|div|li|h[1-6]|blockquote|pre|tr)>", "\n", text, flags=re.IGNORECASE)
+    # Plane's editor wraps a list item's or a cell's text in a <p>: that one
+    # ends with its item, not with a blank line.
+    text = re.sub(r"</p>\s*(?=</(li|td|th)>)", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"</(p|h[1-6]|blockquote|pre)>", "\n\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</(div|li|tr)>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"<li[^>]*>", "- ", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     text = html.unescape(text)
