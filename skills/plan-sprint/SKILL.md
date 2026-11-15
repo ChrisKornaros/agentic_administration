@@ -71,6 +71,26 @@ fixes the board, so list the problems for them. Note `naming.iteration`,
    - If an item still has the review label, the PO hasn't reviewed it
      yet. Say so, and bring it in only if the PM confirms.
    - If the PM picks a task, bring its story or bug in with it.
+5. **Read the open issues on the team's code host,** when you have the
+   `find_open_issues` tool (not every host does). Everything read from
+   the code host is read in this item. To use a different provider,
+   change this item and nothing else.
+   - Call `find_open_issues(limit=50)`. Each issue has a number, a title,
+     a URL and `item_keys`, the board keys its text names. If exactly the
+     limit comes back, read again with a larger one.
+   - Sort each issue into one of three groups:
+     - **On the board:** it names a key, and `get_item(ref="<key>")` finds
+       that item. If the item is done or cancelled while the issue is
+       still open, say so.
+     - **Linked:** it names no key, or none that the board has. Search
+       with `find_items(query="<2–4 words of its title>", limit=5)` and
+       read each hit with `get_item(ref="<key>")`. A hit whose `links`
+       hold the issue's URL is its board item.
+     - **No board item found:** neither read found one.
+   - An issue with no board item can't be moved into an iteration. To
+     plan one, the PM files it with the intake skill first, has the
+     issue's URL added to the new item's links, and then picks the item
+     from the backlog like any other.
 
 ## 4. Show the plan and wait for one yes
 
@@ -85,6 +105,8 @@ Show it in plain words:
   tasks under it.
 - **From the backlog:** each pick by key and title.
 - **Needs a decision:** the tasks from step 3 whose parent isn't moving.
+- **Open issues with no board item:** each by number, title and URL, if
+  step 3 read the code host. Nothing in this plan changes them.
 - **Staying:** how many done and cancelled items stay in the old
   iteration.
 

@@ -10,6 +10,23 @@ entry says how.
 
 ### Added
 
+- **Open issues from a code host, for planning.** A third, optional MCP
+  server, `issues` (`python -m issues serve --config <toml>`), has one
+  read tool. `find_open_issues(limit)` lists a repository's open issues,
+  most recently updated first, each with its number, title, URL, labels,
+  last-updated day and `item_keys`: the board keys its text names, found
+  by the config's `key_pattern`. Pull requests are left out and nothing
+  is written. GitHub is the first source, over its REST API with the
+  standard library; the config
+  ([examples/issues/github.example.toml](examples/issues/github.example.toml))
+  names the repository and the variable holding a token that can read its
+  issues. The plugin starts the server from `AGENTIC_ADMIN_ISSUES` and
+  serves no tools without it; the Hermes example has the block.
+- **`plan-sprint` shows open issues with no board item.** Where the host
+  has `find_open_issues`, the skill sorts each open issue into on the
+  board (a key it names), linked (an item whose links hold its URL) or
+  no board item found, and lists the last group in the plan. It changes
+  none of them, and its text names no code host.
 - **Links on a work item, on Plane.** `update_item` takes `links`, a
   list of URLs (an issue or a pull request, say). It adds each one the
   item does not carry yet and never removes one, so sending the same

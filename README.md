@@ -363,6 +363,8 @@ it.
   closes the old iteration, finds or creates the next (starting a Jira
   sprint on its first day), and moves the work. Tasks move with their
   story or bug.
+  Where the host has the open-issues server, the plan also lists the
+  open issues on the team's code host that no board item covers.
 - **`plan-cycle`** plans a whole cycle on a board whose templates set a
   cadence, such as a content calendar: the cycle's epic and one item per
   dated slot. The PM edits the list, then sees the exact write-up of
@@ -483,6 +485,33 @@ so a team without docs sets nothing:
 uv run python -m knowledge serve --config boards/<name>.toml   # stdio
 ```
 
+## Open issues from a code host (optional)
+
+A team that tracks code issues beside its board can let the planner see
+them. A third server, `issues`, has one read tool:
+`find_open_issues(limit)` lists a repository's open issues, most recently
+updated first, each with its number, title, URL, labels, the day it was
+last updated and `item_keys`, the board keys its text names. Pull
+requests are left out, closed issues are never read, and the server
+writes nothing.
+
+Copy [examples/issues/github.example.toml](examples/issues/github.example.toml)
+to `boards/<name>.toml`. It names the repository, the environment
+variable that holds a token, and a pattern that finds a board key in an
+issue's text (a footer line such as `Board: AA-12`). The token needs
+read access to that repository's issues and nothing else. GitHub is the
+one code host wired so far; another is one class with one method
+([issues/source.py](issues/source.py)).
+
+`plan-sprint` uses the tool when the host has it: it shows the PM the
+open issues that no board item covers, and changes none of them. The
+plugin starts this server with the config in `AGENTIC_ADMIN_ISSUES`;
+with none, it serves no tools:
+
+```sh
+uv run python -m issues serve --config boards/<name>.toml   # stdio
+```
+
 ## Proving an adapter
 
 The conformance suite proves an adapter against a **throwaway** project
@@ -536,12 +565,17 @@ Each claim above has a dated record in the repo:
   one Jira item and filed another, each after a yes. The author played the
   admin, so a stranger's run is still to come
   ([record](transcripts/2026-10-26-setup-self-test.md)).
+- **Open issues in a rollover plan:** with the `issues` server on a
+  private repository, `plan-sprint` listed the one hand-filed issue that
+  no board item covered, and wrote nothing after a no
+  ([record](transcripts/2026-11-15-open-issues-gate.md)).
 - **The APIs themselves:** dated read-only probes of each tracker
   ([probes/](probes/README.md)).
 
 Not yet run live: the `parent` and `label` level forms; Jira below
 Premium; a team's own Jira board, since every Jira run used a throwaway
-project; the setup by someone other than the author.
+project; the setup by someone other than the author; an open issue
+that names a board key or is tied to its item only by a link.
 
 ## Development
 
@@ -564,15 +598,16 @@ is the contract for coding agents working on the repo.
 
 ```
 agentic_administration/
-├── .claude-plugin/    # plugin.json: the skills and both MCP servers as a Claude Code plugin
+├── .claude-plugin/    # plugin.json: the skills and the three MCP servers as a Claude Code plugin
 ├── .github/workflows/ # test.yml: the offline tests on every push and pull request
 ├── server/            # the board MCP server, the canonical model, the board config, secrets
 ├── adapters/          # base.py (the interface and errors), plane/, jira/, README.md (writing one)
 ├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, draft-caption, groom
 ├── schema/            # the intake record and its Markdown rendering
 ├── knowledge/         # the Markdown → Confluence publisher and the docs MCP server
+├── issues/            # the open-issues MCP server: one read tool over a code host
 ├── conformance/       # the live adapter and publisher suites, with dated results
-├── examples/          # board configs, the Hermes wiring, the Agent SDK chat, the publisher config and CI job
+├── examples/          # board configs, the Hermes wiring, the Agent SDK chat, the publisher config and CI job, the open-issues config
 ├── probes/            # dated read-only API checks
 ├── transcripts/       # dated summaries of live sessions
 ├── tests/             # offline tests

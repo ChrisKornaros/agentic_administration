@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from mcp import Client
 
+from issues.mcp_app import build as build_issues
 from knowledge.mcp_app import build as build_docs
 from server.mcp_app import build
 from server.service import Boards
@@ -47,11 +48,13 @@ def test_the_readme_names_the_release():
 
 
 @pytest.mark.anyio
-async def test_both_servers_report_the_version_to_a_host():
+async def test_every_server_reports_the_version_to_a_host():
     svc, _, _ = service()
     async with Client(build(Boards([svc])), mode="legacy") as client:
         assert client.server_info.version == VERSION
     async with Client(build_docs(None), mode="legacy") as client:
+        assert client.server_info.version == VERSION
+    async with Client(build_issues(None), mode="legacy") as client:
         assert client.server_info.version == VERSION
 
 

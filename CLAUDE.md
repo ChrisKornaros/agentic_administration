@@ -104,6 +104,7 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   its file stem, and every tool takes `board` (optional with one). With several, `describe_board()` lists them
   from the configs, any other call without one refuses, and a token never commits on another board. The
   skills ask which board unless the request names it (Chris, 2026-10-09).
+  Open issues are a third server, one read tool behind `IssueSource`: [issues/](issues/) (AOR roadmap/20 D9–D13).
   The docs are a second server (D27), never board tools: [knowledge/mcp_app.py](knowledge/mcp_app.py)
   registers `search_docs` / `get_doc` over [knowledge/docs.py](knowledge/docs.py), same pattern.
 - **Releases:** one PR bumps `pyproject.toml` and `.claude-plugin/plugin.json`, re-runs `uv lock`, and adds

@@ -55,6 +55,22 @@ mcp_servers:
       include: [search_docs, get_doc]
       prompts: false
       resources: false
+  # Only where the planning skills should see the open issues on the team's
+  # code host: find_open_issues over the repository that config names.
+  # Otherwise leave this block, and `issues` in platform_toolsets below, out.
+  issues:
+    command: uv
+    args: [run, --frozen, --no-dev, --directory, /path/to/agentic_administration,
+           python, -m, issues, serve, --config, boards/<issues>.toml]
+    env:
+      ISSUES_TOKEN: ${ISSUES_TOKEN}
+      UV_PROJECT_ENVIRONMENT: /opt/data/profiles/po/mcp/venv
+      UV_CACHE_DIR: /opt/data/profiles/po/mcp/uv-cache
+    connect_timeout: 120
+    tools:
+      include: [find_open_issues]
+      prompts: false
+      resources: false
 
 skills:
   external_dirs:
@@ -69,8 +85,8 @@ skills:
 # files, web or delegation. Naming the servers here also keeps them off
 # other platforms' default MCP set.
 platform_toolsets:
-  cli: [clarify, skills, board, knowledge]
-  discord: [clarify, skills, board, knowledge]
+  cli: [clarify, skills, board, knowledge, issues]
+  discord: [clarify, skills, board, knowledge, issues]
 
 agent:
   disabled_toolsets: [terminal, file, code_execution]
