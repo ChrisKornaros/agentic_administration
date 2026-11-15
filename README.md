@@ -565,13 +565,17 @@ Each claim above has a dated record in the repo:
   one Jira item and filed another, each after a yes. The author played the
   admin, so a stranger's run is still to come
   ([record](transcripts/2026-10-26-setup-self-test.md)).
+- **Open issues in a rollover plan:** with the `issues` server on a
+  private repository, `plan-sprint` listed the one hand-filed issue that
+  no board item covered, and wrote nothing after a no
+  ([record](transcripts/2026-11-15-open-issues-gate.md)).
 - **The APIs themselves:** dated read-only probes of each tracker
   ([probes/](probes/README.md)).
 
 Not yet run live: the `parent` and `label` level forms; Jira below
 Premium; a team's own Jira board, since every Jira run used a throwaway
-project; the setup by someone other than the author; the open-issues
-server against a real repository.
+project; the setup by someone other than the author; an open issue
+that names a board key or is tied to its item only by a link.
 
 ## Development
 
