@@ -68,6 +68,8 @@ max_hashtags = 5         # the most distinct hashtags in the whole description, 
                          # template's skeleton adds; a board whose posts also go to a channel that allows three should say 3
 max_length = 2200        # optional: the most characters
 link_prefix = "https://example.com/recipes/"   # optional: the only kind of link a caption may carry, at most once, as a bare URL
+notes_separator = "------"   # optional: three or more dashes on a line of their own end the caption; below the line go
+                             # production notes, which the importing tool reads apart from the caption and never publishes
 
 # Templates (D41, D42): propose_item(template="<name>", …) fills an item
 # from one, and the request adds the date and the specifics. A template

@@ -215,11 +215,13 @@ def test_describe_board_reports_the_confirm_mode_and_naming():
 
 
 def test_describe_board_returns_the_caption_rules_or_null():
-    rules = {"max_hashtags": 5, "max_length": 2200, "link_prefix": "https://example.com/recipes/"}
+    rules = {"max_hashtags": 5, "max_length": 2200, "link_prefix": "https://example.com/recipes/",
+             "notes_separator": "------"}
     svc, _, _ = service(config={**CALENDAR, "caption": rules})
     assert svc.describe_board()["caption"] == rules
     svc, _, _ = service(config={**CALENDAR, "caption": {"max_hashtags": 3}})
-    assert svc.describe_board()["caption"] == {"max_hashtags": 3, "max_length": None, "link_prefix": None}
+    assert svc.describe_board()["caption"] == {"max_hashtags": 3, "max_length": None, "link_prefix": None,
+                                               "notes_separator": None}  # no notes part on this board
     svc, _, _ = service(config=CALENDAR)
     assert svc.describe_board()["caption"] is None  # the board states no caption rules
 

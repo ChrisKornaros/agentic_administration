@@ -1,6 +1,6 @@
 ---
 name: draft-caption
-description: Drafts the description of a calendar item when that description is the finished text of a post, which another tool imports and publishes as written. It reads the board's caption rules (the most hashtags, the most characters, the one kind of link), drafts the caption, checks the whole description as it will land, and shows it with the counts. After one yes it writes the description to an existing item and reads it back, or hands the text to plan-cycle for a slot. Use when someone asks for a caption or the post text for an item on a board that states caption rules.
+description: Drafts the description of a calendar item when that description is the finished text of a post, which another tool imports and publishes as written. It reads the board's caption rules (the most hashtags, the most characters, the one kind of link), drafts the caption, keeps or drafts the production notes below the board's separator line when the board has one (the part the tool never publishes), checks the whole description as it will land, and shows it with the counts. After one yes it writes the description to an existing item and reads it back, or hands the text to plan-cycle for a slot. Use when someone asks for a caption or the post text for an item on a board that states caption rules.
 ---
 
 # Draft a caption
@@ -35,15 +35,35 @@ Note `caption` and `templates`. `caption` holds the board's rules:
 - `max_length`: the most characters, or null for no limit.
 - `link_prefix`: the only kind of link the description may carry, or null
   when it may carry none.
+- `notes_separator`: the line that ends the caption, or null when
+  descriptions here have no notes part.
 
 If `caption` is null, the board states no caption rules. Say so and stop.
 Don't make up limits, and don't borrow another board's.
+
+**The notes part.** When `notes_separator` is set, a description here is
+the caption, then one line that is exactly the separator, then the notes:
+production notes for whoever produces the piece. The importing tool reads
+the part above the line as the caption and the part below as the notes,
+and never publishes the notes. So the rules above apply to the part above
+the line only. The notes are plain text, and a `#` or a URL in them
+counts for nothing. Neither part may hold a line made only of three or
+more dashes, since the tool would split there.
+
+When `notes_separator` is null and the request asks for notes, say that
+descriptions on this board have no notes part, and stop. Don't make one
+up.
 
 ## 2. Find what the caption is for
 
 - **An item already on the board.** Read it with `get_item(ref="<key>")`
   and keep its title, dates and current description. If the request names
-  no item, ask which one. Don't pick one from a search.
+  no item, ask which one. Don't pick one from a search. On a board with a
+  notes part, split the current description at the first line made only
+  of three or more dashes: above it is the current caption, below it the
+  current notes. A read may show that line as `---`, whatever was
+  written. With no such line, it is all caption, and there are no notes
+  yet.
 - **A slot the plan-cycle skill is drafting.** There is no item yet. Take
   the slot's template from `templates`: its `description` is a skeleton,
   and the caption goes where it says `{description}`. You write nothing
@@ -70,6 +90,13 @@ Shape it the way it will be read as plain text:
 - **The hashtags go at the end, on a line of their own,** never inside a
   sentence.
 
+**The notes,** on a board with a notes part, are drafted only when the
+request asks for them or gives them. Write them as plain text, from what
+the request says, and don't invent facts for them either. When the
+request is for the caption alone and the item already has notes, keep the
+notes exactly as you read them. When it changes only the notes, keep the
+caption exactly as you read it.
+
 ## 4. Check the whole description as it will land
 
 Check what the item's description will be once written, not the caption
@@ -82,6 +109,15 @@ alone:
 - For a slot, put your text into the template's skeleton where it says
   `{description}`. Whatever the skeleton adds around it counts, such as
   hashtags of its own.
+- On a board with a notes part, the whole text is the caption, a blank
+  line, the separator line, a blank line, then the notes. With no notes,
+  it is the caption alone, with no line. Rules 1 to 4 below apply to the
+  part above the line only, and rule 5 to both parts. For a slot,
+  anything the skeleton adds after `{description}` would land below the
+  line, among the notes, and leave the caption. So when the request gives
+  a slot notes and its skeleton adds anything there, hand back the
+  caption alone and say so: the notes go on once plan-cycle has filed the
+  slot, through this skill on the new item.
 
 Then check each rule:
 
@@ -98,15 +134,19 @@ Then check each rule:
    or a number and a dot, and the text has no `](`.
 4. **Length.** The character count is within `max_length`, when the board
    sets one.
+5. **The line,** on a board with a notes part. The separator line comes
+   once, between the caption and the notes, and no other line in either
+   part is made only of three or more dashes.
 
 When the person's own text can't meet a rule without a choice that is
 theirs, say so plainly and ask. For example, six hashtags they all want
 on a board that allows five: name the six and ask which one goes.
 
 **An example,** on a recipe board whose rules are `max_hashtags` 5,
-`max_length` 2200 and `link_prefix` `https://example.com/recipes/`, for a
-slot whose template skeleton is `{description}`, a blank line, then
-`#recipes #homecooking`. The text handed back for the slot:
+`max_length` 2200, `link_prefix` `https://example.com/recipes/` and
+`notes_separator` `------`, for a slot whose template skeleton is
+`{description}`, a blank line, then `#recipes #homecooking`. The text
+handed back for the slot:
 
 ```text
 Weeknight ragu that tastes like Sunday. Brown the beef hard, add the tomatoes, and let it go low for forty minutes while the pasta water comes up.
@@ -119,7 +159,33 @@ https://example.com/recipes/weeknight-ragu
 
 The description lands with the skeleton's line after it, so it carries
 five distinct hashtags: three from the caption and two from the template.
-A fourth tag in the caption would make six, one over the limit.
+A fourth tag in the caption would make six, one over the limit. The
+skeleton adds that line after `{description}`, so notes for this post
+can't ride the slot.
+
+**The same post with notes,** once plan-cycle has filed the slot: the
+request gives the item production notes and leaves the caption alone.
+The caption is kept exactly as read, the template's tags included, and
+the whole description sent is:
+
+```text
+Weeknight ragu that tastes like Sunday. Brown the beef hard, add the tomatoes, and let it go low for forty minutes while the pasta water comes up.
+
+The full recipe, with the timings:
+https://example.com/recipes/weeknight-ragu
+
+#ragu #pasta #weeknightdinner
+
+#recipes #homecooking
+
+------
+
+Open on the finished plate. One step per shot: brown the beef, add the tomatoes, the simmer, the pasta water. End on the first forkful.
+```
+
+The counts are the caption's, and they haven't changed: five distinct
+hashtags and one link. The notes add none, and a `#` in them wouldn't
+either.
 
 ## 5. Show it and wait for one yes
 
@@ -129,6 +195,8 @@ Show:
   name and day.
 - The exact description as it will land, in a code block so nothing is
   reformatted.
+- On a board with a notes part, the caption and the notes, and which of
+  them is kept exactly as read. The counts below are the caption's alone.
 - The hashtag count against `max_hashtags`, with the tags listed.
 - The link, or that there is none.
 - The length against `max_length`.
@@ -148,11 +216,16 @@ to filing items, not to this: always wait.
 
 1. Call `update_item(ref="<key>", description="<the whole description>")`.
    Send the description and nothing else: not the title, state, dates,
-   labels, parent, feature or fields.
+   labels, parent, feature or fields. When the item has notes or gets
+   them, send both parts, even when one is kept as read: the caption, a
+   blank line, the separator line, a blank line, then the notes.
 2. Read it back with `get_item(ref="<key>")` and run the checks in step 4
    again on the description the board returned. The board stores rich
    text, so compare what a reader of the text gets: the same paragraphs,
-   the same link on its own line, the same hashtags.
+   the same link on its own line, the same hashtags. On a board with a
+   notes part, split what came back at the first line made only of three
+   or more dashes, run the checks on the part above it, and compare the
+   notes below it with the ones you sent.
 3. If the read-back breaks a rule or lost something, say exactly what
    differs. Don't write again without asking.
 

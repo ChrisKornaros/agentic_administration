@@ -471,10 +471,18 @@ def test_a_caption_table_loads_and_a_board_without_one_still_loads():
     assert (cfg.caption.max_hashtags, cfg.caption.max_length, cfg.caption.link_prefix) == (
         3, 500, "https://example.com/posts/")
     only = BoardConfig.from_dict(variant(caption={"max_hashtags": 5})).check().caption
-    assert (only.max_hashtags, only.max_length, only.link_prefix) == (5, None, None)
+    assert (only.max_hashtags, only.max_length, only.link_prefix, only.notes_separator) == (5, None, None, None)
     assert BoardConfig.from_dict(PLANE).check().caption is None
     assert to_jsonable(cfg)["caption"] == {"max_hashtags": 3, "max_length": 500,
-                                           "link_prefix": "https://example.com/posts/"}
+                                           "link_prefix": "https://example.com/posts/", "notes_separator": None}
+
+
+@pytest.mark.parametrize("separator", ["---", "------", "-" * 20])
+def test_a_caption_table_takes_a_notes_separator(separator):
+    rules = BoardConfig.from_dict(variant(caption={"max_hashtags": 5, "notes_separator": separator})).check().caption
+    assert rules.notes_separator == separator
+    assert BoardConfig.from_dict(variant(caption={"max_hashtags": 5, "notes_separator": None})).check() \
+        .caption.notes_separator is None  # null, as from a non-TOML source, is the key left out
 
 
 @pytest.mark.parametrize(
@@ -492,6 +500,9 @@ def test_a_caption_table_loads_and_a_board_without_one_still_loads():
          "caption.link_prefix must be a URL prefix that starts with https://"),
         ({"max_hashtags": 5, "link_prefix": "https://"},
          "caption.link_prefix must be a URL prefix that starts with https://"),
+        *[({"max_hashtags": 5, "notes_separator": bad},
+           'caption.notes_separator must be three or more dashes and nothing else, such as "------"')
+          for bad in ("--", "-- -", "abc", " ---", "---\n", "***", "", 3, True, ["---"])],
     ],
 )
 def test_a_caption_table_reports_each_shape_error(table, problem):
@@ -507,5 +518,6 @@ def test_caption_problems_are_listed_with_every_other_problem():
 
 def test_the_calendar_example_states_its_caption_rules():
     rules = load(CALENDAR_EXAMPLE).caption
-    assert (rules.max_hashtags, rules.max_length, rules.link_prefix) == (5, 2200, "https://example.com/recipes/")
+    assert (rules.max_hashtags, rules.max_length, rules.link_prefix, rules.notes_separator) == (
+        5, 2200, "https://example.com/recipes/", "------")
     assert load(EXAMPLE).caption is None  # a software board's example states none

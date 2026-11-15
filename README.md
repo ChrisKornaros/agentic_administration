@@ -203,6 +203,11 @@ states what that text must meet:
 - `max_length` (optional): the most characters.
 - `link_prefix` (optional): the only kind of link it may carry, at most
   once, as a bare URL. It must start with `https://`.
+- `notes_separator` (optional): a line of three or more dashes, such as
+  `"------"`, that ends the caption. Below it, the description holds
+  production notes, which the importing tool reads apart from the caption
+  and never publishes. The rules above apply to the caption alone.
+  Without it, a description has no notes part.
 
 `describe_board` returns the table as `caption`, or `null` when the board
 has none. The server does not enforce these rules: `propose_item` and
@@ -377,7 +382,9 @@ it.
   (hashtags, the one link, plain paragraphs, length) and shows it with
   the counts. After one yes, it writes the description to an existing
   item and reads it back, or hands the text to `plan-cycle` for a slot.
-  It changes nothing else on the item.
+  It changes nothing else on the item. On a board with a
+  `notes_separator`, it keeps the production notes below the line, or
+  writes them when asked, and checks the caption above it alone.
 - **`groom`** is the product owner's pass over what carries the review
   label. Where the host has the docs, it first reads the team's review
   rules there, such as a definition of ready. It proposes fixes to each
