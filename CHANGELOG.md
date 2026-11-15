@@ -35,8 +35,31 @@ entry says how.
   On Jira `links` is refused with a clear message, since its remote
   links are not wired yet. Not in `propose_item`: a new item gets its
   links by an `update_item` after the commit.
+- **Production notes below a caption.** A board's `[caption]` table
+  takes an optional `notes_separator`, a line of three or more dashes
+  (`"------"`). Below it, an item's description holds production notes,
+  which the tool that imports the caption reads apart and never
+  publishes. `describe_board` reports it, `null` when it is left out, and
+  a value that is not dashes alone is a config problem. The
+  `draft-caption` skill checks the caption above the line alone, keeps
+  the notes as read when only the caption changes (and the caption when
+  only the notes change), drafts notes only when asked, and writes both
+  parts in its one `update_item`. `plan-cycle` lets a slot's notes ride
+  its description, except where the template's skeleton adds text after
+  `{description}`, which would land among the notes: that slot gets the
+  caption alone and the notes go on the filed item. The server still
+  enforces none of it.
 
 ### Fixed
+
+- **Plane: a horizontal rule reads back as a line.** A description read
+  through the adapter lost a rule, so the text on each side of it ran
+  together, and an `update_item` built from that read would write it back
+  merged. A read now returns a `<hr>`, and the node Plane's editor stores
+  for a rule typed in its UI, as a `---` line between blank lines. Writes
+  are unchanged: a line of dashes is still written as text. The editor's
+  stored form is taken from Plane's open-source editor, not yet read back
+  from a live board.
 
 - **Plane: a description read back keeps the blank line between
   paragraphs.** `get_item` and `find_items` returned a single line break

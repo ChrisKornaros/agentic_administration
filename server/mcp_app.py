@@ -67,7 +67,9 @@ def build(boards: Boards) -> MCPServer:
         feature, labels, field values, state, and the weekdays `days` it fills
         with the date `dates` says). `caption` holds the rules a description
         must meet when it is a caption (`max_hashtags`, `max_length`,
-        `link_prefix`), or null when the board states none; the server does
+        `link_prefix`, and `notes_separator`, the line below which the
+        description holds production notes, or null when it holds none),
+        or null when the board states none; the server does
         not enforce them. `problems` lists every mismatch, and every
         write refuses until it is empty. Call it first, and again after the
         board changes.

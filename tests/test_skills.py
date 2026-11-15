@@ -7,8 +7,9 @@ arguments they pass, which must be the tools' own, plan-sprint's order (reads
 and one yes, then close, create, move), plan-cycle's (reads and checks and
 one yes, then the cycle, the epic, its slots and a read-back) and groom's
 (reads and one yes, then a fresh read before each update), and draft-caption's
-(reads and one yes, then one update and a read-back; its worked example must
-meet the calendar example's own caption rules)."""
+(reads and one yes, then one update and a read-back; its worked examples must
+meet the calendar example's own caption rules, and the second keeps the filed
+caption above the notes separator)."""
 
 import json
 import re
@@ -63,6 +64,7 @@ TEXT_BLOCK = re.compile(r"```text\n(.*?)```", re.S)  # draft-caption's worked ex
 HASHTAG = re.compile(r"#(\w+)", re.ASCII)  # `#` then letters, digits or underscores, anywhere
 URL = re.compile(r"https?://\S+")
 MARKDOWN_BLOCK = re.compile(r"^(?:# |- |\* |> |\d+\.)", re.M)  # a heading, a list item, a quote
+DASH_LINE = re.compile(r"^-{3,}$", re.M)  # where the importing tool splits a caption from its notes
 
 
 def read(name: str) -> tuple[dict[str, str], str]:
@@ -273,7 +275,7 @@ def test_draft_caption_example_meets_the_calendar_examples_rules():
     _, body = read("draft-caption")
     cfg = load(ROOT / "examples" / "boards" / "calendar.example.toml")
     rules, post = cfg.caption, cfg.templates["post"]
-    [example] = TEXT_BLOCK.findall(body)
+    example, _ = TEXT_BLOCK.findall(body)
     landed = post.description_with(example)  # the template's skeleton adds hashtags of its own, and they count
     assert landed != example.strip() and example.strip() in landed
     tags = {tag.lower() for tag in HASHTAG.findall(landed)}
@@ -283,8 +285,23 @@ def test_draft_caption_example_meets_the_calendar_examples_rules():
     assert "](" not in landed and not MARKDOWN_BLOCK.search(landed)
     assert len(landed) <= rules.max_length
     assert landed.splitlines()[-1].split() == [w for w in landed.splitlines()[-1].split() if w.startswith("#")]
-    assert all(f"`{key}`" in body for key in ("max_hashtags", "max_length", "link_prefix"))
+    assert all(f"`{key}`" in body for key in ("max_hashtags", "max_length", "link_prefix", "notes_separator"))
+
+
+def test_draft_caption_notes_example_keeps_the_filed_caption_above_the_line():
+    _, body = read("draft-caption")
+    cfg = load(ROOT / "examples" / "boards" / "calendar.example.toml")
+    rules, post = cfg.caption, cfg.templates["post"]
+    example, with_notes = TEXT_BLOCK.findall(body)
+    # the whole description sent: the caption, a blank line, the separator, a blank line, the notes
+    caption, sep, notes = with_notes.strip().partition(f"\n\n{rules.notes_separator}\n\n")
+    assert sep and notes and caption == post.description_with(example)  # the filed caption, kept exactly as read
+    assert not DASH_LINE.search(caption) and not DASH_LINE.search(notes)  # the one line the importer splits at
+    assert f"`{rules.notes_separator}`" in body and "`---`" in body  # a read may show the line as ---
+    # no separator, no notes: it never makes up a notes part
+    assert "When `notes_separator` is null and the request asks for notes" in " ".join(body.split())
 
 
 def test_plan_cycle_points_a_slots_caption_at_draft_caption():
     assert "draft-caption" in read("plan-cycle")[1]
+    assert "`notes_separator`" in read("plan-cycle")[1]  # the notes ride the slot's description

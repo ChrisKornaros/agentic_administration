@@ -24,6 +24,11 @@ _INLINE = re.compile(
     r"|(?P<em>\*(?P<etext>[^*]+)\*|(?<!\w)_(?P<etext2>[^_]+)_(?!\w))"
 )  # underscores only at word boundaries, so snake_case_names stay literal
 _SAFE_HREF = re.compile(r"^(https?://|mailto:|/|#)", re.IGNORECASE)
+_HR = re.compile(r"<hr\b[^>]*>", re.IGNORECASE)
+# Plane's editor stores a rule typed in its UI as
+# <div class="…" data-type="horizontalRule"><div></div></div>.
+_RULE_NODE = re.compile(r"""<([a-z][a-z0-9]*)\b[^>]*\bdata-type\s*=\s*["']?horizontalRule\b[^>]*>""", re.IGNORECASE)
+_RULE_LINE = "\n\n---\n\n"
 
 
 def render_inline(text: str) -> str:
@@ -170,13 +175,36 @@ def render(markdown: str) -> str:
     return "".join(blocks)
 
 
+def _rules(html_text: str) -> str:
+    """Each horizontal rule, an `<hr>` or the editor's node with whatever it
+    holds, as a `---` line between blank lines."""
+    text = _HR.sub(_RULE_LINE, html_text)
+    out: list[str] = []
+    pos = 0
+    while node := _RULE_NODE.search(text, pos):
+        out.append(text[pos : node.start()])
+        same_tag = re.compile(rf"<(/?){node.group(1)}\b[^>]*>", re.IGNORECASE)
+        end, depth = node.end(), 1  # an unclosed node drops its opening tag alone
+        for tag in same_tag.finditer(text, node.end()):
+            depth += -1 if tag.group(1) else 1
+            if not depth:
+                end = tag.end()
+                break
+        out.append(_RULE_LINE)
+        pos = end
+    out.append(text[pos:])
+    return "".join(out)
+
+
 def to_text(html_text: str) -> str:
     """The reverse, lossy: strip Plane HTML to readable plain text for reads
     (descriptions come back as `description_html`; a faithful HTML→Markdown
     is a follow-up). A paragraph, heading, quote or code block ends with a
     blank line, as `render` reads one; a `<br>`, list item or table row ends
-    with a newline. Entities are decoded."""
-    text = re.sub(r"<br\s*/?>", "\n", html_text, flags=re.IGNORECASE)
+    with a newline. A horizontal rule is a `---` line of its own, between
+    blank lines, so text split at it reads back split. Entities are
+    decoded."""
+    text = re.sub(r"<br\s*/?>", "\n", _rules(html_text), flags=re.IGNORECASE)
     # Plane's editor wraps a list item's or a cell's text in a <p>: that one
     # ends with its item, not with a blank line.
     text = re.sub(r"</p>\s*(?=</(li|td|th)>)", "", text, flags=re.IGNORECASE)

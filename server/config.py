@@ -24,9 +24,11 @@ the server's board list tells the boards apart.
 
 An optional `[caption]` table states the rules an item's description must
 meet when it is a caption that another tool publishes as written: the most
-hashtags, the most characters, and the one kind of link. The server only
-reports it (`describe_board`); the draft-caption skill checks a draft
-against it.
+hashtags, the most characters, and the one kind of link. Its
+`notes_separator` is the line that ends the caption: below it, the
+description holds production notes, which that tool reads apart from the
+caption and never publishes. The server only reports it
+(`describe_board`); the draft-caption skill checks a draft against it.
 
 **No secrets in the file.** The connection names the environment variable
 that holds the API token (`token_env`); the adapter reads it at the boundary
@@ -240,12 +242,16 @@ class Caption:
     tool imports and publishes as written. `max_hashtags` is the most
     distinct hashtags the whole description may carry, `max_length` the
     most characters, and `link_prefix` the only kind of URL it may carry.
-    The server reports them through `describe_board` and enforces none;
-    the draft-caption skill does the checking."""
+    `notes_separator`, when set, is the line that ends the caption: the
+    rules apply above it, and below it are production notes that the
+    importing tool never publishes. The server reports them through
+    `describe_board` and enforces none; the draft-caption skill does the
+    checking."""
 
     max_hashtags: int
     max_length: int | None = None
     link_prefix: str | None = None
+    notes_separator: str | None = None  # three or more `-`; None = descriptions here have no notes part
 
 
 # --- the config ------------------------------------------------------------
@@ -680,7 +686,7 @@ def _templates(raw: Any, problems: list[str]) -> dict[str, Template]:
 
 def _caption(raw: Any, problems: list[str]) -> Caption | None:
     table = _table(raw, "caption", problems)
-    unknown = sorted(set(table) - {"max_hashtags", "max_length", "link_prefix"})
+    unknown = sorted(set(table) - {"max_hashtags", "max_length", "link_prefix", "notes_separator"})
     if unknown:
         problems.append(f"caption: unknown keys {', '.join(unknown)}")
 
@@ -701,9 +707,15 @@ def _caption(raw: Any, problems: list[str]) -> Caption | None:
                                         and len(link_prefix) > len("https://") and " " not in link_prefix):
         problems.append("caption.link_prefix must be a URL prefix that starts with https://")
         link_prefix = None
+    notes_separator = table.get("notes_separator")
+    if notes_separator is not None and not (isinstance(notes_separator, str)
+                                            and re.fullmatch(r"-{3,}", notes_separator)):
+        problems.append('caption.notes_separator must be three or more dashes and nothing else, such as "------"')
+        notes_separator = None
     if max_hashtags is None:
         return None
-    return Caption(max_hashtags=max_hashtags, max_length=max_length, link_prefix=link_prefix)
+    return Caption(max_hashtags=max_hashtags, max_length=max_length, link_prefix=link_prefix,
+                   notes_separator=notes_separator)
 
 
 def _slots(text: str) -> set[str]:
