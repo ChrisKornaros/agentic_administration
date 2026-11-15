@@ -17,11 +17,13 @@ import pytest
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
+from issues.config import load as load_issues
 from knowledge.config import load
 from server.config import load as load_board
 from server.mcp_app import build
 from server.service import Boards
 from tests.test_docs import DOC_TOOLS
+from tests.test_issues import ISSUE_TOOLS
 from tests.test_mcp_app import TOOLS
 from tests.test_service import service
 
@@ -30,6 +32,7 @@ HERMES = ROOT / "examples" / "hermes"
 SDK_CHAT = ROOT / "examples" / "agent-sdk" / "chat.py"
 PLUGIN = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
 KNOWLEDGE_EXAMPLE = ROOT / "examples" / "knowledge" / "confluence.example.toml"
+ISSUES_EXAMPLE = ROOT / "examples" / "issues" / "github.example.toml"
 
 
 def hermes_servers() -> dict[str, str]:
@@ -68,9 +71,10 @@ def anyio_backend():
     return "asyncio"
 
 
-def test_the_plugin_starts_both_servers_and_the_knowledge_one_is_optional():
+def test_the_plugin_starts_three_servers_and_only_the_board_one_is_required():
     servers = PLUGIN["mcpServers"]
-    assert set(servers) == {"board", "knowledge"}
+    assert set(servers) == {"board", "knowledge", "issues"}
+    assert servers["issues"]["args"][-5:] == ["-m", "issues", "serve", "--config", "${AGENTIC_ADMIN_ISSUES:-}"]
     assert servers["board"]["args"][-3:] == ["-m", "server", "${AGENTIC_ADMIN_BOARD}"]
     # an unset variable fails a plugin server in Claude Code; `:-` makes it empty, which serves no tools
     assert servers["knowledge"]["args"][-5:] == ["-m", "knowledge", "serve", "--config", "${AGENTIC_ADMIN_KNOWLEDGE:-}"]
@@ -86,9 +90,23 @@ async def test_the_plugins_knowledge_command_serves_the_docs_tools_or_none(docs)
     assert names == (DOC_TOOLS if docs else set())
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("config", [str(ISSUES_EXAMPLE), ""])
+async def test_the_plugins_issues_command_serves_the_one_tool_or_none(config):
+    args = PLUGIN["mcpServers"]["issues"]["args"]
+    args = [config if a == "${AGENTIC_ADMIN_ISSUES:-}" else a for a in args[args.index("python") + 1:]]
+    async with Client(StdioServerParameters(command=sys.executable, args=args, cwd=str(ROOT))) as client:
+        names = {tool.name for tool in (await client.list_tools()).tools}
+    assert names == (ISSUE_TOOLS if config else set())
+
+
 def test_hermes_includes_exactly_each_servers_tools():
     servers = hermes_servers()
-    assert set(servers) == {"board", "knowledge"}
+    assert set(servers) == {"board", "knowledge", "issues"}
+    assert include(servers["issues"]) == ISSUE_TOOLS
+    assert "python, -m, issues, serve, --config," in servers["issues"]
+    token_env = load_issues(ISSUES_EXAMPLE).token_env
+    assert f"{token_env}: ${{{token_env}}}" in servers["issues"]
     assert include(servers["board"]) == TOOLS
     assert include(servers["knowledge"]) == DOC_TOOLS
     assert "python, -m, knowledge, serve, --config," in servers["knowledge"]
@@ -109,11 +127,11 @@ def test_hermes_serves_every_board_in_a_directory_with_each_backends_secrets():
             assert f"{env}: ${{{env}}}" in board, f"{example.name} needs {env}"
 
 
-def test_hermes_platforms_reach_both_servers_and_nothing_else():
+def test_hermes_platforms_reach_the_three_servers_and_nothing_else():
     text = (HERMES / "config.fragment.yaml").read_text()
     platforms = re.findall(r"^  (\w+): \[([^\]]*)\]", re.search(r"^platform_toolsets:\n((?:  .*\n)+)", text, re.M)
                            .group(1), re.M)
-    assert platforms and all(sets.split(", ") == ["clarify", "skills", "board", "knowledge"] for _, sets in platforms)
+    assert platforms and all(sets.split(", ") == ["clarify", "skills", "board", "knowledge", "issues"] for _, sets in platforms)
 
 
 def test_hermes_soul_is_the_readme_framing_line():

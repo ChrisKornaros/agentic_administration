@@ -1,0 +1,22 @@
+# Open-issues config: which repository's open issues the planning skills may
+# read. Copy to boards/<name>.toml (gitignored; the board server skips a TOML
+# with no backend), then
+#   uv run python -m issues serve --config boards/<name>.toml
+# Keep secrets OUT of this file: `token_env` names the env var holding the
+# token, or names a Bitwarden item via `<env>_BW_ITEM` (see server/secrets.py).
+# The token needs read access to the repository's issues and nothing else: a
+# fine-grained personal access token with "Issues: Read-only" on that one
+# repository. This server only reads.
+
+[connection]
+token_env = "ISSUES_TOKEN"            # the env var name — never the value
+
+[source]
+kind       = "github"
+repository = "example-org/example-repo"
+
+[match]
+# One group, the board key. Tried on every line of an issue's body. Leave the
+# table out when issues never name a key; a planner then looks each one up by
+# its link.
+key_pattern = '^Board: (\S+)\s*$'

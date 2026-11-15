@@ -1,5 +1,6 @@
 """The product skills in skills/: the frontmatter every host reads, the tools
-they call (only the board server's eleven and the knowledge server's two),
+they call (only the board server's eleven, the knowledge server's two and
+the issues server's one),
 intake's retrieval all in its context step, the intake records they show the
 model, which must pass the schema so the examples teach a valid shape, the
 arguments they pass, which must be the tools' own, plan-sprint's order (reads
@@ -17,6 +18,7 @@ from pathlib import Path
 import pytest
 from mcp import Client
 
+from issues.mcp_app import build as build_issues
 from knowledge.mcp_app import build as build_docs
 from schema.intake import NAME, SIBLING, Intake
 from server import titlecase
@@ -24,7 +26,9 @@ from server.config import DESCRIPTION_SLOTS, WEEKDAYS, DateRule, ItemCase, load
 from server.mcp_app import build
 from server.model import Materialization
 from server.service import Boards
+from tests.fake_github import FakeGitHub
 from tests.test_docs import DOC_TOOLS, published
+from tests.test_issues import ISSUE_TOOLS, reader
 from tests.test_mcp_app import TOOLS
 from tests.test_service import service
 
@@ -32,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
 CREATE = {"create-story": {"story"}, "create-bug": {"bug"}, "create-epic": {"epic", "story"}}
 NAMES = ["intake", *CREATE, "plan-sprint", "plan-cycle", "groom", "draft-caption"]
-READS = {"describe_board", "find_items", "get_item", "get_iteration", *DOC_TOOLS}
+READS = {"describe_board", "find_items", "get_item", "get_iteration", *DOC_TOOLS, *ISSUE_TOOLS}
 ROLLOVER = ["close_iteration", "create_iteration", "move_to_iteration"]  # Jira: one active sprint
 CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")  # describe_board(), propose_item(intake=…)
 ARGS = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(([^()]*)\)")  # a call and its arguments
@@ -89,7 +93,8 @@ def test_frontmatter_is_the_portable_subset(name):
 def test_a_skill_calls_only_the_servers_tools(name):
     _, body = read(name)
     calls = set(CALL.findall(body))
-    assert calls and calls <= TOOLS | DOC_TOOLS, f"not server tools: {sorted(calls - TOOLS - DOC_TOOLS)}"
+    known = TOOLS | DOC_TOOLS | ISSUE_TOOLS
+    assert calls and calls <= known, f"not server tools: {sorted(calls - known)}"
 
 
 @pytest.fixture
@@ -102,7 +107,7 @@ async def test_a_skill_passes_only_arguments_its_tool_takes(tmp_path):
     svc, _, _ = service()
     docs, _ = published(tmp_path)
     params: dict[str, set[str]] = {}
-    for server in (build(Boards([svc])), build_docs(docs)):  # the schemas a host sees
+    for server in (build(Boards([svc])), build_docs(docs), build_issues(reader(FakeGitHub()))):  # the schemas a host sees
         async with Client(server) as client:
             params |= {t.name: set(t.input_schema.get("properties", {})) for t in (await client.list_tools()).tools}
     for name in NAMES:
@@ -160,6 +165,22 @@ def test_plan_sprint_plans_on_reads_then_writes_in_rollover_order():
     assert 'find_items(iteration="<next>"' in plan  # an existing next one is read, never assumed empty
     order = [rollover.index(f"{tool}(") for tool in ROLLOVER]
     assert order == sorted(order)
+
+
+def test_plan_sprint_reads_the_code_host_in_one_item_and_never_names_one():
+    _, body = read("plan-sprint")
+    before, sep, rest = body.partition("5. **Read the open issues on the team's code host,**")
+    item, _, after = rest.partition("\n## 4.")
+    assert sep and {"find_open_issues", "find_items", "get_item"} <= set(CALL.findall(item))
+    assert not ISSUE_TOOLS & set(CALL.findall(before + after))  # swap a provider in one place
+    assert "when you have the `find_open_issues` tool" in " ".join(item.split())  # a host without it skips the item
+    assert not re.search(r"github|gitlab|bitbucket", body, re.I)  # the skill is the same on any code host
+    assert "Open issues with no board item" in after  # the plan shows them
+
+
+@pytest.mark.parametrize("name", [n for n in NAMES if n != "plan-sprint"])
+def test_no_other_skill_reads_the_code_host(name):
+    assert not ISSUE_TOOLS & set(CALL.findall(read(name)[1]))
 
 
 def test_plan_cycle_checks_on_reads_then_files_the_epic_before_its_slots():
