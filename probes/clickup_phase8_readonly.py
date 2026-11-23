@@ -160,8 +160,9 @@ def plan_calls() -> list[str]:
         "GET /team/{ws}/task?page=0&list_ids[]={list}&subtasks=true&include_closed=true   (envelope; last_page)",
         "GET /team/{ws}/task?list_ids[]={a List a task was added to}                      (is that task there)",
         "GET /team/{ws}/task?tags[]={a tag}   and   tags[]={its first half}               (exact or not)",
-        "GET /list/{id}/task?custom_fields=[…]     ×4                                     (== exact, == other case, = whole, = part)",
+        "GET /list/{id}/task?custom_fields=[…]     ×5                                     (== exact, == other case, = whole, = part, = middle)",
         "GET /task/{id}?include_markdown_description=true&include_subtasks=true            (one task, whole)",
+        "GET /task/{id}?include_subtasks=true       (a task with subtasks: are they listed, and theirs)",
         "GET /task/{custom id}?custom_task_ids=true&team_id={ws}                          (when a task has one)",
         "GET /task/{id}/comment                      (a comment's shape)",
     ]
@@ -389,7 +390,8 @@ def probe(pr: Probe, workspace: str | None, spaces: list[str], max_lists: int) -
         # added to this List, is out of the filter's reach and every count is 0 whatever it matches.
         reach = [("subtasks", "true"), ("include_closed", "true"), ("include_timl", "true")]
         for label, op, v in (("exact", "==", value), ("other_case", "==", value.swapcase()),
-                             ("whole", "=", value), ("part", "=", value[: len(value) // 2])):
+                             ("whole", "=", value), ("part", "=", value[: len(value) // 2]),
+                             ("middle", "=", value[1:-1])):
             flt = json.dumps([{"field_id": fid, "operator": op, "value": v}])
             st, hit = pr.get(f"text field {label}", f"/list/{lid}/task", reach + [("custom_fields", flt)])
             a["text_field_filter"][label] = {"operator": op, "status": st, "count": len(rows(hit, "tasks"))}
@@ -403,6 +405,13 @@ def probe(pr: Probe, workspace: str | None, spaces: list[str], max_lists: int) -
                      "custom_item_id": kind(one.get("custom_item_id")), "parent": kind(one.get("parent")),
                      "top_level_parent": kind(one.get("top_level_parent")), "list_keys": keys(one.get("list")),
                      "locations": len(one.get("locations") or []), "subtasks": len(one.get("subtasks") or [])}
+    # The task above may have no subtasks, so read one that does: a parent with no parent of its own.
+    above = next((p for p in parent_of.values() if p in tasks and not parent_of[p]), None)
+    if above:
+        st, top = pr.get("a task with subtasks", f"/task/{above}", [("include_subtasks", "true")])
+        subs = [s for s in (top.get("subtasks") if isinstance(top, dict) else None) or [] if isinstance(s, dict)]
+        a["task_with_subtasks"] = {"status": st, "subtasks": len(subs), "subtask_keys": keys(subs[0]) if subs else [],
+                                   "holds_a_subtasks_subtask": any(str(s.get("parent")) != above for s in subs)}
     if custom_ids:
         cid = urllib.parse.quote(str(custom_ids[0]["custom_id"]), safe="")
         st, by_key = pr.get("task by custom id", f"/task/{cid}", [("custom_task_ids", "true"), ("team_id", ws)])
@@ -410,8 +419,12 @@ def probe(pr: Probe, workspace: str | None, spaces: list[str], max_lists: int) -
     st, cm = pr.get("comments", f"/task/{pick}/comment")
     comments = rows(cm, "comments")
     segments = [s for c in comments for s in c.get("comment") or [] if isinstance(s, dict)]
+    seg_keys: dict[str, set[str]] = {}  # by the segment's type, ClickUp's own value: a mention is one of them
+    for s in segments:
+        seg_keys.setdefault(str(s.get("type")), set()).update(s)
     a["comments"] = {"status": st, "envelope": [k for k in keys(cm) if k != "comments"], "count": len(comments),
                      "keys": keys(comments[0]) if comments else [], "segment_keys": sorted({k for s in segments for k in s}),
+                     "segment_keys_by_type": {t: sorted(k) for t, k in sorted(seg_keys.items())},
                      "attribute_keys": sorted({k for s in segments for k in (s.get("attributes") or {})}),
                      "newest_first": len(comments) < 2 or int(comments[0].get("date") or 0) >= int(comments[-1].get("date") or 0)}
     return out
