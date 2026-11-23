@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from adapters import base
+from adapters.clickup import ClickUpAdapter
 from adapters.jira import JiraAdapter
 from adapters.plane import PlaneAdapter
 from conformance import __main__ as conformance_cli
@@ -55,5 +56,5 @@ def test_the_wiring_checklist_names_what_exists(path):
 def test_no_adapter_deletes():
     for path in (REPO / "adapters").rglob("*.py"):
         assert not re.search(r"""['"]DELETE['"]""", path.read_text()), path
-    for adapter in (PlaneAdapter, JiraAdapter):
+    for adapter in (PlaneAdapter, JiraAdapter, ClickUpAdapter):
         assert not [n for n in dir(adapter) if "delete" in n.lower() or "remove" in n.lower()], adapter

@@ -71,6 +71,7 @@ from server.model import (
 class Backend(enum.Enum):
     PLANE = "plane"
     JIRA = "jira"
+    CLICKUP = "clickup"
     GENERIC = "generic"
 
 
@@ -109,9 +110,12 @@ class DateRule(enum.Enum):
 # Identifiers each backend needs beyond `token_env` / `base_url`. Jira needs
 # both a project key and an Agile board id because sprints belong to a board,
 # plus `user_env` (below): its Basic auth pairs the token with the account email.
+# ClickUp's board is one Space of a workspace; `sprint_folder`, the Folder whose
+# Lists are the sprints, is optional and so is not listed here.
 CONNECTION_KEYS: Mapping[Backend, frozenset[str]] = {
     Backend.PLANE: frozenset({"workspace", "project"}),
     Backend.JIRA: frozenset({"site", "project_key", "board_id"}),
+    Backend.CLICKUP: frozenset({"workspace", "space"}),
     Backend.GENERIC: frozenset(),
 }
 

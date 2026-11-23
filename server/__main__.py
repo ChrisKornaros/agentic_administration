@@ -17,6 +17,7 @@ import argparse
 import sys
 
 from adapters.base import Adapter
+from adapters.clickup import ClickUpAdapter
 from adapters.jira import JiraAdapter
 from adapters.plane import PlaneAdapter
 from server.config import Backend, BoardConfig, InvalidBoardConfig, load_boards
@@ -29,7 +30,9 @@ def make_adapter(cfg: BoardConfig) -> Adapter:
         return PlaneAdapter(cfg)
     if cfg.backend is Backend.JIRA:
         return JiraAdapter(cfg)
-    raise SystemExit(f"no adapter for backend {cfg.backend.value!r} yet (Plane and Jira only)")
+    if cfg.backend is Backend.CLICKUP:
+        return ClickUpAdapter(cfg)  # reads only so far: every write answers Unsupported
+    raise SystemExit(f"no adapter for backend {cfg.backend.value!r} yet (Plane, Jira and ClickUp only)")
 
 
 def main(argv: list[str] | None = None) -> int:

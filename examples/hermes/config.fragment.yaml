@@ -27,6 +27,8 @@ mcp_servers:
       # Only with a Jira board in boards/:
       JIRA_API_TOKEN: ${JIRA_API_TOKEN}
       JIRA_USER: ${JIRA_USER}
+      # Only with a ClickUp board in boards/ (it reads only so far):
+      CLICKUP_API_TOKEN: ${CLICKUP_API_TOKEN}
       # Only when the repo is mounted read-only (Docker): uv's venv and cache
       # go to a writable path instead of the repo.
       UV_PROJECT_ENVIRONMENT: /opt/data/profiles/po/mcp/venv

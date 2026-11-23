@@ -1,0 +1,64 @@
+# Board config — ClickUp, one Space of a workspace. One file per board.
+# Copy to boards/<board>.toml (gitignored), run
+#   uv run python -m adapters.clickup describe boards/<board>.toml
+# and fix what it reports. Keep the token OUT of this file: `token_env`
+# names the env var the adapter reads (or `<token_env>_BW_ITEM` names the
+# Bitwarden item holding it — see server/secrets.py).
+#
+# READ SIDE ONLY SO FAR: the adapter reads the board (describe, find, get)
+# and every write answers "not wired yet". Custom fields are not read yet,
+# so leave [fields] out.
+
+backend = "clickup"
+board_type = "software"  # "software" (default) | "calendar" (calendar.example.toml) — D38
+confirm = "always"       # "always" (default) | "never" — D5
+description = "The web app's backlog"   # optional: one line on what the board holds, for a server with several (D43)
+
+[connection]
+token_env = "CLICKUP_API_TOKEN"   # the env var name — never the value. A personal token (pk_…)
+workspace = "1234567"             # the workspace's id: the number after app.clickup.com/ in its URLs
+space     = "7654321"             # the Space's id, a number. `python probes/clickup_phase8_readonly.py`
+                                  # lists every Space the token sees with its id
+# The token sees every Space its owner does. The adapter reads this Space
+# alone: a task anywhere else is "not found".
+sprint_folder = "Sprints"         # optional: the Folder whose Lists are the sprints, by name or id.
+# Nothing in ClickUp's API marks a Folder as a sprint Folder, so name it.
+# Leave it out on a board with no sprints.
+
+# Canonical level -> how this Space realizes it. Exactly one of:
+#   type      = "<task type id or name>"        a task type; ClickUp's standard task is "Task"
+#   parent    = "<tag>"                         parent link + a marker tag (generic fallback, D4)
+#   label     = "<tag>"                         a tag alone marks the level
+#   collapse  = "label" | "description_line"    [+ template]
+# ClickUp tells levels apart by task type alone, so each `type` level needs
+# a type of its own (custom task types are made in the workspace's
+# settings). A marker tag outranks the type. Initiative and Feature
+# collapse: a container level is not wired, and ClickUp has no components.
+[levels]
+initiative = { collapse = "description_line", template = "**Initiative:** {name}" }
+epic       = { type = "Epic" }
+feature    = { collapse = "label", template = "feature:{name}" }
+story      = { type = "Story" }
+bug        = { type = "Bug" }
+task       = { type = "Task" }
+
+# Canonical state -> the Space's status name (case is ignored). Each state
+# needs a status of its own. A status left out here reads by its group:
+# not started as backlog, active as in progress, done and closed as done.
+# A List with statuses of its own is not checked.
+[states]
+backlog     = "backlog"
+todo        = "to do"
+in_progress = "in progress"
+done        = "done"
+cancelled   = "cancelled"
+
+# Labels are the Space's tags. ClickUp stores a tag in lowercase, so write
+# them in lowercase; each must already exist in the Space.
+[labels]
+review   = "needs-review"                     # D5: cleared by the product owner
+taxonomy = ["bug", "feature", "chore", "docs"]
+
+[naming]
+iteration = "YYYYMM"     # sprint names, e.g. 202609
+item_case = "title"      # "title" | "sentence" | "any"
