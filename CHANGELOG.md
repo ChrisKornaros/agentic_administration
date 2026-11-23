@@ -22,6 +22,18 @@ entry says how.
   names the repository and the variable holding a token that can read its
   issues. The plugin starts the server from `AGENTIC_ADMIN_ISSUES` and
   serves no tools without it; the Hermes example has the block.
+- **Azure DevOps as a code host: its open pull requests.** The `issues`
+  server takes a second `kind`, `azure_devops`
+  ([examples/issues/azure-devops.example.toml](examples/issues/azure-devops.example.toml)).
+  Azure Repos has no issues of its own, so `find_open_issues` lists a
+  repository's active pull requests there, or a whole project's with
+  `repository = "Project/*"`, newest first. Each carries the day it was
+  opened, and `item_keys` come from its title, its source branch and its
+  description, in that order. The token is a personal access token
+  (Basic auth) or, with `auth = "bearer"`, a Microsoft Entra token. No
+  redirect is followed, so the token goes nowhere but the configured
+  host, and a sign-in page in place of JSON is reported as a refused
+  token. Only GET is sent.
 - **`plan-sprint` shows open issues with no board item.** Where the host
   has `find_open_issues`, the skill sorts each open issue into on the
   board (a key it names), linked (an item whose links hold its URL) or

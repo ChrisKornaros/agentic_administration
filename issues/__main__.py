@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from issues.azure_devops import AzureDevOpsPullRequests
 from issues.config import InvalidIssuesConfig, IssuesConfig, load
 from issues.github import GitHubIssues
 from issues.reader import OpenIssues
@@ -24,6 +25,9 @@ from server import secrets
 def make_source(cfg: IssuesConfig) -> IssueSource:
     if cfg.kind == "github":
         return GitHubIssues(cfg.api, cfg.repository, lambda: secrets.get(cfg.token_env))
+    if cfg.kind == "azure_devops":
+        return AzureDevOpsPullRequests(cfg.api, cfg.organization or "", cfg.repository,
+                                       lambda: secrets.get(cfg.token_env), auth=cfg.auth or "pat")
     raise SystemExit(f"no issue source for kind {cfg.kind!r} yet")
 
 

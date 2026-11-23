@@ -6,13 +6,24 @@ the file.** `token_env` names the environment variable (or, through
 that repository's issues. Only the keys below are accepted, so a pasted
 `token = …` never loads.
 
-  [connection]  token_env
-  [source]      kind, repository, api   kind is "github"; api is its REST root
+  [connection]  token_env, auth
+  [source]      kind, repository, api, organization
   [match]       key_pattern             finds a board key in an issue's text
 
+`kind` is `github` or `azure_devops`, and `api` is the host's REST root,
+which each kind has a default for.
+
+- **github:** `repository` is `owner/name`. No `organization`, no `auth`.
+- **azure_devops:** `organization` is the organization's name and
+  `repository` is `Project/repository`, or `Project/*` for every repository
+  in the project. Azure Repos has no issues of its own, so the open items
+  are its active pull requests. `auth` says what the token is: `pat` (the
+  default, a personal access token) or `bearer` (a Microsoft Entra token).
+
 `key_pattern` is a regular expression with one group, the key. It is tried on
-every line of an issue's body, so `^Board: (\\S+)$` reads a footer line. With
-no pattern, no issue names a key.
+every line of an issue's body, so `^Board: (\\S+)$` reads a footer line. For a
+pull request the lines are its title, then its source branch, then its
+description. With no pattern, no issue names a key.
 """
 
 from __future__ import annotations
@@ -25,11 +36,16 @@ from typing import Any, Mapping
 
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$")
-KINDS = ("github",)
+_ORGANIZATION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
+_PROJECT_REPOSITORY = re.compile(r"^[^/\s][^/]*/(\*|[^/\s*][^/]*)$")  # a project's name may hold spaces
+KINDS = ("github", "azure_devops")
+AUTHS = ("pat", "bearer")
 GITHUB_API = "https://api.github.com"
+AZURE_DEVOPS_API = "https://dev.azure.com"
+_API = {"github": GITHUB_API, "azure_devops": AZURE_DEVOPS_API}
 _KEYS = {
-    "connection": ({"token_env"}, set()),
-    "source": ({"kind", "repository"}, {"api"}),
+    "connection": ({"token_env"}, {"auth"}),
+    "source": ({"kind", "repository"}, {"api", "organization"}),
     "match": (set(), {"key_pattern"}),
 }  # section -> (required keys, optional keys)
 
@@ -46,9 +62,11 @@ class InvalidIssuesConfig(ValueError):
 class IssuesConfig:
     token_env: str
     kind: str
-    repository: str  # owner/name
+    repository: str  # github: owner/name; azure_devops: Project/repository or Project/*
     api: str = GITHUB_API
     key_pattern: str | None = None
+    organization: str | None = None  # azure_devops only
+    auth: str | None = None  # azure_devops only: "pat" or "bearer"
 
 
 def from_dict(data: Mapping[str, Any]) -> IssuesConfig:
@@ -71,10 +89,24 @@ def from_dict(data: Mapping[str, Any]) -> IssuesConfig:
     kind = source.get("kind")
     if kind is not None and kind not in KINDS:
         problems.append(f"source.kind must be one of: {', '.join(KINDS)}")
-    repository = source.get("repository")
-    if repository is not None and not (isinstance(repository, str) and _REPOSITORY.match(repository)):
-        problems.append("source.repository must be owner/name")
-    api = source.get("api", GITHUB_API)
+    repository, organization, auth = source.get("repository"), source.get("organization"), conn.get("auth")
+    if kind == "azure_devops":
+        auth = "pat" if auth is None else auth
+        if auth not in AUTHS:
+            problems.append(f"connection.auth must be one of: {', '.join(AUTHS)}")
+        if organization is None:
+            problems.append("source needs: organization")
+        elif not (isinstance(organization, str) and _ORGANIZATION.match(organization)):
+            problems.append("source.organization must be the organization's name, not a URL")
+        if repository is not None and not (isinstance(repository, str) and _PROJECT_REPOSITORY.match(repository)):
+            problems.append("source.repository must be Project/repository, or Project/* for the whole project")
+    else:
+        for key, value in (("connection.auth", auth), ("source.organization", organization)):
+            if value is not None:
+                problems.append(f"{key} is for kind azure_devops only")
+        if repository is not None and not (isinstance(repository, str) and _REPOSITORY.match(repository)):
+            problems.append("source.repository must be owner/name")
+    api = source.get("api", _API.get(kind, GITHUB_API))
     if not (isinstance(api, str) and api.startswith("https://")):
         problems.append("source.api must be an https:// URL")
     pattern = match.get("key_pattern")
@@ -86,7 +118,7 @@ def from_dict(data: Mapping[str, Any]) -> IssuesConfig:
             problems.append(f"match.key_pattern is not a regular expression: {exc}")
     if problems:
         raise InvalidIssuesConfig(problems)
-    return IssuesConfig(token_env, kind, repository, api.rstrip("/"), pattern)
+    return IssuesConfig(token_env, kind, repository, api.rstrip("/"), pattern, organization, auth)
 
 
 def load(path: str | Path) -> IssuesConfig:

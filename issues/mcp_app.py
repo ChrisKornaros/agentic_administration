@@ -23,7 +23,8 @@ READ = ToolAnnotations(read_only_hint=True)
 INSTRUCTIONS = """\
 The open issues on the team's code host, read-only. find_open_issues lists
 them, most recently updated first, each with the board keys its text names.
-An issue that names no key may still be on the board under a link."""
+An issue that names no key may still be on the board under a link. On a host
+with no issues of its own (Azure DevOps), they are its open pull requests."""
 
 
 def build(reader: OpenIssues | None) -> MCPServer:
@@ -38,8 +39,11 @@ def build(reader: OpenIssues | None) -> MCPServer:
         """The open issues on the team's code host, most recently updated
         first, up to `limit` (at most 200). Each has its number, title, URL,
         labels, the day it was last updated and `item_keys`: the board keys
-        its text names, empty when it names none. Pull requests are not
-        listed. If exactly `limit` come back, there may be more."""
+        its text names, empty when it names none. Where the host has
+        issues, pull requests are not listed. Where it has none (Azure
+        DevOps), the entries are its open pull requests, newest first, and
+        the day is the day each was opened. If exactly `limit` come back,
+        there may be more."""
         try:
             return {"issues": reader.find_open_issues(limit)}
         except IssuesFailure as exc:
