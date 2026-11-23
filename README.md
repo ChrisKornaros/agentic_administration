@@ -314,9 +314,14 @@ uv run --group agent-sdk python examples/agent-sdk/chat.py
 The `agent-sdk` dependency group installs `claude-agent-sdk`, which
 bundles the Claude Code CLI, so nothing else needs installing.
 
-### A chat bridge (for a Teams bot; the bot itself is not built yet)
+### Microsoft Teams
 
-[examples/teams/bridge.py](examples/teams/bridge.py) is the part of a
+[examples/teams/](examples/teams/) is a Teams bot in two parts: a bridge
+with no Teams in it, and a thin bot over Microsoft's Teams SDK for
+Python. It has run end to end on a laptop against a stand-in for Teams;
+**it has not run in a real Teams tenant or in Agents Playground yet.**
+
+[bridge.py](examples/teams/bridge.py) is the part of a
 chat bot that has no chat platform in it. A host hands it each incoming
 message with who sent it and which conversation it is in, and it keeps
 **one agent session per conversation**: the first message starts the
@@ -352,6 +357,41 @@ platform, a line a message, typed or piped:
 export AGENTIC_ADMIN_BOARD=boards/<board>.toml      # or boards/; plus each board's token env
 uv run --group agent-sdk python examples/teams/terminal.py
 ```
+
+[bot.py](examples/teams/bot.py) is the bot. It works in **direct chats
+only** for now: in a channel or a group chat Teams delivers only the
+messages that @mention the bot, so a typed "yes" would never arrive, and
+there the bot says so and does nothing. Teams waits 25 seconds for an
+answer, so the bot answers Teams at once and runs the turn behind it: it
+posts "Working on it…" when the turn starts and puts the agent's first
+words in that message's place.
+
+Who it serves comes from the environment:
+
+| Variable | What it is |
+|---|---|
+| `TEAMS_OWNER` | The owner's Microsoft Entra object id. With none set the bot serves nobody, and tells each sender their own id so the owner's can be set |
+| `TEAMS_ALLOWED` | More object ids, comma-separated. Served on metered billing only (the table above) |
+| `TENANT_ID` | With it set, a message from any other tenant is dropped |
+| `CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID` | The bot's own registration, read by the SDK. The secret may come from Bitwarden through `CLIENT_SECRET_BW_ITEM` |
+
+Three ways to run it, the first with no tenant at all:
+
+```sh
+export AGENTIC_ADMIN_BOARD=boards/<board>.toml      # or boards/; plus each board's token env
+export TEAMS_OWNER=<object id>
+uv run --group teams --group agent-sdk python examples/teams/bot.py --playground   # Microsoft's Agents Playground, on a laptop
+uv run --group teams --group agent-sdk python examples/teams/bot.py --socket       # real Teams: the bot dials out, no public endpoint
+uv run --group teams --group agent-sdk python examples/teams/bot.py                # real Teams: /api/messages on --port, behind HTTPS
+```
+
+`--playground` accepts requests nobody signed. It listens on 127.0.0.1
+alone and refuses to start with a `CLIENT_ID` set. Registering the bot
+with Teams (an app registration in one tenant, the bot, the app
+manifest, and whether the tenant allows custom apps and socket mode) is
+Microsoft's side: see the SDK's own repository,
+[microsoft/teams.py](https://github.com/microsoft/teams.py), and its
+developer CLI. None of that has been run from here.
 
 ### Any other MCP host
 
@@ -645,6 +685,7 @@ DevOps source, against any organization.
 ```sh
 uv sync            # dev deps (pytest) into .venv
 uv run pytest      # offline, never a live tracker; live checks are probes/ and conformance/
+uv run --group teams pytest   # the same, plus the Teams bot's tests against Microsoft's SDK (CI runs this one)
 ```
 
 CI runs the same two, with `uv sync --locked`, on every push to `main`

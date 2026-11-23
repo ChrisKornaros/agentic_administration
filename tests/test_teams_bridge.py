@@ -194,6 +194,26 @@ async def test_turns_in_one_conversation_run_in_order_and_other_conversations_do
     assert [text for _, _, text in agent.turns] == ["one", "other", "two"] and not b.busy("c1")
 
 
+@pytest.mark.anyio
+async def test_started_is_called_for_a_turn_and_for_nothing_else(tmp_path):
+    b, agent = make(tmp_path)
+    calls: list[str] = []
+
+    async def started() -> None:
+        calls.append("started")
+
+    chat = Chat()
+    await b.handle(STRANGER, "c1", "hello", chat, started=started)
+    await b.handle(OWNER, "c1", "/new", chat, started=started)
+    await b.handle(OWNER, "c1", "one", chat, message_id="m-1", started=started)
+    await b.handle(OWNER, "c1", "one", chat, message_id="m-1", started=started)
+    turn = asyncio.create_task(b.handle(OWNER, "c1", "write it", chat, started=started))
+    await settle(b)
+    await b.handle(OWNER, "c1", "yes", chat, started=started)  # an answer is not a turn
+    await turn
+    assert calls == ["started", "started"] and len(agent.turns) == 2
+
+
 # -- a yes before each write ---------------------------------------------------------------
 
 
