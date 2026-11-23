@@ -22,6 +22,15 @@ entry says how.
   names the repository and the variable holding a token that can read its
   issues. The plugin starts the server from `AGENTIC_ADMIN_ISSUES` and
   serves no tools without it; the Hermes example has the block.
+- **A chat bridge, the core of a Teams bot.**
+  [examples/teams/bridge.py](examples/teams/bridge.py) keeps one agent
+  session per chat conversation, resumed across restarts, with turns in
+  order, `/new` to start over, and a yes from the sender before each
+  write. It reads from the environment whose usage pays: with a metered
+  credential it serves the owner and an allow-list, and on a Claude plan
+  login it serves the owner alone. `agent.py` runs a turn on the Agent
+  SDK and `terminal.py` drives the bridge with no chat platform. The bot
+  that connects it to Teams is not built yet.
 - **Azure DevOps as a code host: its open pull requests.** The `issues`
   server takes a second `kind`, `azure_devops`
   ([examples/issues/azure-devops.example.toml](examples/issues/azure-devops.example.toml)).

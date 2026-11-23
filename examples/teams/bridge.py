@@ -1,0 +1,207 @@
+"""The chat bridge: one chat conversation to one agent session, with no
+chat platform and no agent SDK in it.
+
+A chat host (the Teams bot beside this file, or `terminal.py` for a run
+with no Teams at all) hands every incoming message to `Bridge.handle`,
+with who sent it, which conversation it is in and a way to answer. The
+bridge decides what the message is:
+
+- from someone it may not serve: a refusal, and nothing reaches the agent;
+- the answer to a write the agent is waiting to make: a yes or a no;
+- `/new`: the conversation starts over with a fresh session;
+- anything else: the next turn of that conversation's session.
+
+**One conversation, one session.** The first message starts a session and
+each later one resumes it, so the agent keeps the thread across restarts:
+`Sessions` is a small JSON file. Turns in one conversation run one at a
+time, in the order they arrived; different conversations run side by side.
+
+**Each write waits for a yes.** When the agent asks to use a write tool,
+the bridge posts what it wants to do and holds the turn until the person
+who sent that turn answers. Only "yes" allows it. No answer in ten minutes
+is a no. This is the host's own guard, beside the skill's.
+
+**Whose usage pays.** `billing()` reads the environment. With a metered
+credential there (an API key, or Foundry, Bedrock or Vertex switched on),
+the people on the allow-list are served. With none, turns run on the
+Claude plan login of whoever started the process, and a plan seat is that
+one person's: the bridge then serves the owner alone, whatever the
+allow-list says.
+
+Standard library only, so the offline tests run it against a fake agent.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import uuid
+from collections import OrderedDict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, AsyncIterator, Awaitable, Callable, Iterable, Mapping, Protocol
+
+log = logging.getLogger("agentic_administration.bridge")
+
+# A credential here means the turns are billed by use, not to a person's plan.
+METERED_ENV = ("CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+               "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+YES = ("y", "yes")
+NEW = ("/new", "new conversation")
+CONFIRM_TIMEOUT = 600.0  # seconds a write waits for its yes
+SEEN = 500  # message ids remembered, to drop a redelivery
+ARGS_SHOWN = 1500  # characters of a write's arguments shown before it is cut
+
+REFUSED = "I'm not set up to work with you here. Ask whoever runs this assistant to add you."
+REFUSED_ON_A_PLAN = ("I'm running on one person's Claude plan for now, so I can only work with them. "
+                     "Ask whoever runs this assistant to move it to metered billing.")
+STARTED_OVER = "Started a new conversation. I no longer have the earlier one in view."
+NOT_YOURS = "That yes or no has to come from the person who asked for the change."
+NO_ANSWER = "No answer, so nothing was written. Ask again when you're ready."
+FAILED = "Something went wrong on my side and that turn did not finish. Nothing more was written. Try again in a moment."
+
+Say = Callable[[str], Awaitable[None]]
+Confirm = Callable[[str, Mapping[str, Any]], Awaitable[bool]]
+
+
+class Agent(Protocol):
+    def run(self, session_id: str, resume: bool, text: str, confirm: Confirm) -> AsyncIterator[str]:
+        """One turn: start session `session_id`, or resume it, with `text`.
+        Yields the agent's text as it comes; awaits `confirm(tool, arguments)`
+        before each write and makes the write only on True."""
+        ...
+
+
+def billing(environ: Mapping[str, str] | None = None) -> str:
+    """`metered` when the environment carries a pay-by-use credential, else `plan`."""
+    env = os.environ if environ is None else environ
+    on = lambda value: value.strip().lower() not in ("", "0", "false")  # noqa: E731
+    return "metered" if any(on(env.get(name, "")) for name in METERED_ENV) else "plan"
+
+
+class Sessions:
+    """Conversation key -> session id, kept in one JSON file."""
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self._ids: dict[str, str] = {}
+        if self.path.exists():
+            data = json.loads(self.path.read_text() or "{}")
+            self._ids = {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+
+    def get(self, conversation: str) -> str | None:
+        return self._ids.get(conversation)
+
+    def set(self, conversation: str, session_id: str) -> None:
+        self._ids[conversation] = session_id
+        self._save()
+
+    def drop(self, conversation: str) -> None:
+        if self._ids.pop(conversation, None) is not None:
+            self._save()
+
+    def _save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(self._ids, indent=2, sort_keys=True))
+        os.replace(tmp, self.path)  # a crash leaves the old file or the new one, never half of one
+
+
+@dataclass
+class _Pending:
+    sender: str
+    answer: asyncio.Future[bool]
+
+
+def write_request(tool: str, arguments: Mapping[str, Any]) -> str:
+    shown = json.dumps(arguments, indent=2, default=str)
+    if len(shown) > ARGS_SHOWN:
+        shown = shown[:ARGS_SHOWN] + "\n… (cut)"
+    return (f"I'm about to run **{tool}** on the board with:\n\n```json\n{shown}\n```\n\n"
+            "Reply **yes** to let it through. Anything else stops it.")
+
+
+class Bridge:
+    def __init__(self, agent: Agent, sessions: Sessions, *, owner: str, allowed: Iterable[str] = (),
+                 mode: str | None = None, confirm_timeout: float = CONFIRM_TIMEOUT) -> None:
+        self.agent, self.sessions, self.owner = agent, sessions, owner
+        self.mode = billing() if mode is None else mode
+        # A plan seat is one person's: on a plan login the allow-list is cut to the owner.
+        self.permitted = frozenset({owner}) if self.mode == "plan" else frozenset({owner, *allowed})
+        self.confirm_timeout = confirm_timeout
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._pending: dict[str, _Pending] = {}
+        self._seen: OrderedDict[str, None] = OrderedDict()
+
+    def busy(self, conversation: str) -> bool:
+        """A turn is running in this conversation."""
+        lock = self._locks.get(conversation)
+        return bool(lock and lock.locked())
+
+    def waiting(self, conversation: str) -> bool:
+        """A write in this conversation is waiting for its yes or no."""
+        pending = self._pending.get(conversation)
+        return bool(pending and not pending.answer.done())
+
+    def _redelivered(self, message_id: str | None) -> bool:
+        if message_id is None:
+            return False
+        if message_id in self._seen:
+            return True
+        self._seen[message_id] = None
+        while len(self._seen) > SEEN:
+            self._seen.popitem(last=False)
+        return False
+
+    async def handle(self, sender: str, conversation: str, text: str, say: Say, *, message_id: str | None = None) -> None:
+        """One incoming message. `say` posts a message back to the conversation."""
+        if self._redelivered(message_id):
+            return
+        if sender not in self.permitted:
+            await say(REFUSED_ON_A_PLAN if self.mode == "plan" else REFUSED)
+            return
+        text = text.strip()
+        if not text:
+            return
+        if self.waiting(conversation):
+            pending = self._pending[conversation]
+            if sender != pending.sender:
+                await say(NOT_YOURS)
+                return
+            pending.answer.set_result(text.lower() in YES)
+            return
+        if text.lower() in NEW:
+            self.sessions.drop(conversation)
+            await say(STARTED_OVER)
+            return
+        async with self._locks.setdefault(conversation, asyncio.Lock()):
+            await self._turn(sender, conversation, text, say)
+
+    async def _turn(self, sender: str, conversation: str, text: str, say: Say) -> None:
+        known = self.sessions.get(conversation)
+        session_id = known or str(uuid.uuid4())
+
+        async def confirm(tool: str, arguments: Mapping[str, Any]) -> bool:
+            answer: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+            self._pending[conversation] = _Pending(sender, answer)
+            try:
+                await say(write_request(tool, arguments))
+                return await asyncio.wait_for(answer, self.confirm_timeout)
+            except asyncio.TimeoutError:
+                await say(NO_ANSWER)
+                return False
+            finally:
+                self._pending.pop(conversation, None)
+
+        try:
+            async for chunk in self.agent.run(session_id, known is not None, text, confirm):
+                if chunk.strip():
+                    await say(chunk)
+        except Exception:  # the conversation must hear that the turn died, whatever killed it
+            log.exception("a turn failed in conversation %s", conversation)
+            await say(FAILED)
+            return
+        if known is None:
+            self.sessions.set(conversation, session_id)  # only a session that ran a whole turn is resumed
