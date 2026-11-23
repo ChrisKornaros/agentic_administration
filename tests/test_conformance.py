@@ -7,18 +7,22 @@ from datetime import date
 import pytest
 
 from adapters.base import Blocked, NotFound
+from adapters.clickup import ClickUpAdapter
 from adapters.jira import JiraAdapter
 from adapters.plane import PlaneAdapter
 from conformance import __main__ as cli
+from conformance import clickup as clickup_harness
 from conformance import knowledge as kb
 from conformance import runner
 from conformance.cases import Context, Skipped
 from knowledge.config import KnowledgeConfig
 from knowledge.confluence import Confluence
 from server.config import BoardConfig
+from tests import fake_clickup as fcu
 from tests import fake_confluence as fc
 from tests import fake_jira as fj
 from tests import fake_plane as fp
+from tests import test_clickup_adapter as tests_clickup
 from tests import test_jira_adapter as tests_jira
 from tests.test_config import CALENDAR_EXAMPLE
 
@@ -291,6 +295,74 @@ def test_a_bad_token_on_the_features_patch_is_a_failure_not_a_ui_instruction():
     assert go(process(t), state) == runner.FAIL
     assert "AuthError: HTTP 401" in notes(state, "provision")
     assert "Project Settings" not in notes(state, "provision")
+
+
+# --- ClickUp, against the fake ClickUp transport ---------------------------------
+
+CLICKUP = tests_clickup.CONFIG
+# its sprints are ClickUp's own, so one case stands in for iterations, close and rollover
+CLICKUP_CASES = ["provision", "describe", "epic", "placement", "hierarchy", "update", "dates", "fields", "sprints", "no-delete"]
+
+
+def clickup_process(fake, now=tests_clickup.NOW):
+    cfg = BoardConfig.from_dict(CLICKUP).check()
+    adapter = ClickUpAdapter(cfg, fake, secret=lambda name: "unused", now=lambda: now)
+    return Context(adapter, cfg, "20261125", now.date(), lambda: clickup_harness.wire(fake.log))
+
+
+def clickup_run(fake, state):
+    return runner.run(runner.cases_for("clickup"), clickup_process(fake), state, save=lambda s: None, echo=lambda l: None)
+
+
+def test_clickup_passes_every_case_on_the_sprints_the_space_already_has():
+    fake = fcu.FakeClickUp()
+    one, two = tests_clickup.sprints(fake)
+    fake.add_sprint("Sprint 0", *tests_clickup.S0)
+    state = new_state()
+    assert clickup_run(fake, state) == runner.PASS
+    assert [c.name for c in runner.cases_for("clickup")] == CLICKUP_CASES
+    assert statuses(state) == {name: "skip" if name == "fields" else "pass" for name in CLICKUP_CASES}
+    assert "nothing to create" in notes(state, "provision")
+    assert "find_items(external_id=…) finds exactly it in 1 call" in notes(state, "epic")
+    assert "the feature collapsed: the story carries it as ['feature:conformance 20261125']" in notes(state, "placement")
+    assert "the tracker accepted" in notes(state, "hierarchy")
+    assert "update_item(target_date=2026-12-03) moved it; start_date stayed 2026-11-25" in notes(state, "dates")
+    assert "story + task added to Sprint 1 (active), bug to Sprint 2 (planned)" in notes(state, "sprints")
+    assert "create_iteration('Sprint 1') found the existing sprint: no duplicate" in notes(state, "sprints")
+    assert "asked to make a sprint, the adapter refuses and writes nothing" in notes(state, "sprints")
+    assert "asked to close an open sprint, the adapter refuses and writes nothing" in notes(state, "sprints")
+    assert "a closed sprint refuses new items" in notes(state, "sprints")
+    assert set(state["ids"]) == {"epic", "feature", "story", "bug", "task", "iteration_current", "iteration_next"}
+
+    # the story joined the sprint as a second List and stayed in its own
+    story = fake.tasks[state["ids"]["story"]]
+    assert story["list"]["id"] == fcu.L_WEB and [x["id"] for x in story["locations"]] == [one["id"]]
+    assert [x["id"] for x in fake.tasks[state["ids"]["bug"]]["locations"]] == [two["id"]]
+    # two tags came off the story (review, and the feature's with it) and nothing else was deleted
+    assert story["tags"] == [] and len(fake.tasks) == 6 and "needs-review" in fake.tags
+    assert "DELETE" not in state["wire"] and state["wire"][clickup_harness.TAG_OFF] == 2
+    assert "wire totals for this run: DELETE (a tag off a task) 2, GET" in notes(state, "no-delete")
+    assert [f for f in story["custom_fields"] if f["id"] == fcu.FIELD_XID][0]["value"] == "conformance:20261125:story"
+
+
+def test_only_a_tag_coming_off_a_task_is_counted_apart_from_a_delete():
+    log = [("DELETE", "/task/86c1/tag/needs-review"), ("DELETE", "/task/86c1"), ("DELETE", "/list/9301/task/86c1"),
+           ("POST", "/task/86c1/tag/bug")]
+    assert [m for m, _ in clickup_harness.wire(log)] == [clickup_harness.TAG_OFF, "DELETE", "DELETE", "POST"]
+
+
+def test_clickup_provision_stops_for_the_operator_and_a_space_with_no_active_sprint_skips_the_sprint_case():
+    fake = fcu.FakeClickUp()
+    fake.fields = [f for f in fake.fields if f["id"] != fcu.FIELD_XID]
+    state = new_state()
+    assert clickup_run(fake, state) == runner.STOP
+    assert "connection.xid_field: no custom field 'External ID' on the List 'Web app'" in notes(state, "provision")
+    assert {m for m, _ in fake.log} == {"GET"}
+
+    fake = fcu.FakeClickUp()  # a sprint Folder with nothing in it
+    state = new_state()
+    assert clickup_run(fake, state) == runner.PASS
+    assert statuses(state)["sprints"] == "skip" and "has no active sprint" in notes(state, "sprints")
 
 
 # --- the knowledge publisher's suite, against the fake Confluence ----------------

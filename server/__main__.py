@@ -31,7 +31,7 @@ def make_adapter(cfg: BoardConfig) -> Adapter:
     if cfg.backend is Backend.JIRA:
         return JiraAdapter(cfg)
     if cfg.backend is Backend.CLICKUP:
-        return ClickUpAdapter(cfg)  # reads only so far: every write answers Unsupported
+        return ClickUpAdapter(cfg)
     raise SystemExit(f"no adapter for backend {cfg.backend.value!r} yet (Plane, Jira and ClickUp only)")
 
 

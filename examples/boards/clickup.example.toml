@@ -5,9 +5,9 @@
 # names the env var the adapter reads (or `<token_env>_BW_ITEM` names the
 # Bitwarden item holding it — see server/secrets.py).
 #
-# READ SIDE ONLY SO FAR: the adapter reads the board (describe, find, get)
-# and every write answers "not wired yet". Custom fields are not read yet,
-# so leave [fields] out.
+# THE WRITES HAVE NOT RUN LIVE YET: run `python -m conformance` on a
+# throwaway Space before a real one. Custom fields are not wired, so leave
+# [fields] out.
 
 backend = "clickup"
 board_type = "software"  # "software" (default) | "calendar" (calendar.example.toml) — D38
@@ -19,11 +19,18 @@ token_env = "CLICKUP_API_TOKEN"   # the env var name — never the value. A pers
 workspace = "1234567"             # the workspace's id: the number after app.clickup.com/ in its URLs
 space     = "7654321"             # the Space's id, a number. `python probes/clickup_phase8_readonly.py`
                                   # lists every Space the token sees with its id
-# The token sees every Space its owner does. The adapter reads this Space
-# alone: a task anywhere else is "not found".
+# The token sees every Space its owner does. The adapter reads and writes
+# this Space alone: a task anywhere else is "not found".
+list = "Backlog"                  # the List a new item is filed in, by name or id. An item with a
+                                  # parent goes into its parent's List instead: ClickUp keeps a
+                                  # subtask there.
+xid_field = "External ID"         # the text custom field that holds an item's idempotency key, by
+                                  # name or id. ClickUp's API cannot make one: add a short text field
+                                  # to the Space, so every List carries it.
 sprint_folder = "Sprints"         # optional: the Folder whose Lists are the sprints, by name or id.
 # Nothing in ClickUp's API marks a Folder as a sprint Folder, so name it.
-# Leave it out on a board with no sprints.
+# Leave it out on a board with no sprints. The API cannot make a sprint or
+# close one: the adapter adds tasks to the sprints ClickUp already has.
 
 # Canonical level -> how this Space realizes it. Exactly one of:
 #   type      = "<task type id or name>"        a task type; ClickUp's standard task is "Task"

@@ -11,10 +11,12 @@ directly and stores an idempotency key natively. [Jira Cloud](jira/) has
 neither: states move through transitions, and the key is a label. Read
 `base.py` first, then whichever adapter is closer to your tracker.
 
-[ClickUp](clickup/) is a third, half built: its read side is in, and its
-writes raise `Unsupported` until the write-side questions are settled. It
-shows one more shape: a token that sees more than the board, so the
-adapter keeps every read inside the configured Space.
+[ClickUp](clickup/) is a third, and its writes have not run live yet. It
+shows more shapes: a token that sees more than the board, so the adapter
+checks every task it reads or writes against the configured Space; an
+idempotency key kept in a custom field; and sprints the API can join but
+not make or close, so those two operations find, confirm or raise
+`Unsupported`.
 
 ## Where it sits
 
@@ -110,11 +112,18 @@ it belongs above the adapter.
 
 ### No delete path
 
-No method deletes, and no request is a DELETE. Work ends as `done` or
-`cancelled`. Moving an item to another container adds the membership
-rather than removing the old one. [tests/test_adapter_guide.py](../tests/test_adapter_guide.py)
-fails on a DELETE in any adapter's source, and the conformance suite's
-`no-delete` case counts the requests a live run sent.
+No method deletes. Work ends as `done` or `cancelled`. Moving an item to
+another container adds the membership rather than removing the old one.
+
+No request is a DELETE either, with one exception. ClickUp takes a tag off
+a task with `DELETE /task/{id}/tag/{name}` and offers no other way, so
+clearing a label there sends it: the task stays, and so does the tag in
+the Space. Its transport refuses every other DELETE before anything goes
+out. [tests/test_adapter_guide.py](../tests/test_adapter_guide.py) counts
+the DELETEs in each adapter's source (that call, the transport's guard,
+and none elsewhere), and the conformance suite's `no-delete` case counts
+the requests a live run sent, with a tag coming off a task under its own
+name.
 
 ### Read-proven before write
 
@@ -138,6 +147,8 @@ A retried commit must find what an earlier attempt made.
 `external_id` on the item. Jira has no such field, so its adapter writes
 the label `xid:<external_id>`, hides it from `WorkItem.labels`, and
 remembers the issues this process created, because Jira's search lags.
+ClickUp's adapter keeps it in a text custom field the config names, asks
+for an exact match, and compares each task's own value as well.
 `create_iteration` looks for the name before it creates.
 
 ### Secrets

@@ -29,9 +29,10 @@ PASS, SKIP, FAIL, STOP = "pass", "skip", "fail", "stop"
 
 
 def cases_for(backend: str) -> tuple[Case, ...]:
-    from conformance import jira, plane
+    from conformance import clickup, jira, plane
 
-    provisioner = {"plane": plane.provision, "jira": jira.provision}.get(backend)
+    provisioner = {"plane": plane.provision, "jira": jira.provision, "clickup": clickup.provision}.get(backend)
+    generic = clickup.cases(GENERIC_CASES) if backend == "clickup" else GENERIC_CASES  # its sprints are ClickUp's own
 
     def provision(ctx: Context) -> None:
         if provisioner is None:
@@ -40,7 +41,7 @@ def cases_for(backend: str) -> tuple[Case, ...]:
 
     return (
         Case("provision", "turn on the features, create the types and labels the config names (idempotent)", provision),
-        *GENERIC_CASES,
+        *generic,
     )
 
 

@@ -19,10 +19,25 @@ entry says how.
   marker tag, states are the Space's statuses, labels its tags, and the
   sprints the Lists of the named Folder, each with a state taken from its
   start and end. A personal token sees every Space its owner does, so a
-  task outside the configured Space is not found. **It writes nothing
-  yet:** every write answers `Unsupported`, there is no lookup by
-  external id, and custom fields, members and a container level are not
-  read. Only GET is sent.
+  task outside the configured Space is not found.
+- **The ClickUp adapter's write side. It passes offline and has not run
+  live yet.** Two new connection keys: `list`, the List a new item is
+  filed in (an item with a parent goes into its parent's List), and
+  `xid_field`, the text custom field that holds the idempotency key, which
+  `find_items(external_id=…)` matches exactly. `create_item`,
+  `update_item` and `add_comment` write; every write to a task first
+  checks that the task is in the configured Space. A task enters a sprint
+  by being added to its List. ClickUp's API cannot make or close a
+  sprint, so `create_iteration` finds one by name and `close_iteration`
+  confirms one that has ended, and each says so otherwise. Members are
+  read from the workspace. Custom fields, links and a container level are
+  not wired. `python -m conformance` runs on a ClickUp config, with one
+  `sprints` case in place of the three sprint cases.
+- **One DELETE, and no other.** ClickUp takes a tag off a task with
+  `DELETE /task/{id}/tag/{name}` and has no other way to clear a label.
+  The adapter sends it; the task and the Space's tag both stay. Its
+  transport refuses every other DELETE, and the no-delete tests now count
+  exactly that call.
 - **Open issues from a code host, for planning.** A third, optional MCP
   server, `issues` (`python -m issues serve --config <toml>`), has one
   read tool. `find_open_issues(limit)` lists a repository's open issues,
