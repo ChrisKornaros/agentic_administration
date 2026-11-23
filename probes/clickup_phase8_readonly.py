@@ -160,7 +160,7 @@ def plan_calls() -> list[str]:
         "GET /team/{ws}/task?page=0&list_ids[]={list}&subtasks=true&include_closed=true   (envelope; last_page)",
         "GET /team/{ws}/task?list_ids[]={a List a task was added to}                      (is that task there)",
         "GET /team/{ws}/task?tags[]={a tag}   and   tags[]={its first half}               (exact or not)",
-        "GET /list/{id}/task?custom_fields=[…]     ×3                                     (== exact, == other case, = part)",
+        "GET /list/{id}/task?custom_fields=[…]     ×4                                     (== exact, == other case, = whole, = part)",
         "GET /task/{id}?include_markdown_description=true&include_subtasks=true            (one task, whole)",
         "GET /task/{custom id}?custom_task_ids=true&team_id={ws}                          (when a task has one)",
         "GET /task/{id}/comment                      (a comment's shape)",
@@ -385,9 +385,13 @@ def probe(pr: Probe, workspace: str | None, spaces: list[str], max_lists: int) -
     if text_field:
         lid, fid, value = text_field
         a["text_field_filter"] = {}
-        for label, op, v in (("exact", "==", value), ("other_case", "==", value.swapcase()), ("part", "=", value[: len(value) // 2])):
+        # The flags of the read that found the value: without them a subtask, or a task only
+        # added to this List, is out of the filter's reach and every count is 0 whatever it matches.
+        reach = [("subtasks", "true"), ("include_closed", "true"), ("include_timl", "true")]
+        for label, op, v in (("exact", "==", value), ("other_case", "==", value.swapcase()),
+                             ("whole", "=", value), ("part", "=", value[: len(value) // 2])):
             flt = json.dumps([{"field_id": fid, "operator": op, "value": v}])
-            st, hit = pr.get(f"text field {label}", f"/list/{lid}/task", [("include_closed", "true"), ("custom_fields", flt)])
+            st, hit = pr.get(f"text field {label}", f"/list/{lid}/task", reach + [("custom_fields", flt)])
             a["text_field_filter"][label] = {"operator": op, "status": st, "count": len(rows(hit, "tasks"))}
 
     # -- one task, whole --------------------------------------------------------------------
