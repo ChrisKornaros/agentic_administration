@@ -19,12 +19,19 @@ on a paid-plan workspace):
   counts from 0, and `last_page` says when to stop. `get_all` walks both.
 - A repeated query key (`list_ids[]`, `tags[]`) is a list value here.
 
+**One DELETE, and no other.** ClickUp takes a tag off a task with
+`DELETE /task/{id}/tag/{name}`: the task stays, and so does the tag in the
+Space. It is the only way to clear a label, so it is the only DELETE this
+transport sends (Chris, 2026-11-23). Any other is refused here, before the
+token is read or a byte goes out.
+
 Errors never leave here as `urllib` exceptions; see `adapters.base`.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -37,6 +44,7 @@ from adapters.base import (
     NotFound,
     RateLimited,
     TransportError,
+    Unsupported,
     ValidationError,
 )
 from server.secrets import SecretUnavailable
@@ -49,6 +57,13 @@ USER_AGENT = (
 DEFAULT_THROTTLE = 0.7  # seconds between calls: under a Free workspace's 100 a minute
 MAX_PAGES = 50  # a `get_all` stops here even if ClickUp never says `last_page`
 NO_SUCH_TASK = "OAUTH_027"  # the ECODE of the 401 a missing task gets
+SENT = ("GET", "POST", "PUT")  # the methods this transport sends, plus the one below
+UNTAG = re.compile(r"^/task/[^/]+/tag/[^/]+$")  # a tag coming off a task: the one path a DELETE may name
+
+
+def allowed(method: str, path: str) -> bool:
+    """Whether this transport sends `method` to `path` at all."""
+    return method in SENT or (method == "DELETE" and UNTAG.match(path) is not None)
 
 
 class Transport(Protocol):
@@ -116,6 +131,9 @@ class ClickUpTransport:
 
     def request(self, method: str, path: str, *, params: dict[str, Any] | None = None,
                 body: Any = None) -> Any:
+        if not allowed(method, path):
+            raise Unsupported(f"the ClickUp transport sends no {method} to {path}: nothing is deleted, and the "
+                              "only DELETE is a tag coming off a task")
         url = f"{self.base_url}{path}"
         if params:
             kept = {k: v for k, v in params.items() if v is not None}

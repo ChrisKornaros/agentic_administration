@@ -17,12 +17,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from conformance import jira, plane, runner
+from conformance import clickup, jira, plane, runner
 from conformance.cases import Context
 from server.config import BoardType, InvalidBoardConfig, load
 
 REPORTS = Path(__file__).resolve().parent / "reports"
-HARNESSES = {"plane": plane.make_adapter, "jira": jira.make_adapter}
+HARNESSES = {"plane": plane.make_adapter, "jira": jira.make_adapter, "clickup": clickup.make_adapter}
 
 
 def main(argv: list[str] | None = None) -> int:

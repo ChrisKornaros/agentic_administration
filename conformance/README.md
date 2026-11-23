@@ -5,7 +5,7 @@ adapter passes this suite live against a **throwaway** project on that
 tracker (design: agentic_optimization_research `roadmap/14` D7). It
 lives outside `tests/` because it writes to a real board: the default
 `uv run pytest` never runs it. `tests/test_conformance.py` runs it
-offline against the fake Plane and Jira transports. The knowledge
+offline against the fake Plane, Jira and ClickUp transports. The knowledge
 publisher has its own live suite, on the same runner:
 [below](#the-knowledge-publisher-phase-6b).
 
@@ -59,7 +59,17 @@ own, Plane 1.5 and Jira 0.5), `--reports` (where run records go).
 | `iterations` | This month's iteration, ending **today**: whether the tracker still takes items into it shows whether the end day is open. Next month's iteration reads planned. The dates read back exactly as written. Items move into both, confirmed by the list read. |
 | `close` | `close_iteration` closes this month's iteration, a fresh read agrees, and the closed iteration refuses new items as a `ValidationError`. |
 | `rollover` | *Phase 6.* `create_iteration` with next month's name returns that iteration rather than a duplicate. `find_items(iteration=…)` on the closed iteration returns only items still in it. Everything there that is neither done nor cancelled moves to next month's iteration (board-wide, as a real rollover does), and fresh reads of both iterations agree. The note records what stayed, and what left along with a moved parent. Skips when nothing is unfinished. |
-| `no-delete` | No DELETE was sent at any point in the run. The count comes from the transport's own call log, across resumed runs. It runs again on every process, so a case added to a finished run is covered too. |
+| `no-delete` | No DELETE was sent at any point in the run. The count comes from the transport's own call log, across resumed runs. It runs again on every process, so a case added to a finished run is covered too. On ClickUp, a tag coming off a task is counted under its own name (`DELETE (a tag off a task)`), since that is the only way to clear a label there; any other DELETE still fails the case. |
+
+**On ClickUp** the three sprint cases are replaced by one, `sprints`,
+because its API cannot make a sprint or close one. It adds the run's story
+and task to the Space's active sprint and its bug to a planned one, checks
+both reads, checks that `create_iteration` finds a sprint by name and that
+the adapter refuses to make or close one without writing, and that a
+closed sprint refuses new items. It skips when no sprint is active.
+`provision` creates nothing there: it reads the Space and stops for the
+operator if the config does not fit. **ClickUp has not run live yet**, so
+it has no row below.
 
 ## Results
 
