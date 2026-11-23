@@ -506,8 +506,24 @@ Copy [examples/issues/github.example.toml](examples/issues/github.example.toml)
 to `boards/<name>.toml`. It names the repository, the environment
 variable that holds a token, and a pattern that finds a board key in an
 issue's text (a footer line such as `Board: AA-12`). The token needs
-read access to that repository's issues and nothing else. GitHub is the
-one code host wired so far; another is one class with one method
+read access to that repository's issues and nothing else.
+
+**Azure DevOps** has no issues of its own, so there the open items are a
+repository's active pull requests. Copy
+[examples/issues/azure-devops.example.toml](examples/issues/azure-devops.example.toml)
+instead: it names the organization, then `Project/repository`, or
+`Project/*` for every repository in the project. The tool and the skill
+are the same, with three differences in what comes back: each entry is a
+pull request, its day is the day it was opened (a list carries no
+last-updated date), and a board key is looked for in its title, then its
+source branch, then its description, of which a list returns only the
+first 400 characters. The token is a personal access token scoped to
+that one organization with Code: Read, or a Microsoft Entra token with
+`auth = "bearer"`, which lasts about an hour and is not renewed here.
+This source is written from Microsoft's REST reference and has not read
+a live organization yet.
+
+Another code host is one class with one method
 ([issues/source.py](issues/source.py)).
 
 `plan-sprint` uses the tool when the host has it: it shows the PM the
@@ -582,7 +598,8 @@ Each claim above has a dated record in the repo:
 Not yet run live: the `parent` and `label` level forms; Jira below
 Premium; a team's own Jira board, since every Jira run used a throwaway
 project; the setup by someone other than the author; an open issue
-that names a board key or is tied to its item only by a link.
+that names a board key or is tied to its item only by a link; the Azure
+DevOps source, against any organization.
 
 ## Development
 

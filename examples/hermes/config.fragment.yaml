@@ -56,7 +56,8 @@ mcp_servers:
       prompts: false
       resources: false
   # Only where the planning skills should see the open issues on the team's
-  # code host: find_open_issues over the repository that config names.
+  # code host: find_open_issues over the repository that config names
+  # (on Azure DevOps, that repository's open pull requests).
   # Otherwise leave this block, and `issues` in platform_toolsets below, out.
   issues:
     command: uv

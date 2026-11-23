@@ -1,0 +1,29 @@
+# Open-issues config for Azure DevOps: which repository's open pull requests
+# the planning skills may read. Azure Repos has no issues of its own, so its
+# active pull requests are the open items. Copy to boards/<name>.toml
+# (gitignored; the board server skips a TOML with no backend), then
+#   uv run python -m issues serve --config boards/<name>.toml
+# Keep secrets OUT of this file: `token_env` names the env var holding the
+# token, or names a Bitwarden item via `<env>_BW_ITEM` (see server/secrets.py).
+# The token needs to read code and nothing else: a personal access token
+# scoped to this one organization with "Code: Read". This server only reads.
+
+[connection]
+token_env = "ISSUES_TOKEN"            # the env var name — never the value
+# What the token is: "pat" (the default), a personal access token, or
+# "bearer", a Microsoft Entra token. An Entra token lasts about an hour and
+# nothing here renews it, so a server that runs for longer wants "pat".
+auth      = "pat"
+
+[source]
+kind         = "azure_devops"
+organization = "example-org"                   # as in https://dev.azure.com/example-org
+repository   = "Example Project/example-repo"  # or "Example Project/*": every repository in the project
+
+[match]
+# One group, the board key. Tried on a pull request's title, then its source
+# branch, then each line of its description (a list cuts the description to
+# its first 400 characters). This one reads a title such as "[AA-12] Fix the
+# export". Leave the table out when pull requests never name a key; a planner
+# then looks each one up by its link.
+key_pattern = '^\[([A-Za-z][A-Za-z0-9]*-\d+)\]'
