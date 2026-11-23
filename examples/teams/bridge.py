@@ -155,8 +155,11 @@ class Bridge:
             self._seen.popitem(last=False)
         return False
 
-    async def handle(self, sender: str, conversation: str, text: str, say: Say, *, message_id: str | None = None) -> None:
-        """One incoming message. `say` posts a message back to the conversation."""
+    async def handle(self, sender: str, conversation: str, text: str, say: Say, *, message_id: str | None = None,
+                     started: Callable[[], Awaitable[None]] | None = None) -> None:
+        """One incoming message. `say` posts a message back to the conversation.
+        `started` is awaited when the message begins a turn, and only then: a
+        host uses it to show that work is under way."""
         if self._redelivered(message_id):
             return
         if sender not in self.permitted:
@@ -177,6 +180,8 @@ class Bridge:
             await say(STARTED_OVER)
             return
         async with self._locks.setdefault(conversation, asyncio.Lock()):
+            if started:
+                await started()
             await self._turn(sender, conversation, text, say)
 
     async def _turn(self, sender: str, conversation: str, text: str, say: Say) -> None:

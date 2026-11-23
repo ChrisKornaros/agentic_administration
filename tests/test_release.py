@@ -60,5 +60,6 @@ async def test_every_server_reports_the_version_to_a_host():
 
 def test_ci_runs_the_readme_s_commands_on_every_push_and_pull_request():
     assert re.search(r"^  push:\n    branches: \[main\]\n  pull_request:\n", CI, re.M)
-    assert re.findall(r"^      - run: (.+)$", CI, re.M) == ["uv sync --locked", "uv run pytest"]
+    assert re.findall(r"^      - run: (.+)$", CI, re.M) == ["uv sync --locked --group teams", "uv run --group teams pytest"]
     assert "uv sync " in README and "uv run pytest " in README  # the Development block, with its comments
+    assert "uv run --group teams pytest " in README  # and the run that includes the Teams bot's tests

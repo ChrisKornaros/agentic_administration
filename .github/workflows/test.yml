@@ -2,7 +2,8 @@
 # README's two Development commands, with --locked so a uv.lock that no
 # longer matches pyproject.toml fails here instead of being rewritten. No
 # tracker, token or secret: live checks are probes/ and conformance/, run by
-# hand.
+# hand. The `teams` group adds Microsoft's Teams SDK, so the Teams bot's tests
+# run here against it; without the group they skip.
 name: test
 
 on:
@@ -20,5 +21,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
-      - run: uv sync --locked
-      - run: uv run pytest
+      - run: uv sync --locked --group teams
+      - run: uv run --group teams pytest
