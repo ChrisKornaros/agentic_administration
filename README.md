@@ -314,6 +314,45 @@ uv run --group agent-sdk python examples/agent-sdk/chat.py
 The `agent-sdk` dependency group installs `claude-agent-sdk`, which
 bundles the Claude Code CLI, so nothing else needs installing.
 
+### A chat bridge (for a Teams bot; the bot itself is not built yet)
+
+[examples/teams/bridge.py](examples/teams/bridge.py) is the part of a
+chat bot that has no chat platform in it. A host hands it each incoming
+message with who sent it and which conversation it is in, and it keeps
+**one agent session per conversation**: the first message starts the
+session and each later one resumes it, across restarts. Turns in one
+conversation run in order, `/new` starts a conversation over, and a
+message delivered twice is dropped.
+
+Each write waits for a yes: the bridge posts what the agent is about to
+run and holds the turn until the person who sent it answers. Only "yes"
+lets it through, and ten minutes of silence is a no.
+[agent.py](examples/teams/agent.py) is its Agent SDK side: the SDK chat's
+session, run a turn at a time, with the open-issues read allowed too.
+
+**Whose usage pays** is read from the environment, and decides who is
+served:
+
+| The environment has | Turns run on | The bridge serves |
+|---|---|---|
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or `CLAUDE_CODE_USE_FOUNDRY` / `_BEDROCK` / `_VERTEX` switched on | Metered billing | The owner and the allow-list |
+| None of them | The Claude plan login of whoever started the process | **The owner alone** |
+
+A plan seat is one person's, and Anthropic's terms do not allow other
+people's requests to be routed through it. So a person may run the
+bridge on their own plan to try it, and the bridge refuses everyone else
+until the process has a metered credential. Nothing else changes between
+the two: the same code runs on Microsoft Foundry with
+`CLAUDE_CODE_USE_FOUNDRY=1`, its resource and its model names set.
+
+[terminal.py](examples/teams/terminal.py) drives the bridge with no chat
+platform, a line a message, typed or piped:
+
+```sh
+export AGENTIC_ADMIN_BOARD=boards/<board>.toml      # or boards/; plus each board's token env
+uv run --group agent-sdk python examples/teams/terminal.py
+```
+
 ### Any other MCP host
 
 Run the server over stdio and give the host the skills in
