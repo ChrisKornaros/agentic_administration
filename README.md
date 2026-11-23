@@ -4,6 +4,7 @@ Turn a request typed into a chat window into a well-formed backlog item:
 an epic, story, bug or task, with acceptance criteria, filed under the
 right parent and in the right sprint, on the tracker your team already
 runs. Plane and Jira Cloud are supported; another tracker is one adapter.
+ClickUp is on its way: its adapter reads a Space and does not write yet.
 
 > **Status: 0.1.0, the first release** ([the changelog](CHANGELOG.md)).
 > Everything below runs and has been proven against live trackers
@@ -101,7 +102,7 @@ One TOML file per board, kept in `boards/`. Start from a template in
 
 | Key | Required | What it holds |
 |---|---|---|
-| `backend` | yes | `plane` or `jira` |
+| `backend` | yes | `plane` or `jira`. `clickup` loads and reads, and writes nothing yet ([ClickUp](#clickup-read-only-so-far)) |
 | `board_type` | no | `software` (the default) or `calendar` ([calendar boards](#calendar-boards)) |
 | `confirm` | no | `always` (the default): the create skills ask before each create. `never`: they commit without pausing. `plan-sprint`, `plan-cycle` and `groom` wait for a yes either way |
 | `description` | no | One line on what the board holds, shown when one server serves [several boards](#several-boards) |
@@ -129,6 +130,7 @@ a custom field). Secrets resolve only through
 |---|---|
 | `plane` | `token_env`; `workspace`, the workspace slug in your Plane URL; `project`, the project's id, its identifier (such as `WEB`) or its name; `base_url` only for a self-hosted Plane: its API root, `https://<your Plane host>/api/v1` (Plane Cloud's is the default) |
 | `jira` | `token_env` and `user_env`, the variables holding a classic API token and the account's email; `site`, such as `https://example.atlassian.net`; `project_key`; `board_id`, the Scrum board whose sprints are the iterations |
+| `clickup` | `token_env`, the variable holding a personal token; `workspace`, the workspace's id; `space`, the id of the one Space that is the board; `sprint_folder`, optional: the Folder whose Lists are the sprints, by name or id |
 
 ### Levels
 
@@ -522,6 +524,31 @@ write finds the item it already made. The live runs used a Premium
 trial site; nothing in the example config needs Premium, but Free and
 Standard haven't been run.
 
+## ClickUp (read only so far)
+
+The ClickUp adapter reads a board and writes nothing: `describe`,
+`find_items`, `get_item` and `get_iteration` work, and every write answers
+that it is not wired yet. Start from
+[examples/boards/clickup.example.toml](examples/boards/clickup.example.toml):
+
+```sh
+export CLICKUP_API_TOKEN=...   # a personal token (pk_…)
+uv run python -m adapters.clickup describe boards/<board>.toml
+```
+
+The board is **one Space**. A personal token sees every Space its owner
+does, so the adapter checks each task it reads against the configured
+Space and treats one outside it as not found. A level is a task type
+(ClickUp's standard task is `Task`; a custom task type goes by its name)
+or a marker tag, and each `type` level needs a type of its own. States
+are the Space's statuses and labels its tags, which ClickUp stores in
+lowercase. The sprints are the Lists of the Folder that `sprint_folder`
+names, and a sprint's state comes from its start and end. A task's key is
+its custom task id, where the Space has a prefix.
+
+Not there yet: every write, the idempotency key (so no lookup by external
+id), custom fields, members, and a container level.
+
 ## Publishing docs to Confluence (optional)
 
 To publish a folder of Markdown to Confluence (one way: git stays the
@@ -671,6 +698,9 @@ Each claim above has a dated record in the repo:
   private repository, `plan-sprint` listed the one hand-filed issue that
   no board item covered, and wrote nothing after a no
   ([record](transcripts/2026-11-15-open-issues-gate.md)).
+- **ClickUp, read only:** `describe` fitted a config to one live Space,
+  and the searches, the single-item reads and the sprint reads answered,
+  with nothing but GETs sent (2026-11-23; no write is wired).
 - **The APIs themselves:** dated read-only probes of each tracker
   ([probes/](probes/README.md)).
 
@@ -678,7 +708,8 @@ Not yet run live: the `parent` and `label` level forms; Jira below
 Premium; a team's own Jira board, since every Jira run used a throwaway
 project; the setup by someone other than the author; an open issue
 that names a board key or is tied to its item only by a link; the Azure
-DevOps source, against any organization.
+DevOps source, against any organization; anything on ClickUp but its reads,
+and those on one Space only.
 
 ## Development
 
@@ -705,7 +736,7 @@ agentic_administration/
 ├── .claude-plugin/    # plugin.json: the skills and the three MCP servers as a Claude Code plugin
 ├── .github/workflows/ # test.yml: the offline tests on every push and pull request
 ├── server/            # the board MCP server, the canonical model, the board config, secrets
-├── adapters/          # base.py (the interface and errors), plane/, jira/, README.md (writing one)
+├── adapters/          # base.py (the interface and errors), plane/, jira/, clickup/ (reads only), README.md (writing one)
 ├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, draft-caption, groom
 ├── schema/            # the intake record and its Markdown rendering
 ├── knowledge/         # the Markdown → Confluence publisher and the docs MCP server

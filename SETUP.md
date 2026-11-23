@@ -88,6 +88,8 @@ the board.
 `token_env` (and, for Jira, `user_env`) holds the *name* of a variable,
 never a token. Keep the template's names, `PLANE_API_KEY` or
 `JIRA_API_TOKEN` and `JIRA_USER`, unless the person already uses others.
+(ClickUp's is `CLICKUP_API_TOKEN`; its adapter only reads so far, so this
+guide's first write, in step 7, cannot be done on a ClickUp board yet.)
 The comments in each template explain every key.
 
 ## 4. Get the token to the commands

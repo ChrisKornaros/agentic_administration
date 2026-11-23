@@ -10,6 +10,19 @@ entry says how.
 
 ### Added
 
+- **A ClickUp adapter, its read side.** A third `backend`, `clickup`
+  ([examples/boards/clickup.example.toml](examples/boards/clickup.example.toml)):
+  the board is one Space of a workspace, named by `workspace` and `space`,
+  with an optional `sprint_folder`. `python -m adapters.clickup describe`
+  reads the Space and checks the config against it, and `find_items`,
+  `get_item` and `get_iteration` read it. A level is a task type or a
+  marker tag, states are the Space's statuses, labels its tags, and the
+  sprints the Lists of the named Folder, each with a state taken from its
+  start and end. A personal token sees every Space its owner does, so a
+  task outside the configured Space is not found. **It writes nothing
+  yet:** every write answers `Unsupported`, there is no lookup by
+  external id, and custom fields, members and a container level are not
+  read. Only GET is sent.
 - **Open issues from a code host, for planning.** A third, optional MCP
   server, `issues` (`python -m issues serve --config <toml>`), has one
   read tool. `find_open_issues(limit)` lists a repository's open issues,

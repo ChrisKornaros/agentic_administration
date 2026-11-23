@@ -53,7 +53,7 @@ def test_the_token_variables_are_the_templates():
 def test_describe_ends_with_the_line_the_guide_names():
     line = "config fits the board."
     assert f"`{line}`" in GUIDE
-    for backend in ("plane", "jira"):
+    for backend in ("plane", "jira", "clickup"):
         assert f'"\\n{line}"' in (REPO / "adapters" / backend / "__main__.py").read_text()
 
 

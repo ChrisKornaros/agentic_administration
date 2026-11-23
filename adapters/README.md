@@ -11,6 +11,11 @@ directly and stores an idempotency key natively. [Jira Cloud](jira/) has
 neither: states move through transitions, and the key is a label. Read
 `base.py` first, then whichever adapter is closer to your tracker.
 
+[ClickUp](clickup/) is a third, half built: its read side is in, and its
+writes raise `Unsupported` until the write-side questions are settled. It
+shows one more shape: a token that sees more than the board, so the
+adapter keeps every read inside the configured Space.
+
 ## Where it sits
 
 ```

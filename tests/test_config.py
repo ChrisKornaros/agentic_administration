@@ -144,7 +144,7 @@ def test_unknown_and_missing_sections_are_reported_together():
 
 def test_bad_enum_values():
     p = problems_of(variant(backend="trello", confirm="sometimes", board_type="kanban"))
-    assert any("backend: 'trello' is not one of plane, jira, generic" in x for x in p)
+    assert any("backend: 'trello' is not one of plane, jira, clickup, generic" in x for x in p)
     assert any("confirm: 'sometimes' is not one of always, never" in x for x in p)
     assert "board_type: 'kanban' is not one of software, calendar" in p
 
@@ -172,6 +172,7 @@ def test_credential_looking_connection_keys_are_rejected(key):
     [
         ("plane", "project, workspace"),
         ("jira", "board_id, project_key, site"),
+        ("clickup", "space, workspace"),  # sprint_folder is optional
     ],
 )
 def test_backend_specific_connection_keys(backend, missing):

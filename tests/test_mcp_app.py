@@ -101,7 +101,7 @@ async def test_the_stdio_entry_point_serves_a_directory_of_boards():
     async with Client(params) as client:
         listed = await client.call_tool("describe_board", {})  # from the configs: no tracker, no token
     names = [b["board"] for b in listed.structured_content["boards"]]
-    assert names == ["calendar.example", "jira.example", "plane.example"]
+    assert names == ["calendar.example", "clickup.example", "jira.example", "plane.example"]
 
 
 @pytest.mark.anyio
