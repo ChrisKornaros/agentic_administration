@@ -46,7 +46,11 @@ mechanical (adapters/base.py).
   the propose result and the commit result name the board, and a token
   proposed on one board never commits on another.
 
-Drafts live in memory. After a restart, the agent proposes again.
+Drafts live in memory, and in a directory too when the service is given
+one: each draft is then a small JSON file, so a commit finds a draft that
+an earlier server process proposed. A host that starts the server anew
+for every message needs that. With no directory, the agent proposes again
+after a restart.
 Nothing here deletes: work is finished by setting state `done` or `cancelled`.
 """
 
@@ -54,9 +58,14 @@ from __future__ import annotations
 
 import enum
 import functools
+import hashlib
+import json
+import os
+import re
 import threading
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from secrets import token_urlsafe
 from typing import Any, Callable, Mapping, Sequence
 
@@ -90,8 +99,10 @@ from server.model import (
     WorkItem,
     to_jsonable,
 )
+from server.model import item_from_jsonable
 
 DRAFT_TTL = timedelta(minutes=30)  # settled at the Phase 3 step 1 kickoff, 2026-09-23
+_TOKEN = re.compile(r"[A-Za-z0-9_-]{1,64}")  # what token_urlsafe makes; nothing else is ever looked up as a file
 
 
 class ToolFailure(Exception):
@@ -214,10 +225,15 @@ class BoardService:
         name: str = "board",
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         ttl: timedelta = DRAFT_TTL,
+        drafts: str | Path | None = None,
     ) -> None:
         self.adapter = adapter
         self.config = adapter.config
         self.name = name
+        self._dir = Path(drafts) if drafts else None  # where drafts are kept as files too, to outlast this process
+        conn = self.config.connection  # the tracker project a draft is for: a file made for another is not this board's
+        self._target = hashlib.sha256(json.dumps(
+            [self.config.backend.value, conn.base_url, sorted(conn.ids.items())]).encode()).hexdigest()[:16]
         self._clock = clock
         self._ttl = ttl
         self._lock = threading.Lock()
@@ -232,7 +248,51 @@ class BoardService:
 
     def holds(self, token: str) -> bool:
         """Whether this board has a live draft under `token`."""
-        return token in self._drafts
+        return token in self._drafts or self._kept(token) is not None
+
+    def _file(self, token: str) -> Path | None:
+        return self._dir / f"{token}.json" if self._dir and _TOKEN.fullmatch(token or "") else None
+
+    def _keep(self, token: str, draft: Draft) -> None:
+        path = self._file(token)
+        if path is None:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        tmp = path.with_name(path.name + ".tmp")
+        with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as fh:
+            json.dump({"board": self.name, "target": self._target, "expires": draft.expires.isoformat(),
+                       "item": to_jsonable(draft.item)}, fh)
+        os.replace(tmp, path)  # a crash leaves the whole file or none
+
+    def _kept(self, token: str) -> Draft | None:
+        """This board's draft under `token` from its file, or None: no directory, no such
+        file, one that does not read, or one made for another board."""
+        path = self._file(token)
+        if path is None:
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data["board"] != self.name or data["target"] != self._target:
+                return None
+            return Draft(item_from_jsonable(data["item"]), datetime.fromisoformat(data["expires"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _forget(self, token: str) -> None:
+        self._drafts.pop(token, None)
+        path = self._file(token)
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+    def _sweep(self, now: datetime) -> None:
+        """Drop every draft past its time, the files of any board in the directory included."""
+        self._drafts = {t: d for t, d in self._drafts.items() if d.expires > now}
+        for path in self._dir.glob("*.json") if self._dir and self._dir.is_dir() else ():
+            try:
+                if datetime.fromisoformat(json.loads(path.read_text(encoding="utf-8"))["expires"]) <= now:
+                    path.unlink(missing_ok=True)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue  # not a draft this code wrote: leave it
 
     def summary(self) -> dict[str, Any]:
         """The board as its config describes it, without reading the tracker."""
@@ -443,10 +503,11 @@ class BoardService:
             )
 
         now = self._clock()
-        self._drafts = {t: d for t, d in self._drafts.items() if d.expires > now}
+        self._sweep(now)
         token = token_urlsafe(9)
         expires = now + self._ttl
         self._drafts[token] = Draft(item, expires)
+        self._keep(token, self._drafts[token])
         preview = to_jsonable(item)
         preview["parent"] = (
             {"id": parent_item.id, "key": parent_item.key, "level": parent_item.level.value, "title": parent_item.title}
@@ -467,11 +528,11 @@ class BoardService:
 
     @_operation
     def commit_item(self, token: str) -> dict[str, Any]:
-        draft = self._drafts.get(token)
+        draft = self._drafts.get(token) or self._kept(token)
         if draft is None:
             raise ToolFailure("Unknown draft token (the server may have restarted). Call propose_item again.")
         if self._clock() >= draft.expires:
-            del self._drafts[token]
+            self._forget(token)
             raise ToolFailure(
                 f"The draft expired at {draft.expires.isoformat()}. Call propose_item again "
                 "so the requester confirms against the board as it is now."

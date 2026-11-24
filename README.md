@@ -4,8 +4,8 @@ Turn a request typed into a chat window into a well-formed backlog item:
 an epic, story, bug or task, with acceptance criteria, filed under the
 right parent and in the right sprint, on the tracker your team already
 runs. Plane and Jira Cloud are supported; another tracker is one adapter.
-ClickUp is on its way: its adapter reads a live Space, and its writes are
-built and have not run live yet.
+ClickUp is the newest: its adapter has passed the live conformance suite
+on one throwaway Space.
 
 > **Status: 0.1.0, the first release** ([the changelog](CHANGELOG.md)).
 > Everything below runs and has been proven against live trackers
@@ -103,7 +103,7 @@ One TOML file per board, kept in `boards/`. Start from a template in
 
 | Key | Required | What it holds |
 |---|---|---|
-| `backend` | yes | `plane` or `jira`. `clickup` reads a live Space, and its writes have not run live yet ([ClickUp](#clickup-writes-not-yet-run-live)) |
+| `backend` | yes | `plane`, `jira` or `clickup` ([ClickUp](#clickup)) |
 | `board_type` | no | `software` (the default) or `calendar` ([calendar boards](#calendar-boards)) |
 | `confirm` | no | `always` (the default): the create skills ask before each create. `never`: they commit without pausing. `plan-sprint`, `plan-cycle` and `groom` wait for a yes either way |
 | `description` | no | One line on what the board holds, shown when one server serves [several boards](#several-boards) |
@@ -315,14 +315,17 @@ uv run --group agent-sdk python examples/agent-sdk/chat.py
 ```
 
 The `agent-sdk` dependency group installs `claude-agent-sdk`, which
-bundles the Claude Code CLI, so nothing else needs installing.
+bundles the Claude Code CLI on macOS and Linux, so nothing else needs
+installing there. Its Windows install carries no CLI: install Claude Code
+first (`winget install Anthropic.ClaudeCode`), or a turn ends before it
+starts.
 
 ### Microsoft Teams
 
 [examples/teams/](examples/teams/) is a Teams bot in two parts: a bridge
 with no Teams in it, and a thin bot over Microsoft's Teams SDK for
-Python. It has run end to end on a laptop against a stand-in for Teams;
-**it has not run in a real Teams tenant or in Agents Playground yet.**
+Python. It has run end to end on a laptop in Microsoft's Agents
+Playground (2026-11-24); **it has not run in a real Teams tenant yet.**
 
 [bridge.py](examples/teams/bridge.py) is the part of a
 chat bot that has no chat platform in it. A host hands it each incoming
@@ -335,6 +338,8 @@ message delivered twice is dropped.
 Each write waits for a yes: the bridge posts what the agent is about to
 run and holds the turn until the person who sent it answers. Only "yes"
 lets it through, and ten minutes of silence is a no.
+The board server starts with each turn here, and a draft outlasts it: the
+preview shown in one message is committed after the yes in the next.
 [agent.py](examples/teams/agent.py) is its Agent SDK side: the SDK chat's
 session, run a turn at a time, with the open-issues read allowed too.
 
@@ -377,6 +382,7 @@ Who it serves comes from the environment:
 | `TEAMS_ALLOWED` | More object ids, comma-separated. Served on metered billing only (the table above) |
 | `TENANT_ID` | With it set, a message from any other tenant is dropped |
 | `CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID` | The bot's own registration, read by the SDK. The secret may come from Bitwarden through `CLIENT_SECRET_BW_ITEM` |
+| `AGENTIC_ADMIN_INSTRUCTIONS` | Optional: the team's own rules for the assistant, added after the framing line. For example, to answer what was asked and add no advice |
 
 Three ways to run it, the first with no tenant at all:
 
@@ -389,7 +395,22 @@ uv run --group teams --group agent-sdk python examples/teams/bot.py             
 ```
 
 `--playground` accepts requests nobody signed. It listens on 127.0.0.1
-alone and refuses to start with a `CLIENT_ID` set. Registering the bot
+alone and refuses to start with a `CLIENT_ID` set. Start the Playground
+in a second window with
+`agentsplayground -e "http://127.0.0.1:3978/api/messages" -c "msteams"`.
+What the first run there showed:
+
+- **The Playground signs in a stand-in user**, whose name is not yours.
+  With no `TEAMS_OWNER` set the bot answers with that user's id; set it
+  to that.
+- **Each board's token has to be exported in the window that starts the
+  bot**, since the board server inherits its environment.
+- **The Playground refuses a message in `extendedmarkdown`**, which real
+  Teams takes, so with `--playground` the bot sends `markdown`. Tables
+  and code blocks still render, and "Working on it…" is still edited
+  into the answer.
+
+Registering the bot
 with Teams (an app registration in one tenant, the bot, the app
 manifest, and whether the tenant allows custom apps and socket mode) is
 Microsoft's side: see the SDK's own repository,
@@ -418,6 +439,12 @@ Creating an item is two calls. `propose_item` checks the draft against
 the board and returns a preview and a token that lasts 30 minutes.
 `commit_item(token)` writes exactly that draft, and a retry returns the
 same item rather than a duplicate. No tool deletes.
+
+The draft is also kept as a small file for those 30 minutes, in
+`~/.cache/agentic-administration/drafts` or the directory
+`AGENTIC_ADMIN_DRAFTS` names, so the commit still finds it when the host
+has restarted the server in between. It holds the item's title and
+description; set the variable empty to keep drafts in memory alone.
 
 The usual draft is an **intake record** ([schema/intake.py](schema/intake.py)):
 one request's problem, outcome, constraints, urgency and related items,
@@ -525,13 +552,12 @@ write finds the item it already made. The live runs used a Premium
 trial site; nothing in the example config needs Premium, but Free and
 Standard haven't been run.
 
-## ClickUp (writes not yet run live)
+## ClickUp
 
-The ClickUp adapter's reads have run against a live Space. Its writes are
-built from ClickUp's API reference and pass offline, against a stand-in
-for ClickUp; **none has run live yet**, so run the
-[conformance suite](conformance/README.md) on a throwaway Space before a
-real one. Start from
+The ClickUp adapter passed the [conformance suite](conformance/README.md)
+on a throwaway Space on 2026-11-24, with one case skipped because custom
+fields are not wired. That is one Space on one plan, so run the suite on
+a throwaway Space of your own before a real one. Start from
 [examples/boards/clickup.example.toml](examples/boards/clickup.example.toml):
 
 ```sh
@@ -568,6 +594,12 @@ What the writes do:
   sprint by name and says so when asked for more.
 - **A tag the Space lacks is made first.** That happens for a collapsed
   feature's tag, the first time the feature is named.
+- **A tag with a slash in its name cannot be added to a task, or taken
+  off one.** The tag's name is part of the request's address, and
+  ClickUp answered 404 or 400 to the slash percent-encoded, raw and
+  double-encoded (2026-11-24). The adapter refuses such an update before
+  it writes anything, and a slash tag already on a task stays through any
+  other update. Add or remove one in ClickUp.
 
 Not there yet: custom fields, links and a container level.
 
@@ -720,9 +752,19 @@ Each claim above has a dated record in the repo:
   private repository, `plan-sprint` listed the one hand-filed issue that
   no board item covered, and wrote nothing after a no
   ([record](transcripts/2026-11-15-open-issues-gate.md)).
-- **ClickUp, its reads:** `describe` fitted a config to one live Space,
-  and the searches, the single-item reads and the sprint reads answered,
-  with nothing but GETs sent (2026-11-23). Its writes pass offline only.
+- **ClickUp:** `describe` fitted a config to one live Space, and the
+  searches, the single-item reads and the sprint reads answered, with
+  nothing but GETs sent (2026-11-23). The conformance suite then passed on
+  a throwaway Space: 9 cases, with `fields` skipped (2026-11-24,
+  [results](conformance/README.md#results)).
+- **The Teams bot, in Agents Playground:** on a laptop, one chat read two
+  ClickUp boards, kept the thread from message to message and listed a
+  sprint of 85 items in one answer. On a throwaway Space it filed a
+  story through `intake`, with the yes arriving in a later message than
+  the preview, then added a label, moved the state, commented and
+  cancelled, each after a yes, and refused to delete. It declined a write
+  on a board whose config leaves the write keys out (2026-11-24). It has
+  not run in a Teams tenant.
 - **The APIs themselves:** dated read-only probes of each tracker
   ([probes/](probes/README.md)).
 
@@ -758,7 +800,7 @@ agentic_administration/
 ├── .claude-plugin/    # plugin.json: the skills and the three MCP servers as a Claude Code plugin
 ├── .github/workflows/ # test.yml: the offline tests on every push and pull request
 ├── server/            # the board MCP server, the canonical model, the board config, secrets
-├── adapters/          # base.py (the interface and errors), plane/, jira/, clickup/ (writes not yet run live), README.md (writing one)
+├── adapters/          # base.py (the interface and errors), plane/, jira/, clickup/, README.md (writing one)
 ├── skills/            # intake, create-story, create-bug, create-epic, plan-sprint, plan-cycle, draft-caption, groom
 ├── schema/            # the intake record and its Markdown rendering
 ├── knowledge/         # the Markdown → Confluence publisher and the docs MCP server

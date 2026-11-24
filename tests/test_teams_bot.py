@@ -74,14 +74,14 @@ class FakeAgent:
 
 
 class Bot:
-    def __init__(self, tmp_path, *, owner: str | None = OWNER, tenant: str | None = TENANT) -> None:
+    def __init__(self, tmp_path, *, owner: str | None = OWNER, tenant: str | None = TENANT, **options) -> None:
         self.service, self.agent, self.adapter = Service(), FakeAgent(), FastAPIAdapter()
         client = Client()
         client.use(self.service)
         self.bridge = owner and bridge_module.Bridge(self.agent, bridge_module.Sessions(tmp_path / "sessions.json"),
                                                      owner=owner, mode="metered")
         self.app, self.turns = bot.build(self.bridge or None, tenant=tenant, http_server_adapter=self.adapter,
-                                         dangerously_allow_unauthenticated_requests=True, client=client)
+                                         dangerously_allow_unauthenticated_requests=True, client=client, **options)
         self._n = 0
 
     async def post(self, text: str, *, sender: str = OWNER, kind: str = "personal", tenant: str = TENANT,
@@ -134,6 +134,15 @@ async def test_a_direct_message_is_answered_in_place_of_the_working_message(tmp_
 
 
 @pytest.mark.anyio
+async def test_the_playground_gets_its_answers_in_plain_markdown(tmp_path):
+    # Agents Playground answers 400 to extendedmarkdown, on the edit and on a new message alike.
+    b = Bot(tmp_path, text_format=bot.PLAYGROUND_FORMAT)
+    await b.post("two parts")
+    await b.settle()
+    assert [body.get("textFormat") for _, _, body in b.service.calls[1:]] == ["markdown", "markdown"]
+
+
+@pytest.mark.anyio
 async def test_teams_gets_its_answer_before_the_turn_is_over(tmp_path):
     b = Bot(tmp_path)
     b.agent.gate = asyncio.Event()
@@ -158,7 +167,7 @@ async def test_a_write_waits_for_a_yes_typed_as_the_next_message(tmp_path):
     b = Bot(tmp_path)
     await b.post("write it")
     await b.settle()
-    assert b.service.texts[0] == ("POST", bot.WORKING) and "**commit_item**" in b.service.texts[1][1]
+    assert b.service.texts[0] == ("POST", bot.WORKING) and "create the item I just previewed" in b.service.texts[1][1]
     await b.post("yes")
     await b.settle()
     assert b.service.texts[2:] == [("POST", "Created AA-1.")]  # the yes started no turn and got no working message

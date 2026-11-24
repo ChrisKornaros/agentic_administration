@@ -11,8 +11,7 @@ directly and stores an idempotency key natively. [Jira Cloud](jira/) has
 neither: states move through transitions, and the key is a label. Read
 `base.py` first, then whichever adapter is closer to your tracker.
 
-[ClickUp](clickup/) is a third, and its writes have not run live yet. It
-shows more shapes: a token that sees more than the board, so the adapter
+[ClickUp](clickup/) is a third. It shows more shapes: a token that sees more than the board, so the adapter
 checks every task it reads or writes against the configured Space; an
 idempotency key kept in a custom field; and sprints the API can join but
 not make or close, so those two operations find, confirm or raise

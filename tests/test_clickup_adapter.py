@@ -543,16 +543,32 @@ def test_update_sends_only_what_changes():
 
 def test_a_tag_is_quoted_whole_in_its_path_and_the_only_delete_takes_a_tag_off_a_task():
     fake, epic, story, *_ = seeded()
-    fake.tags += ["ui/ux", "needs design"]
+    fake.tags += ["r&d", "needs design"]
     adapter, t = make(fake)
-    adapter.update_item(story["id"], ItemPatch(labels=("ui/ux", "needs design")))
+    adapter.update_item(story["id"], ItemPatch(labels=("r&d", "needs design")))
     assert adapter.update_item(story["id"], ItemPatch(labels=())).labels == ()
     sent = [(m, p) for m, p, _ in writes(t)]
-    assert sent[:2] == [("POST", f"/task/{story['id']}/tag/ui%2Fux"), ("POST", f"/task/{story['id']}/tag/needs%20design")]
+    assert sent[:2] == [("POST", f"/task/{story['id']}/tag/r%26d"), ("POST", f"/task/{story['id']}/tag/needs%20design")]
     deletes = [p for m, p in sent if m == "DELETE"]
     assert len(deletes) == 4 and all(UNTAG.match(p) for p in deletes) and len(sent) == 6
     # the task is still there, and so is every tag in the Space
-    assert story["id"] in fake.tasks and {"ui/ux", "needs design", "needs-review", "frontend"} <= set(fake.tags)
+    assert story["id"] in fake.tasks and {"r&d", "needs design", "needs-review", "frontend"} <= set(fake.tags)
+
+
+def test_a_tag_with_a_slash_is_refused_before_anything_is_written_and_one_already_on_stays():
+    # ClickUp answered 404 or 400 to every form of such a name in the address (probe, 2026-11-24).
+    fake, epic, story, *_ = seeded()
+    fake.tags += ["ui/ux"]
+    adapter, t = make(fake)
+    with pytest.raises(Unsupported, match="slash in its name.*ui/ux.*Nothing was written"):
+        adapter.update_item(story["id"], ItemPatch(title="Renamed", labels=("ui/ux",)))
+    assert writes(t) == [] and fake.tasks[story["id"]]["name"] == story["name"]  # the title did not go either
+    tagged = fake.add_task("Carries One Already", tags=("ui/ux",))
+    since = len(t.calls)
+    kept = adapter.update_item(tagged["id"], ItemPatch(labels=("ui/ux", "frontend")))
+    assert kept.labels == ("ui/ux", "frontend") and [m for m, *_ in writes(t, since)] == ["POST"]
+    with pytest.raises(Unsupported, match="slash in its name"):
+        adapter.update_item(tagged["id"], ItemPatch(labels=("frontend",)))  # taking it off uses the same address
 
 
 def test_update_refuses_before_any_call_and_never_writes_outside_the_space():
@@ -760,3 +776,58 @@ def test_a_missing_token_is_an_auth_error_and_an_unreadable_answer_a_transport_e
     t, _ = transport(["<html>a wall</html>"])
     with pytest.raises(TransportError, match="non-JSON"):
         t.request("GET", "/user")
+
+
+# --- the custom id of a task just made ------------------------------------------------
+
+
+class LateKeys(fc.FakeClickUp):
+    """ClickUp as seen live: a new task's custom id is missing from the first reads of it.
+    With `never`, the Space issues none, and every task is `age` old."""
+
+    def __init__(self, late=1, never=False, age_ms=None):
+        super().__init__()
+        self.late, self.never, self.age_ms, self.reads, self.fresh = late, never, age_ms, {}, set()
+
+    def request(self, method, path, *, params=None, body=None):
+        out = super().request(method, path, params=params, body=body)
+        if method == "GET" and path.startswith("/task/") and isinstance(out, dict) and out.get("id"):
+            seen = self.reads[out["id"]] = self.reads.get(out["id"], 0) + 1
+            out = dict(out)
+            if self.never or (out["id"] in self.fresh and seen <= self.late):
+                out["custom_id"] = None
+            if self.age_ms is not None:
+                out["date_created"] = str(self.age_ms)
+        return out
+
+    def _write(self, method, path, body):
+        out = super()._write(method, path, body)
+        if method == "POST" and path.endswith("/task") and isinstance(out, dict) and out.get("id"):
+            self.fresh.add(out["id"])
+        return out
+
+
+def late(**kwargs):
+    fake = LateKeys(**kwargs)
+    waits: list[float] = []
+    cfg = BoardConfig.from_dict(CONFIG).check()
+    return ClickUpAdapter(cfg, fake, secret=lambda name: "unused", now=lambda: NOW, sleep=waits.append), fake, waits
+
+
+def test_create_waits_a_moment_for_the_custom_id_clickup_adds_late():
+    adapter, fake, waits = late(late=1)
+    made = adapter.create_item(WorkItem(Level.STORY, "Late Key"))
+    assert made.key == fake.tasks[made.id]["custom_id"] and waits == [1.0]
+    adapter, fake, waits = late(late=5)  # it never comes in time: the item is returned without a key
+    made = adapter.create_item(WorkItem(Level.STORY, "No Key Yet"))
+    assert made.key is None and made.id in fake.tasks and waits == [1.0, 2.0]
+
+
+def test_create_does_not_wait_when_the_key_came_back_or_the_space_issues_none():
+    adapter, fake, waits = late(late=0)
+    assert adapter.create_item(WorkItem(Level.STORY, "Keyed At Once")).key and waits == []
+    old = int((NOW.timestamp() - 3600) * 1000)
+    adapter, fake, waits = late(never=True, age_ms=old)
+    parent = fake.add_task("An Older Epic", type=fc.T_EPIC)
+    made = adapter.create_item(WorkItem(Level.STORY, "Under It", parent=ItemRef(parent["id"])))
+    assert made.key is None and waits == []  # the parent, an hour old with no custom id, showed the Space issues none

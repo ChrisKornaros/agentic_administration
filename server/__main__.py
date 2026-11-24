@@ -14,7 +14,10 @@ may go to stdout; errors before the server starts go to stderr.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
+from typing import Mapping
 
 from adapters.base import Adapter
 from adapters.clickup import ClickUpAdapter
@@ -35,6 +38,19 @@ def make_adapter(cfg: BoardConfig) -> Adapter:
     raise SystemExit(f"no adapter for backend {cfg.backend.value!r} yet (Plane, Jira and ClickUp only)")
 
 
+DRAFTS_ENV = "AGENTIC_ADMIN_DRAFTS"
+
+
+def drafts_dir(environ: Mapping[str, str] | None = None) -> Path | None:
+    """Where a draft is kept between `propose_item` and `commit_item`, so that a commit finds
+    a draft an earlier server process proposed: the directory `AGENTIC_ADMIN_DRAFTS` names, or
+    one in the user's cache. Set the variable empty to keep drafts in memory alone."""
+    named = (os.environ if environ is None else environ).get(DRAFTS_ENV)
+    if named is None:
+        return Path.home() / ".cache" / "agentic-administration" / "drafts"
+    return Path(named).expanduser() if named.strip() else None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m server", description="the agentic_administration MCP server (stdio)")
     parser.add_argument("config", nargs="+", help="a board's TOML config, or a directory of them")
@@ -49,7 +65,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     for path in skipped:
         print(f"skipped {path}: it has no backend, so it is not a board config", file=sys.stderr)
-    build(Boards([BoardService(make_adapter(cfg), name=name) for name, cfg in configs.items()])).run("stdio")
+    drafts = drafts_dir()
+    build(Boards([BoardService(make_adapter(cfg), name=name, drafts=drafts) for name, cfg in configs.items()])).run("stdio")
     return 0
 
 

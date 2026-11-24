@@ -503,3 +503,95 @@ def test_a_draft_commits_only_on_the_board_it_was_proposed_on():
     assert done["board"] == "content" and done["already_existed"] is False
     with pytest.raises(ToolFailure, match="Unknown draft token"):
         boards.commit_item("nope", "web")
+
+
+# --- a draft that outlasts the server process ---------------------------------------
+
+
+def restarted(svc, tmp_path, **kwargs):
+    """A second service on the same board and drafts directory, as a new server process would be."""
+    return BoardService(svc.adapter, clock=svc._clock, drafts=tmp_path, **kwargs)
+
+
+def test_a_draft_kept_as_a_file_commits_after_a_restart(tmp_path):
+    adapter, t = make()
+    clock = Clock()
+    first = BoardService(adapter, clock=clock, drafts=tmp_path)
+    out = propose(first, start_date="2026-09-23", target_date="2026-09-30")
+    kept = first._drafts[out["token"]].item
+    second = restarted(first, tmp_path)
+    assert second._drafts == {} and second.holds(out["token"])
+    assert second._kept(out["token"]).item == kept  # the item comes back as it was drafted
+    done = second.commit_item(out["token"])
+    assert done["already_existed"] is False and len(item_posts(t)) == 1
+    assert done["item"]["title"] == STORY["title"] and done["item"]["external_id"] == "req-0007/story-2"
+
+
+def test_with_no_directory_a_restart_still_loses_the_draft():
+    svc, t, _ = service()
+    token = propose(svc)["token"]
+    with pytest.raises(ToolFailure, match="Unknown draft token"):
+        BoardService(svc.adapter, clock=svc._clock).commit_item(token)
+    assert item_posts(t) == []
+
+
+def test_a_kept_draft_expires_and_its_file_goes(tmp_path):
+    adapter, t = make()
+    clock = Clock()
+    first = BoardService(adapter, clock=clock, drafts=tmp_path)
+    token = propose(first)["token"]
+    assert [p.name for p in tmp_path.iterdir()] == [f"{token}.json"]
+    clock.now += DRAFT_TTL
+    with pytest.raises(ToolFailure, match="expired.*propose_item again"):
+        restarted(first, tmp_path).commit_item(token)
+    assert list(tmp_path.iterdir()) == [] and item_posts(t) == []
+    stale = propose(first)["token"]
+    clock.now += DRAFT_TTL
+    propose(first)  # the next proposal sweeps the files past their time
+    assert not (tmp_path / f"{stale}.json").exists() and len(list(tmp_path.iterdir())) == 1
+
+
+def test_a_kept_draft_is_only_its_own_boards(tmp_path):
+    web, wt = make()
+    content, ct = make(config={**CALENDAR, "description": "A content calendar"})
+    clock = Clock()
+
+    def boards():
+        return Boards([BoardService(web, name="web", clock=clock, drafts=tmp_path),
+                       BoardService(content, name="content", clock=clock, drafts=tmp_path)])
+
+    token = boards().get("content").propose_item("20261009-post", "story", "Loaves Of The Week")["token"]
+    again = boards()  # a restart
+    with pytest.raises(ToolFailure, match="proposed on board 'content', not 'web', so nothing was written"):
+        again.commit_item(token, "web")
+    # the same name over another tracker project is another board: its file is not this one's
+    elsewhere, et = make(config={**CONFIG, "connection": {**CONFIG["connection"], "project": "BB"}})
+    renamed = BoardService(elsewhere, name="content", clock=clock, drafts=tmp_path)
+    assert not renamed.holds(token)
+    with pytest.raises(ToolFailure, match="Unknown draft token"):
+        renamed.commit_item(token)
+    assert wt.calls == [] and et.calls == []
+    assert again.commit_item(token, "content")["already_existed"] is False
+
+
+def test_only_a_token_shaped_string_is_looked_up_as_a_file(tmp_path):
+    adapter, t = make()
+    svc = BoardService(adapter, clock=Clock(), drafts=tmp_path / "drafts")
+    propose(svc)
+    outside = tmp_path / "outside.json"
+    outside.write_text((tmp_path / "drafts").glob("*.json").__next__().read_text())
+    for token in ("../outside", "..\outside", "/etc/passwd", "a/b", "", "x" * 65, "outside.json"):
+        assert svc._file(token) is None and not svc.holds(token)
+        with pytest.raises(ToolFailure, match="Unknown draft token"):
+            svc.commit_item(token)
+    assert item_posts(t) == []
+
+
+def test_the_server_keeps_drafts_in_the_users_cache_unless_told_otherwise(tmp_path):
+    from pathlib import Path
+
+    from server.__main__ import DRAFTS_ENV, drafts_dir
+
+    assert drafts_dir({}) == Path.home() / ".cache" / "agentic-administration" / "drafts"
+    assert drafts_dir({DRAFTS_ENV: str(tmp_path)}) == tmp_path
+    assert drafts_dir({DRAFTS_ENV: ""}) is None and drafts_dir({DRAFTS_ENV: "  "}) is None  # memory alone
