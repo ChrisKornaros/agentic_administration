@@ -29,6 +29,9 @@ StateName = Literal["backlog", "todo", "in_progress", "done", "cancelled"]
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
+# Claude Code saves a tool result over about 50,000 characters to a file, which a host with no file
+# tool cannot open. A sprint of 85 items with their descriptions is 170,000. Other hosts ignore this.
+LONG_RESULT = {"anthropic/maxResultSizeChars": 500_000}
 
 INSTRUCTIONS = """\
 Backlog administration for one board or several, over a canonical work-item
@@ -80,7 +83,7 @@ def build(boards: Boards) -> MCPServer:
         `board` it acts on by that name; with one board it may be left out."""
         return call(boards.describe_board, board)
 
-    @mcp.tool(annotations=READ)
+    @mcp.tool(annotations=READ, meta=LONG_RESULT)
     def find_items(
         query: str = "",
         external_id: str | None = None,

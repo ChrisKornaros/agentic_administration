@@ -85,7 +85,8 @@ import json
 import re
 import urllib.parse
 from dataclasses import replace
-from datetime import date, datetime, time, timezone, tzinfo
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
+from time import sleep as _sleep
 from typing import Any, Callable, Iterable, Sequence
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -126,6 +127,9 @@ _TYPE_TO_STATE = {"open": State.BACKLOG, "unstarted": State.BACKLOG, "custom": S
                   "done": State.DONE, "closed": State.DONE}
 _CUSTOM_ID = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")  # a custom task id, such as TST-12
 _SCAN_PAGES = 10  # pages of 100 a search reads before it stops
+# ClickUp gives a new task its custom id a moment after the create answers (seen live, 2026-11-24):
+# the seconds to wait before each further read of a task that came back without one.
+_KEY_WAITS = (1.0, 2.0)
 _TEXT_FIELDS = ("short_text", "text")  # the custom field types that can hold the idempotency key
 _DATE_HOUR = 4  # where ClickUp puts a date with no time, in the owner's zone (probe, 2026-11-23)
 TAG_FG, TAG_BG = "#ffffff", "#667684"  # the colours of a tag this adapter makes; ClickUp requires both
@@ -145,6 +149,7 @@ class ClickUpAdapter(Adapter):
         *,
         secret: Callable[[str], str] = secrets.get,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        sleep: Callable[[float], None] = _sleep,
     ) -> None:
         if config.backend is not Backend.CLICKUP:
             raise ValueError(f"ClickUpAdapter got a {config.backend.value} config")
@@ -157,6 +162,8 @@ class ClickUpAdapter(Adapter):
         self.xid_field = conn.ids.get("xid_field")
         self._t: Transport = transport or ClickUpTransport(lambda: secret(conn.token_env), base_url=conn.base_url or API)
         self._now = now  # a sprint's state comes from its instants, so the clock is an instant too
+        self._sleep = sleep
+        self._keyed: bool | None = None  # whether the Space issues custom task ids, once a task has shown it
         self._caps = Capabilities(
             self.backend,
             config.materializations(),
@@ -564,7 +571,18 @@ class ClickUpAdapter(Adapter):
         rec = self._t.request("GET", f"/task/{urllib.parse.quote(ident, safe='')}", params=params)
         if not isinstance(rec, dict) or not rec.get("id") or not self._here(rec):
             raise NotFound(f"no task {ident!r} in this board's Space")
+        self._note_key(rec)
         return rec
+
+    def _note_key(self, rec: dict[str, Any]) -> None:
+        """Learn from a task whether the Space issues custom task ids. One that has one says
+        yes. One over a minute old without one says no; a newer one says nothing yet."""
+        if rec.get("custom_id"):
+            self._keyed = True
+        elif self._keyed is None:
+            made = _instant(rec.get("date_created"))
+            if made is not None and self._now() - made > timedelta(minutes=1):
+                self._keyed = False
 
     def get_item(self, ref: ItemRef | str) -> WorkItem:
         self._ready_maps()
@@ -706,6 +724,12 @@ class ClickUpAdapter(Adapter):
         if sprint_id and sprint_id != list_id:
             self._t.request("POST", f"/list/{sprint_id}/task/{task_id}")
         created = self.get_item(task_id)
+        if created.key is None and self._keyed is not False:  # the custom id may be a moment behind
+            for pause in _KEY_WAITS:
+                self._sleep(pause)
+                created = self.get_item(task_id)
+                if created.key is not None:
+                    break
         return replace(created, initiative=item.initiative, feature=item.feature)
 
     def update_item(self, ref: ItemRef | str, patch: ItemPatch) -> WorkItem:
@@ -749,6 +773,10 @@ class ClickUpAdapter(Adapter):
             want_tags = _dedupe([*(label.lower() for label in patch.labels), *([marker] if marker else [])])
             on = [t for t in want_tags if t not in have_tags]
             off = [t for t in have_tags if t not in want_tags]
+            slashed = [t for t in (*on, *off) if "/" in t]
+            if slashed:  # the tag's name is in the address, and ClickUp takes no form of a slash there (probe, 2026-11-24)
+                raise Unsupported(f"ClickUp's API cannot add a tag with a slash in its name to a task, or take one "
+                                  f"off ({', '.join(slashed)}): change it in ClickUp. Nothing was written")
         new_tags = self._missing_tags(on)
 
         # everything above read or refused; from here on it writes

@@ -226,7 +226,7 @@ async def test_a_write_waits_for_the_senders_answer_and_only_yes_allows_it(tmp_p
     chat = Chat()
     turn = asyncio.create_task(b.handle(OWNER, "c1", "write it", chat))
     await settle(b)
-    assert b.waiting("c1") and "**commit_item**" in chat.said[0] and '"token": "t-1"' in chat.said[0]
+    assert b.waiting("c1") and "create the item I just previewed" in chat.said[0] and "t-1" not in chat.said[0]
     await b.handle(OWNER, "c1", answer, chat)
     await turn
     assert agent.allowed == [allowed] and chat.said[-1] == said
@@ -259,6 +259,29 @@ def test_a_long_write_is_shown_cut():
     assert len(shown) < bridge.ARGS_SHOWN + 300 and "(cut)" in shown
 
 
+def test_a_write_is_asked_for_in_words_not_json():
+    ask = "Reply **yes** to let it through. Anything else stops it."
+    assert bridge.write_request("add_comment", {"ref": "AA-8", "body": "Reached it.\nSecond line.", "board": "sandbox"}) == (
+        "I'm about to add a comment to **AA-8** on the **sandbox** board:\n\n"
+        "**Comment:**\n\n> Reached it.\n> Second line.\n\n" + ask)
+    assert bridge.write_request("update_item", {"ref": "AA-8", "state": "done", "labels": [], "title": None,
+                                                "fields": {"Points": 3, "Blocked": False}}) == (
+        "I'm about to update **AA-8**:\n\n- **State:** done\n- **Labels (replacing the current ones):** none\n"
+        "- **Fields:** Points: 3, Blocked: no\n\n" + ask)
+    assert bridge.write_request("move_to_iteration", {"items": ["AA-1", "AA-2"], "iteration": "Sprint 2"}) == (
+        "I'm about to move AA-1, AA-2 into the iteration **Sprint 2**.\n\n" + ask)
+    assert bridge.write_request("commit_item", {"token": "t-1", "board": "sandbox"}) == (
+        "I'm about to create the item I just previewed on the **sandbox** board.\n\n" + ask)
+    for shown in (bridge.write_request("add_comment", {"ref": "AA-8", "body": "x"}), bridge.write_request("commit_item", {})):
+        assert "{" not in shown and "```" not in shown
+
+
+def test_a_write_the_bridge_has_no_words_for_is_still_shown_in_full():
+    assert bridge.write_request("some_new_write", {"target_date": "2026-01-02"}).startswith(
+        "I'm about to run **some_new_write**:\n\n- **Target date:** 2026-01-02\n\n")
+    assert "run **update_item**" in bridge.write_request("update_item", {"state": "done"})  # no ref: its words need one
+
+
 # -- the Agent SDK side, read without importing it -----------------------------------------
 
 
@@ -284,6 +307,14 @@ def test_the_agent_is_the_sdk_chats_agent_with_the_open_issues_read():
     allowed = ast.unparse(option("allowed_tools"))
     assert "for name in READS" in allowed and "for name in DOCS" in allowed and "for name in ISSUES" in allowed
     assert "WRITES" not in allowed  # a write is never pre-allowed: it goes to the bridge's confirm
+    assert set(bridge.WRITE_LEADS) == set(constant("WRITES"))  # the bridge has words for each write, and no other
+
+
+def test_a_teams_own_instructions_follow_the_framing_line():
+    assert constant("INSTRUCTIONS_ENV") == "AGENTIC_ADMIN_INSTRUCTIONS"
+    assert ast.unparse(option("system_prompt")).endswith("'append': self.framing}")
+    source = AGENT.read_text()
+    assert 'f"{FRAMING}\\n\\n{own}" if own else FRAMING' in source  # with none set, the framing line alone
 
 
 def test_the_agent_loads_no_settings_or_connectors_and_forces_no_credential():

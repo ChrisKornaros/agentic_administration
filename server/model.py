@@ -317,3 +317,38 @@ def to_jsonable(obj: Any) -> Any:
     if isinstance(obj, (list, tuple, set, frozenset)):
         return [to_jsonable(v) for v in obj]
     return obj
+
+
+def item_from_jsonable(data: Mapping[str, Any]) -> WorkItem:
+    """A work item back from what `to_jsonable` made of it. A custom-field
+    value comes back as JSON left it: a date as its ISO string, a tuple as a list."""
+
+    def ref(value: Mapping[str, Any] | None) -> ItemRef | None:
+        if not value:
+            return None
+        return ItemRef(value["id"], Level(value["level"]) if value.get("level") else None, value.get("key"))
+
+    def day(value: str | None) -> date | None:
+        return date.fromisoformat(value) if value else None
+
+    return WorkItem(
+        level=Level(data["level"]),
+        title=data["title"],
+        description=data.get("description") or "",
+        id=data.get("id"),
+        key=data.get("key"),
+        parent=ref(data.get("parent")),
+        initiative=ref(data.get("initiative")),
+        feature=ref(data.get("feature")),
+        state=State(data["state"]),
+        assignees=tuple(data.get("assignees") or ()),
+        labels=tuple(data.get("labels") or ()),
+        iteration=data.get("iteration"),
+        component=data.get("component"),
+        external_id=data.get("external_id"),
+        related=tuple(r for r in map(ref, data.get("related") or ()) if r is not None),
+        links=tuple(data.get("links") or ()),
+        start_date=day(data.get("start_date")),
+        target_date=day(data.get("target_date")),
+        fields=dict(data.get("fields") or {}),
+    )

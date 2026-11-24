@@ -52,6 +52,7 @@ FRAMING = (
     "ending or planning a sprint with plan-sprint, planning a month or cycle of dated work "
     "from the board's templates with plan-cycle, and reviewing what's waiting with groom."
 )
+INSTRUCTIONS_ENV = "AGENTIC_ADMIN_INSTRUCTIONS"  # a team's own rules for the assistant, added after the framing line
 READS = ("describe_board", "find_items", "get_item", "get_iteration", "propose_item")
 WRITES = ("commit_item", "update_item", "add_comment", "create_iteration",
           "move_to_iteration", "close_iteration")
@@ -74,6 +75,8 @@ class ClaudeAgent:
     def __init__(self, cwd: str | Path, *, model: str | None = None) -> None:
         self.cwd = Path(cwd)
         self.model = model or os.environ.get("AGENTIC_ADMIN_MODEL") or MODEL
+        own = os.environ.get(INSTRUCTIONS_ENV, "").strip()
+        self.framing = f"{FRAMING}\n\n{own}" if own else FRAMING
 
     def options(self, session_id: str, resume: bool, confirm: Confirm) -> ClaudeAgentOptions:
         async def ask_before_write(tool: str, args: dict[str, Any], context: ToolPermissionContext):
@@ -91,7 +94,7 @@ class ClaudeAgent:
             resume=session_id if resume else None,
             env={"ENABLE_CLAUDEAI_MCP_SERVERS": "false"},  # merged over the inherited environment
             plugins=[{"type": "local", "path": str(ROOT)}],
-            system_prompt={"type": "preset", "preset": "claude_code", "append": FRAMING},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": self.framing},
             setting_sources=[],  # no user or project settings, hooks or CLAUDE.md
             tools=["Skill"],  # the only built-in; the board's tools come from the plugin
             skills=[f"{PLUGIN}:{p.parent.name}" for p in sorted((ROOT / "skills").glob("*/SKILL.md"))],

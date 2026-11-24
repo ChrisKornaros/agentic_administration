@@ -60,6 +60,8 @@ NO_OWNER = ("This assistant has no owner set yet, so it works with nobody. Your 
             "whoever runs it sets TEAMS_OWNER to the owner's id and restarts it.")
 PIECE = 12_000  # characters a message; Teams refuses a message near 100 KB
 TEXT_FORMAT = "extendedmarkdown"  # fenced code and tables, which the skills' previews use
+# Agents Playground answers 400 to a message in extendedmarkdown; it takes markdown, plain or no format.
+PLAYGROUND_FORMAT = "markdown"
 
 
 def pieces(text: str, size: int = PIECE) -> list[str]:
@@ -76,28 +78,29 @@ def pieces(text: str, size: int = PIECE) -> list[str]:
 class Reply:
     """One turn's answers in a chat: "Working on it…", then the agent's words in its place."""
 
-    def __init__(self, ctx: ActivityContext[MessageActivity]) -> None:
-        self._ctx, self._working = ctx, None
+    def __init__(self, ctx: ActivityContext[MessageActivity], text_format: str = TEXT_FORMAT) -> None:
+        self._ctx, self._working, self._format = ctx, None, text_format
 
     async def working(self) -> None:
         self._working = (await self._ctx.send(WORKING)).id
 
     async def say(self, text: str) -> None:
         for piece in pieces(text):
-            message = MessageActivityInput(text=piece).with_text_format(TEXT_FORMAT)
+            message = MessageActivityInput(text=piece).with_text_format(self._format)
             placeholder, self._working = self._working, None
             if placeholder:
                 try:
-                    await self._ctx.send(MessageActivityInput(text=piece).with_text_format(TEXT_FORMAT).with_id(placeholder))
+                    await self._ctx.send(MessageActivityInput(text=piece).with_text_format(self._format).with_id(placeholder))
                     continue
                 except Exception:  # an edit Teams refuses must not lose the answer
                     log.warning("could not edit the placeholder; sending a new message", exc_info=True)
             await self._ctx.send(message)
 
 
-def build(bridge: Bridge | None, *, tenant: str | None = None, **options: Any) -> tuple[App, set[asyncio.Task[None]]]:
+def build(bridge: Bridge | None, *, tenant: str | None = None, text_format: str = TEXT_FORMAT,
+          **options: Any) -> tuple[App, set[asyncio.Task[None]]]:
     """The Teams app, and the set its running turns are kept in. With no
-    `bridge` (no owner set) it serves nobody."""
+    `bridge` (no owner set) it serves nobody. Answers go out in `text_format`."""
     app = App(**options)
     turns: set[asyncio.Task[None]] = set()
 
@@ -120,7 +123,7 @@ def build(bridge: Bridge | None, *, tenant: str | None = None, **options: Any) -
         if bridge is None:
             await ctx.send(NO_OWNER.format(sender=sender))
             return
-        reply = Reply(ctx)
+        reply = Reply(ctx, text_format)
         # Teams waits 25 s for this handler; the turn runs on after it returns.
         task = asyncio.create_task(bridge.handle(
             sender, f"{chat.tenant_id or 'no-tenant'}:{chat.id}", activity.text or "", reply.say,
@@ -178,7 +181,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         log.warning("TEAMS_OWNER is not set: the bot serves nobody and tells each sender their id")
 
-    app, _ = build(bridge, tenant=os.environ.get("TENANT_ID") or None, **options)
+    app, _ = build(bridge, tenant=os.environ.get("TENANT_ID") or None,
+                   text_format=PLAYGROUND_FORMAT if args.playground else TEXT_FORMAT, **options)
     try:
         asyncio.run(app.start(args.port))
     except KeyboardInterrupt:

@@ -5,9 +5,9 @@
 # names the env var the adapter reads (or `<token_env>_BW_ITEM` names the
 # Bitwarden item holding it — see server/secrets.py).
 #
-# THE WRITES HAVE NOT RUN LIVE YET: run `python -m conformance` on a
-# throwaway Space before a real one. Custom fields are not wired, so leave
-# [fields] out.
+# The writes have run live on one throwaway Space (2026-11-24): run
+# `python -m conformance` on a throwaway Space of your own before a real
+# one. Custom fields are not wired, so leave [fields] out.
 
 backend = "clickup"
 board_type = "software"  # "software" (default) | "calendar" (calendar.example.toml) — D38

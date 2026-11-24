@@ -68,8 +68,7 @@ both reads, checks that `create_iteration` finds a sprint by name and that
 the adapter refuses to make or close one without writing, and that a
 closed sprint refuses new items. It skips when no sprint is active.
 `provision` creates nothing there: it reads the Space and stops for the
-operator if the config does not fit. **ClickUp has not run live yet**, so
-it has no row below.
+operator if the config does not fit.
 
 ## Results
 
@@ -81,6 +80,7 @@ it has no row below.
 | 2026-09-27 | Plane `AGADMIN`: a new run, `20260927` | **PASS: 9 pass, 1 skip.** `iterations` skipped because `202609` was already closed; `close` and `rollover` ran on the ids it recorded first. GET 36, PATCH 2, POST 10 and no DELETE. |
 | 2026-10-07 | Plane `AGADMIN`: a new run, `20261007`, with `[fields]` (a yes/no and a multi-select property on Story) | **PASS: 10 pass, 2 skip.** The new `dates` and `fields` cases pass. `iterations` skipped because `202610` was already closed, and `rollover` because it held nothing unfinished. GET 80, PATCH 3, POST 15 and no DELETE. The first process stopped on a network timeout at the start of `fields`, before any write; the re-run resumed there. |
 | 2026-10-07 | Jira `AGADM`: a new run, `20261007`, with `[fields]` (a multi-checkbox custom field) | **PASS: 10 pass, 2 skip** on the first run, skipping as Plane did. GET 78, POST 10, PUT 3 and no DELETE. The read-only check before it found one adapter message to fix (below). |
+| 2026-11-24 | ClickUp, a throwaway Space with a sprint Folder | **PASS: 9 pass, 1 skip.** `fields` skipped, since custom fields are not wired on ClickUp and the config maps none. The one `sprints` case stood in for the three sprint cases. GET 90, POST 11, PUT 2 and two DELETEs, each a tag coming off a task, which `no-delete` counts under its own name. No adapter fix was needed. |
 
 ### What the 2026-10-07 runs settled (Phase 6c, D41)
 

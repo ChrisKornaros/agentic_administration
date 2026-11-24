@@ -52,7 +52,7 @@ YES = ("y", "yes")
 NEW = ("/new", "new conversation")
 CONFIRM_TIMEOUT = 600.0  # seconds a write waits for its yes
 SEEN = 500  # message ids remembered, to drop a redelivery
-ARGS_SHOWN = 1500  # characters of a write's arguments shown before it is cut
+ARGS_SHOWN = 1500  # characters of a write's details shown before they are cut
 
 REFUSED = "I'm not set up to work with you here. Ask whoever runs this assistant to add you."
 REFUSED_ON_A_PLAN = ("I'm running on one person's Claude plan for now, so I can only work with them. "
@@ -115,12 +115,57 @@ class _Pending:
     answer: asyncio.Future[bool]
 
 
+# What each board write does, in words, and the arguments those words already show.
+WRITE_LEADS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "commit_item": ("create the item I just previewed", ("token",)),  # the token says nothing to a person
+    "update_item": ("update **{ref}**", ("ref",)),
+    "add_comment": ("add a comment to **{ref}**", ("ref",)),
+    "create_iteration": ("create the iteration **{name}**", ("name",)),
+    "move_to_iteration": ("move {items} into the iteration **{iteration}**", ("items", "iteration")),
+    "close_iteration": ("close the iteration **{iteration}**", ("iteration",)),
+}
+LABELS = {"body": "Comment"}  # an argument's name as a person reads it, where its own name would not do
+REPLACED = ("labels", "assignees")  # update_item replaces the whole set with what it is given
+QUOTED = ("body", "description")  # shown as a quote under their name, as is any long text
+LONG = 80
+
+
+def _plain(value: Any) -> str:
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, Mapping):
+        return ", ".join(f"{k}: {_plain(v)}" for k, v in value.items()) or "none"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_plain(v) for v in value) or "none"
+    return str(value) or "(empty)"
+
+
 def write_request(tool: str, arguments: Mapping[str, Any]) -> str:
-    shown = json.dumps(arguments, indent=2, default=str)
-    if len(shown) > ARGS_SHOWN:
-        shown = shown[:ARGS_SHOWN] + "\n… (cut)"
-    return (f"I'm about to run **{tool}** on the board with:\n\n```json\n{shown}\n```\n\n"
-            "Reply **yes** to let it through. Anything else stops it.")
+    """What a write is about to do, in words a person can check before saying yes."""
+    args = {name: value for name, value in arguments.items() if value is not None}
+    board = args.pop("board", None)
+    lead, shown = WRITE_LEADS.get(tool, ("", ()))
+    if lead and all(name in args for name in shown):
+        lead = lead.format(**{name: _plain(args.pop(name)) for name in shown})
+    else:  # a tool this table does not know, or a call without the arguments its words need
+        lead = f"run **{tool}**"
+    fields: list[str] = []
+    quotes: list[str] = []
+    for name, value in args.items():
+        label = LABELS.get(name, name.replace("_", " ").capitalize())
+        if name in REPLACED:
+            label += " (replacing the current ones)"
+        text = _plain(value)
+        if isinstance(value, str) and (name in QUOTED or len(text) > LONG or "\n" in text):
+            quotes.append(f"**{label}:**\n\n" + "\n".join(f"> {line}" for line in text.splitlines()))
+        else:
+            fields.append(f"- **{label}:** {text}")
+    details = "\n\n".join(["\n".join(fields)] * bool(fields) + quotes)
+    if len(details) > ARGS_SHOWN:
+        details = details[:ARGS_SHOWN] + "\n\n… (cut)"
+    head = f"I'm about to {lead}" + (f" on the **{board}** board" if board else "")
+    ask = "Reply **yes** to let it through. Anything else stops it."
+    return f"{head}:\n\n{details}\n\n{ask}" if details else f"{head}.\n\n{ask}"
 
 
 class Bridge:

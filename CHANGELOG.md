@@ -20,8 +20,9 @@ entry says how.
   sprints the Lists of the named Folder, each with a state taken from its
   start and end. A personal token sees every Space its owner does, so a
   task outside the configured Space is not found.
-- **The ClickUp adapter's write side. It passes offline and has not run
-  live yet.** Two new connection keys: `list`, the List a new item is
+- **The ClickUp adapter's write side.** It passed the live conformance
+  suite on a throwaway Space on 2026-11-24, 9 cases with `fields`
+  skipped. Two new connection keys: `list`, the List a new item is
   filed in (an item with a parent goes into its parent's List), and
   `xid_field`, the text custom field that holds the idempotency key, which
   `find_items(external_id=…)` matches exactly. `create_item`,
@@ -62,7 +63,36 @@ entry says how.
   group): direct chats only, an answer to Teams at once with the turn
   run behind it, "Working on it…" replaced by the agent's first words,
   and `--playground`, `--socket` or HTTPS to run it. It has run end to
-  end on a laptop against a stand-in for Teams, not in a tenant.
+  end on a laptop in Microsoft's Agents Playground (2026-11-24), not in a
+  tenant. Before each write the bridge says what is about to change in
+  words, with the item, the board and each value, and notes where labels
+  or assignees replace the current ones. `AGENTIC_ADMIN_INSTRUCTIONS`
+  adds a team's own rules for the assistant after the framing line.
+  With `--playground` the bot sends `markdown`, since the Playground
+  refuses the `extendedmarkdown` that Teams takes.
+- **A draft outlasts a server restart.** `propose_item` also writes the
+  draft to a small JSON file, in the directory `AGENTIC_ADMIN_DRAFTS`
+  names or `~/.cache/agentic-administration/drafts`, and `commit_item`
+  finds it there. A host that starts the server anew for every message,
+  as the Teams bot does, could not commit after the person's yes before.
+  A file is read only for a token-shaped name and only by the board and
+  tracker project it was drafted for, it expires with its token, and the
+  next proposal removes the expired ones. Set the variable empty to keep
+  drafts in memory alone.
+- **A new ClickUp task comes back with its key.** ClickUp adds a task's
+  custom id a moment after the create answers, so `create_item` reads the
+  task again, up to twice, when it came back without one. It does not
+  wait once a task has shown that the Space issues no custom ids.
+- **ClickUp: a tag with a slash is refused before anything is written.**
+  ClickUp's API takes no form of a slash in a tag's address, so adding
+  `ui/ux` to a task answered 404 after the rest of the update had gone.
+  `update_item` now refuses the whole update first and says to change the
+  tag in ClickUp. A slash tag already on a task is kept.
+- **`find_items` returns a long list whole on Claude Code.** Claude Code
+  saves a tool result over about 50,000 characters to a file, which a
+  host with no file tool, such as the Teams bot, cannot open; a sprint of
+  85 items came back in pieces. The tool now declares a larger limit
+  (`anthropic/maxResultSizeChars`), which other hosts ignore.
 - **Azure DevOps as a code host: its open pull requests.** The `issues`
   server takes a second `kind`, `azure_devops`
   ([examples/issues/azure-devops.example.toml](examples/issues/azure-devops.example.toml)).
