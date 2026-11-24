@@ -63,8 +63,9 @@ Per task: write "done when `<command>` shows `<result>`" before coding.
   tool, probe or conformance case may delete. The one DELETE on any wire is ClickUp taking a tag off a
   task, which has no other verb (Chris, 2026-11-23): its transport refuses every other.
 - **Read-proven before write.** Adapter writes refuse until `describe_board` is clean; prove new
-  vendor behavior with a read first; writes go only to the throwaway boards (Plane `AGADMIN`, Jira `AGADM`)
-  and the throwaway Confluence space `AGKB` (Phase 6b), never a company site.
+  vendor behavior with a read first; writes go only to the throwaway boards (Plane `AGADMIN`, Jira `AGADM`),
+  the throwaway Confluence space `AGKB` (Phase 6b) and, for ClickUp, a throwaway Space that Chris names and
+  runs the suite in himself (roadmap/14 D51); never a team's real board or Space.
 - **Secrets** resolve only via [server/secrets.py](server/secrets.py) (the env var named by
   `token_env`, or its Bitwarden item). Never print a token or `BW_SESSION`. Live runs: Chris writes
   `umask 077; bw unlock --raw > ~/.cache/bw_session`; then Plane is
